@@ -855,6 +855,7 @@ static void teleport(double x, double y) {
   G.cam.x = clampd(x - G.vw / 2.0, 0, MW * TILE - G.vw); G.cam.y = clampd(y - 16 - G.vh / 2.0, 0, MH * TILE - G.vh);
 }
 static int frameCount;
+static double perfU, perfD, perfP, perfMax; static long perfN;
 /** Plays by itself: fights the patrol, then the ruins, saving a frame now and then (BRUMA_SMOKE + n). */
 static void autoplay(double real, bool *running) {
   static double t, next = 1, shotT = 5; static int phase, shots, guard;
@@ -913,6 +914,7 @@ static void smokeStep(double real, bool *running) {
   if (stage == 2 && t > 3.2 && !strcmp(scene, "dice")) { sendKey(SDLK_2); stage = 3; }
   if (!strcmp(scene, "autoplay")) { autoplay(real, running); return; }
   double at = title ? 1.0 : !strcmp(scene, "dice") ? 5.0 : !strcmp(scene, "combat") ? 4.5 : 4.0;
+  if (getenv("BRUMA_SECONDS")) at = atof(getenv("BRUMA_SECONDS"));
   if (stage < 10 && t > at) { captureTo = getenv("BRUMA_SMOKE"); stage = 10; }
   else if (stage == 10) *running = false;
 }
@@ -1059,16 +1061,24 @@ int main(int argc, char **argv) {
     timers_tick(real);
     co_tick(real, G.paused);
     audio_tick();
+    Uint64 p0 = SDL_GetPerformanceCounter();
     if (!G.paused) update(dt);
+    Uint64 p1 = SDL_GetPerformanceCounter();
     hoverTick();
     dialogue_update(real);
     ui_update(real);
     draw();
+    Uint64 p2 = SDL_GetPerformanceCounter();
     SDL_SetCursor(ui_wants_hand() || (pointerCursor && overCanvas) ? handC : arrow);
     presentFrame();
+    Uint64 p3 = SDL_GetPerformanceCounter();
+    if (G.mode != MODE_TITLE) { double f = 1000.0 / SDL_GetPerformanceFrequency(); perfU += (p1 - p0) * f; perfD += (p2 - p1) * f; perfP += (p3 - p2) * f; perfN++;
+      double fr = (p3 - p0) * f; if (fr > perfMax) perfMax = fr;
+      if (getenv("BRUMA_PERF") && fr > 25) printf("slow frame %.1f ms: update %.1f draw %.1f ui %.1f mode %d\n", fr, (p1 - p0) * f, (p2 - p1) * f, (p3 - p2) * f, G.mode); }
     frameCount++;
     if (smoke) smokeStep(real, &running);
   }
+  if (getenv("BRUMA_PERF") && perfN) printf("perf: frames %ld  update %.3f ms  draw %.3f ms  ui+present %.3f ms  worst frame %.1f ms\n", perfN, perfU / perfN, perfD / perfN, perfP / perfN, perfMax);
   audio_shutdown();
   SDL_Quit();
   return 0;

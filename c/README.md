@@ -41,7 +41,8 @@ salvos no diretório de preferências do SDL (`~/.local/share/brumafolha/`).
 `BRUMA_SMOKE=saida.bmp BRUMA_SCENE=<cena>` roda uma cena sem interação, salva um quadro e sai
 (cenas: `title`, `explore`, `dialogue`, `dice`, `combat`, `pause`, `over`, `autoplay`). Com
 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` funciona sem tela nem som; foi assim que as capturas
-foram comparadas com a versão web.
+foram comparadas com a versão web. `BRUMA_SECONDS` muda a duração da cena e `BRUMA_PERF=1` imprime
+o tempo médio por quadro (update, desenho do mundo, interface) e os quadros acima de 25 ms.
 
 ## Licenças dos assets
 
