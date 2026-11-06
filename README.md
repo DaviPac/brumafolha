@@ -6,6 +6,10 @@ Protótipo de RPG tático top-down em pixel art: exploração, diálogos com tes
 Toda a arte é gerada por código no carregamento (`src/art/`). Os efeitos de combate (fogo, mísseis,
 golpes, cura) vêm do [pixelfx](https://github.com/patch-gg/pixelfx) (MIT), copiado em `vendor/pixelfx`.
 
+## Versão em C
+
+Há um port em C/SDL2 com os mesmos gráficos e comportamento em [`c/`](c/README.md): `cd c && make && ./brumafolha`.
+
 ## Rodar
 
 ```bash
