@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brumafolha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+  <div id="floaters"></div>
+  <div id="banner"><div class="orn"></div><h1></h1><div class="orn"></div></div>
+  <div id="quest"></div>
+  <div id="initiative"></div>
+  <div id="party"></div>
+  <div id="hotbar"></div>
+  <div id="log"></div>
+  <div id="toast"></div>
+  <div id="tooltip"></div>
+  <div id="corner" class="hidden">
+    <button id="menuBtn" title="Menu (Esc)">☰</button>
+    <button id="mute" title="Som (M)">🔊</button>
+  </div>
+  <div id="pause" class="hidden">
+    <div class="box">
+      <h1>Pausado</h1>
+      <h3>Som</h3>
+      <label class="chk"><input type="checkbox" id="muteAll"> Silenciar tudo <span class="key">M</span></label>
+      <div id="vols"></div>
+      <h3>Controles</h3>
+      <ul class="keys">
+        <li><b>Clique</b> ou <b>WASD</b> anda · <b>E</b> interage · <b>Tab</b> troca de personagem</li>
+        <li>Combate: <b>1–5</b> ação · <b>Espaço</b> encerra o turno · <b>Esc</b> cancela a ação</li>
+        <li><b>Esc</b> ou <b>P</b> pausa · <b>M</b> liga/desliga o som</li>
+      </ul>
+      <button id="resume">Continuar</button>
+    </div>
+  </div>
+  <div id="dialogue" class="hidden">
+    <div class="portrait"><canvas></canvas></div>
+    <div class="body"><div class="name"></div><div class="text"></div><div class="options"></div></div>
+  </div>
+  <div id="dice" class="hidden">
+    <div class="skill"></div>
+    <div class="dc"></div>
+    <div class="d20"><svg viewBox="0 0 100 100"><polygon points="50,3 93,27 93,73 50,97 7,73 7,27" /><polygon class="in" points="50,22 78,68 22,68" /><line x1="50" y1="3" x2="50" y2="22"/><line x1="93" y1="27" x2="78" y2="68"/><line x1="7" y1="27" x2="22" y2="68"/><line x1="50" y1="97" x2="78" y2="68"/><line x1="50" y1="97" x2="22" y2="68"/><line x1="93" y1="73" x2="78" y2="68"/><line x1="7" y1="73" x2="22" y2="68"/><line x1="93" y1="27" x2="50" y2="22"/><line x1="7" y1="27" x2="50" y2="22"/></svg><span class="num">20</span></div>
+    <div class="result"></div>
+    <div class="hint">clique para continuar</div>
+  </div>
+  <div id="title">
+    <div class="box">
+      <h1>Brumafolha</h1>
+      <h2>Um protótipo de RPG tático</h2>
+      <div class="loading">Pintando o vale pixel a pixel…</div>
+      <ul class="help hidden">
+        <li><b>Clique</b> no chão para andar · <b>WASD</b> também anda</li>
+        <li><b>Clique</b> em personagens e baús para interagir · <b>E</b> interage com o que está perto</li>
+        <li>Em combate: <b>clique</b> num quadrado para mover, <b>1–5</b> escolhe a ação, <b>Espaço</b> encerra o turno</li>
+        <li><b>Tab</b> alterna o personagem controlado · <b>Esc</b> pausa e abre o som · <b>M</b> liga/desliga o som</li>
+      </ul>
+      <button class="hidden" id="start">Começar</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

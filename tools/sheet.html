@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Asset Sheet</title>
+<style>
+  body { margin: 0; padding: 16px; background: #2a3a2a; color: #eee; font: 13px ui-monospace, monospace; }
+  h2 { margin: 18px 0 6px; font-size: 14px; color: #e8c06a; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .cell { background: #4a8a30; padding: 4px; text-align: center; }
+  .cell canvas { image-rendering: pixelated; display: block; }
+  .cell span { font-size: 10px; color: #dfe; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<script type="module">
+// Contact sheet of every generated asset at 3x, so new art can be judged side by side.
+// Open http://localhost:5173/tools/sheet.html (add ?only=chars or ?only=props).
+import * as A from "../src/art/props.js";
+import { buildCharacter, SPECS } from "../src/art/chars.js";
+
+const out = document.getElementById("out");
+const only = new URLSearchParams(location.search).get("only");
+const S = 3;
+function section(title, items) {
+  const h = document.createElement("h2"); h.textContent = title; out.appendChild(h);
+  const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
+  for (const [name, c] of items) {
+    const d = document.createElement("div"); d.className = "cell";
+    const cv = document.createElement("canvas"); cv.width = c.width * S; cv.height = c.height * S;
+    const x = cv.getContext("2d"); x.imageSmoothingEnabled = false; x.drawImage(c, 0, 0, cv.width, cv.height);
+    d.appendChild(cv); d.insertAdjacentHTML("beforeend", `<span>${name}</span>`); row.appendChild(d);
+  }
+}
+if (only !== "props") {
+  for (const [k, spec] of Object.entries(SPECS)) {
+    const ch = buildCharacter(spec);
+    const names = ["walk0", "walk1", "walk2", "walk3", "idle", "attack", "cast"];
+    section(`char: ${k}`, ch.frames.flatMap((row, dir) => row.map((c, f) => [`${"↓←→↑"[dir]} ${names[f]}`, c])));
+  }
+}
+if (only !== "chars") {
+  section("trees", [1, 2, 3].map((s) => [`tree ${s}`, A.makeTree(s).c]).concat([[`pine`, A.makePine(4).c], [`dead`, A.makeDeadTree(5).c]]));
+  section("props", [
+    ["rock", A.makeRock(1).c], ["wet rock", A.makeRock(2, true).c], ["bush", A.makeBush(3).c], ["fern", A.makeFern(4).c],
+    ...A.makeTallGrass(1).frames.map((c, i) => [`grass f${i}`, c]), ...A.makeTallGrass(4).frames.map((c, i) => [`big grass f${i}`, c]),
+    ["wall", A.makeWall(3, 2, false).c], ["broken wall", A.makeWall(3, 3, true).c], ["pillar", A.makePillar(2, 1).c], ["rubble", A.makeRubble(2).c],
+    ["tent", A.makeTent(0).c], ["tent b", A.makeTent(1).c], ["log", A.makeLog().c], ["crate", A.makeCrate().c], ["barrel", A.makeBarrel().c],
+    ["post", A.makePost(14).c], ["rowboat", A.makeRowboat().c], ["campfire", A.makeCampfireBase().c], ["banner", A.makeBanner().c],
+    ["bones", A.makeBones(1).c], ["chest", A.makeChest(false).c], ["chest open", A.makeChest(true).c],
+  ]);
+}
+</script>
+</body>
+</html>

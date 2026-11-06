@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Sound Board</title>
+<style>
+  body { margin: 0; padding: 16px; background: #1a1620; color: #efe6d2; font: 14px ui-monospace, monospace; }
+  h2 { margin: 18px 0 8px; font-size: 14px; color: #e8c06a; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { background: #2a2432; color: #efe6d2; border: 1px solid #6b5a3a; border-radius: 5px; padding: 8px 12px; font: inherit; cursor: pointer; }
+  button:hover { border-color: #e8c06a; }
+  p { color: #a89c86; }
+</style>
+</head>
+<body>
+<p>Mesa de som: clique para ouvir cada efeito isolado (a primeira vez libera o áudio). Música só toca com os botões de faixa.</p>
+<div id="out"></div>
+<script type="module">
+// Audition every sound effect and music track on its own, to tune them by ear.
+import { initAudio, sfx, playMusic } from "../src/audio.js";
+
+const groups = {
+  "Espada": [["golpe", () => sfx.swing()], ["golpe giratório", () => sfx.swing(true)], ["acerto lâmina", () => sfx.hit(false, "blade")], ["crítico lâmina", () => sfx.hit(true, "blade")], ["erro", () => sfx.miss()],
+    ["golpe + acerto", () => { sfx.swing(); setTimeout(() => sfx.hit(false, "blade"), 230); }], ["golpe + crítico", () => { sfx.swing(); setTimeout(() => sfx.hit(true, "blade"), 230); }]],
+  "Fogo (Lyra)": [["lançar", () => sfx.cast("fire")], ["impacto", () => sfx.impact("fire")], ["completo", () => { sfx.cast("fire"); setTimeout(() => { sfx.impact("fire"); sfx.hit(false, "fire"); }, 450); }]],
+  "Chama do xamã": [["lançar", () => sfx.cast("ember")], ["impacto", () => sfx.impact("ember")], ["completo", () => { sfx.cast("ember"); setTimeout(() => sfx.impact("ember"), 450); }]],
+  "Arcano": [["míssil", () => sfx.cast("arcane")], ["impacto", () => sfx.impact("arcane")], ["três mísseis", () => [0, 160, 320].forEach((d) => setTimeout(() => { sfx.cast("arcane"); setTimeout(() => sfx.impact("arcane"), 420); }, d))]],
+  "Flecha": [["armar o arco", () => sfx.bowDraw()], ["disparo", () => sfx.cast("arrow")], ["impacto", () => sfx.impact("arrow")], ["completo", () => { sfx.bowDraw(); setTimeout(() => { sfx.cast("arrow"); setTimeout(() => sfx.impact("arrow"), 380); }, 560); }]],
+  "Corpo": [["goblin cai", () => sfx.enemyDown()], ["aliado cai", () => sfx.partyDown()], ["cura", () => sfx.heal()], ["poção", () => sfx.potion()], ["retomar fôlego", () => sfx.breath()]],
+  "Passos": ["grass", "dirt", "stone", "wood", "water"].map((s) => [s, () => [0, 280, 560, 840].forEach((d) => setTimeout(() => sfx.step(s), d))]),
+  "Mundo e interface": [["baú", () => sfx.chest()], ["d20", () => { for (let i = 0; i < 17; i++) setTimeout(() => sfx.dieTick(), i * 60); setTimeout(() => sfx.success(false), 1100); }], ["falha", () => sfx.fail()],
+    ["início do combate", () => sfx.combatStart()], ["seu turno", () => sfx.turn()], ["clique", () => sfx.click()], ["descanso", () => sfx.rest()], ["nível", () => sfx.levelUp()], ["vitória", () => sfx.victory()], ["derrota", () => sfx.defeat()]],
+  "Música": [["campos", () => playMusic("meadow")], ["ruínas", () => playMusic("ruins")], ["combate", () => playMusic("combat", 0.4)], ["parar", () => playMusic(null)]],
+};
+const out = document.getElementById("out");
+for (const [title, items] of Object.entries(groups)) {
+  out.insertAdjacentHTML("beforeend", `<h2>${title}</h2>`);
+  const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
+  for (const [label, fn] of items) {
+    const b = document.createElement("button"); b.textContent = label;
+    b.onclick = () => { initAudio(); fn(); };
+    row.appendChild(b);
+  }
+}
+</script>
+</body>
+</html>
