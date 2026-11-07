@@ -20,3 +20,15 @@ clean:
 	rm -rf build brumafolha
 
 .PHONY: clean
+
+# A tarball to run on other Linux x86-64 machines (glibc 2.35+, e.g. Ubuntu/Pop!_OS 22.04 and newer).
+dist: clean
+	$(MAKE) CFLAGS="-O2 -include src/glibc_compat.h -Wall -Wno-unused-parameter -Wno-unused-function -Wno-misleading-indentation -Wno-format-truncation"
+	rm -rf dist/brumafolha && mkdir -p dist/brumafolha/lib
+	cp brumafolha brumafolha.sh README.md dist/brumafolha/
+	strip dist/brumafolha/brumafolha
+	cp -r assets dist/brumafolha/
+	cp -L $$(ldconfig -p | awk '/libSDL2_ttf-2.0.so.0 .*x86-64/ {print $$NF; exit}') dist/brumafolha/lib/libSDL2_ttf-2.0.so.0
+	tar -C dist -czf dist/brumafolha-linux-x86_64.tar.gz brumafolha
+
+.PHONY: dist

@@ -13,6 +13,10 @@ cd c && make
 ./brumafolha
 ```
 
+Para gerar um pacote que roda em outras máquinas Linux x86-64 (glibc 2.35+, como Ubuntu/Pop!_OS 22.04 e
+mais novos): `make dist` → `dist/brumafolha-linux-x86_64.tar.gz`. Extraia e rode `./brumafolha.sh`; ele só
+precisa do SDL2 do sistema (`sudo apt install libsdl2-2.0-0`) e traz o SDL2_ttf caso falte.
+
 O executável procura a pasta `assets/` ao lado dele (ou no diretório atual). Os controles são os mesmos
 da versão web (clique/WASD, `E`, `Tab`, `1–5`, `Espaço`, `Esc`/`P`, `M`). Os volumes do menu de pausa ficam
 salvos no diretório de preferências do SDL (`~/.local/share/brumafolha/`).
