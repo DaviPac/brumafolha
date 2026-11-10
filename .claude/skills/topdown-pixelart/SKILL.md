@@ -66,8 +66,10 @@ clay, trust your eyes** — draft, render, look, fix the worst thing, render aga
 ### Characters
 
 Add a spec to `SPECS` in `chars.js`: `skin`, `hair` + `hairStyle` (`short long bun hood mohawk bald`), `tunic`,
-`pants`, `boots`, optional `cape`, `robe`, `apron`, `trim`, `weapon` (`sword staff dagger axe none`), `orb` (staff
-gem), `ears` (`human elf goblin`), `eyes`, `small`/`big`. Check all 4 facings and the walk cycle on the sheet:
+`pants`, `boots`, optional `cape`, `robe`, `apron`, `trim`, `armor` (steel pauldrons), `weapon` (`sword staff dagger axe
+mace bow none`), `orb` (staff gem), `ears` (`human elf goblin`), `eyes`, body `small`/`big`/`stout`, `beard`
+(`short long`), `horns`, `tusks`, `blush: false` for non-human skin. Player characters get their spec from
+`specOf()` in `src/rules.js`, so a new look option means a list there plus the drawing here. Check all 4 facings and the walk cycle on the sheet:
 legs alternate, arms swing opposite, the body bobs 1 px on contact frames.
 
 ## pixelfx effects on a top-down map

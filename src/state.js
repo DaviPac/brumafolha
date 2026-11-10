@@ -1,6 +1,6 @@
 // The one shared game state, so modules don't import each other in circles.
 export const G = {
-  mode: "title", // title | explore | dialogue | combat | over
+  mode: "title", // title | create | explore | cutscene | dialogue | combat | over
   paused: false,
   time: 0,
   cam: { x: 0, y: 0 },
@@ -10,6 +10,11 @@ export const G = {
   leader: 0,
   potions: 1, gold: 12,
   quest: { stage: 0, flags: {} },
+  f: {}, // story flags (heard_smoke, goblin_pact, ...)
+  items: [], memories: [], approval: {},
+  followers: [], // walk behind the party but don't fight (Tomé)
+  camFocus: null, // a point or unit the camera looks at in cutscenes
+  tutorial: false, hintsSeen: new Set(),
   mouse: { x: 0, y: 0, wx: 0, wy: 0, tx: 0, ty: 0, in: false },
   keys: new Set(),
   combat: null,

@@ -90,19 +90,28 @@ export function updateParty() {
   });
 }
 
-// ---------- quest tracker
+// ---------- quest tracker (the story says what the quests are)
 export function updateQuest() {
-  const q = G.quest;
-  const objs = [
-    ["Fale com Maren no cais", q.stage > 0],
-    ...(q.stage >= 1 ? [["Expulse os goblins das Ruínas de Velmoor", q.stage >= 2]] : []),
-    ...(q.stage >= 1 && q.flags.patrolSeen !== undefined ? [["Patrulha goblin na estrada", !!q.flags.patrolDone]] : []),
-    ...(q.stage >= 2 ? [["Volte para Maren", q.stage >= 3]] : []),
-    ...(q.flags.grandson ? [["Procure o neto de Maren", !!q.flags.grandsonFound]] : []),
-  ];
-  $("#quest").innerHTML = `<h3>Goblins de Velmoor</h3>` + objs.map(([t, d]) => `<div class="obj ${d ? "done" : ""}">${t}</div>`).join("");
+  const qs = G.hooks.quests?.() ?? [];
+  $("#quest").innerHTML = qs.map((q) => `<div class="q ${q.side ? "side" : ""}"><h3>${q.title}</h3>` + q.objs.map(([t, d]) => `<div class="obj ${d ? "done" : ""}">${t}</div>`).join("") + "</div>").join("");
 }
 
+// ---------- screen fades and title cards
+/** Fade the whole screen to a colour (opacity 1) or back (0). */
+export function fade(to, ms = 800, color = "#000") {
+  const f = $("#fade");
+  f.style.transition = `opacity ${ms}ms ease`;
+  if (to > 0) f.style.background = color;
+  requestAnimationFrame(() => (f.style.opacity = to));
+  return new Promise((r) => setTimeout(r, ms + 30));
+}
+/** Centered text over the screen, for title cards and narration in the dark. Empty hides it. */
+export function cine(html, cls = "") {
+  const c = $("#cine");
+  c.className = cls;
+  c.innerHTML = html;
+  c.classList.toggle("show", !!html);
+}
 // ---------- hotbar
 export function buildHotbar(entries, extra = "") {
   const hb = $("#hotbar");

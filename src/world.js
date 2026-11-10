@@ -1,11 +1,13 @@
 // The map: a valley with a camp, a lake with a dock, and goblin-held ruins to the north.
 import { TILE, fbm, vnoise, segDist, Rng, hash2 } from "./util.js";
 
-export const MW = 64, MH = 48;
-export const T = { GRASS: 0, PATH: 1, WATER: 2, DOCK: 3, STONE: 4 };
+export const MW = 80, MH = 48; // the valley runs east along the river; the small areas reuse the same grid stride
+export const T = { GRASS: 0, PATH: 1, WATER: 2, DOCK: 3, STONE: 4, MARBLE: 5, WALL: 6, RELIEF: 7, STAIRS: 8, ROOF: 9, MIST: 10 };
 
 const LAKE = { cx: 47.5 * TILE, cy: 27 * TILE, rx: 12.5 * TILE, ry: 10 * TILE };
 const POND = { cx: 8 * TILE, cy: 22 * TILE, rx: 3.2 * TILE, ry: 2.4 * TILE };
+// the Cardo: the river that leaves the Mirror Lake eastward, toward Vau-de-Cardo
+export const RIVER = [[56, 27.5], [61, 28.5], [65, 27], [69, 28.8], [73, 30.2], [77, 29.4], [82, 29.8]].map(([x, y]) => [x * TILE + 16, y * TILE + 16]);
 export const PATHS = [
   [[14, 40], [15, 35], [17, 30], [20, 24], [22, 18], [21, 13], [20, 9]],
   [[20, 24], [25, 25.5], [30, 26.5], [34, 27]],
@@ -19,7 +21,11 @@ export function waterField(x, y) {
   const n = (fbm(x / 90, y / 90, 3, 3) - 0.5) * 0.5 + (vnoise(x / 22, y / 22, 9) - 0.5) * 0.06;
   const a = ((x - LAKE.cx) / LAKE.rx) ** 2 + ((y - LAKE.cy) / LAKE.ry) ** 2 - 1 + n;
   const b = ((x - POND.cx) / POND.rx) ** 2 + ((y - POND.cy) / POND.ry) ** 2 - 1 + n * 1.4;
-  return Math.min(a, b);
+  let d = 1e9;
+  for (let i = 0; i < RIVER.length - 1; i++) d = Math.min(d, segDist(x, y, ...RIVER[i], ...RIVER[i + 1]));
+  const hw = TILE * (1.35 + fbm(x / 120, 3, 8, 2) * 0.6);
+  const r = (d / hw) ** 2 - 1 + n * 0.8;
+  return Math.min(a, b, r);
 }
 export function pathField(x, y) {
   let d = 1e9;
@@ -43,6 +49,7 @@ const isDockTile = (tx, ty) =>
 export function zoneAt(px, py) {
   if (inRuins(px, py)) return "Ruínas de Velmoor";
   if (Math.hypot(px - CAMP.x, py - CAMP.y) < 7 * TILE) return "Acampamento do Vale";
+  if (px > 58 * TILE) return "Rio Cardo";
   if (waterField(px, py) < 0.9 && px > 26 * TILE) return "Lago Espelhado";
   return "Bosque de Brumafolha";
 }
@@ -61,7 +68,7 @@ export function buildWorld() {
       if (t === T.WATER) block[i] = 1;
       if (tx === 0 || ty === 0 || tx === MW - 1 || ty === MH - 1) block[i] = 1;
     }
-  const W = { tiles, block, objects: [], grass: [] };
+  const W = { id: "vale", w: MW, h: MH, tiles, block, objects: [], grass: [] };
   const tileAt = (tx, ty) => (tx < 0 || ty < 0 || tx >= MW || ty >= MH ? -1 : tiles[ty * MW + tx]);
   W.tileAt = tileAt;
   W.blocked = (tx, ty) => tx < 0 || ty < 0 || tx >= MW || ty >= MH || block[ty * MW + tx] === 1;
@@ -84,6 +91,23 @@ export function buildWorld() {
   keep(9, 32, 18, 40); // camp
   keep(14, 4, 27, 12); // ruins court
   keep(18, 19, 25, 24); // patrol clearing
+  keep(12, 31, 12, 31); // the forgotten doe
+  keep(13, 4, 15, 6); // the clan's shelter
+  keep(37, 16, 39, 18); // the Tree of Names
+  keep(8, 23, 10, 25); // the Velmoor marker by the pond
+
+  // --- prologue landmarks
+  put({ kind: "deer", x: 12 * TILE + 16, y: 31 * TILE + 26, id: "deer" }, [[12, 31]]);
+  put({ kind: "loot", x: 24 * TILE + 16, y: 21 * TILE + 26, id: "loot" }, [[24, 21]]);
+  put({ kind: "bush", x: 18 * TILE + 14, y: 21 * TILE + 24, seed: 901 });
+  put({ kind: "bush", x: 17 * TILE + 20, y: 22 * TILE + 18, seed: 902 });
+  put({ kind: "fern", x: 18 * TILE + 26, y: 22 * TILE + 26, seed: 903 });
+  put({ kind: "deadtree", x: 38 * TILE + 16, y: 17 * TILE + 26, seed: 4242, id: "nametree" }, [[38, 17]]);
+  {
+    let [mx, my] = [9, 24];
+    for (const [dx, dy] of [[0, 0], [0, 1], [1, 1], [-1, 1], [1, 0]]) if (tileAt(9 + dx, 24 + dy) === T.GRASS) { mx = 9 + dx; my = 24 + dy; break; }
+    put({ kind: "marker", x: mx * TILE + 16, y: my * TILE + 26, id: "marker" }, [[mx, my]]);
+  }
 
   // --- the camp
   put({ kind: "campfire", x: CAMP.x, y: CAMP.y + 6 }, [[13, 36]]);
@@ -103,7 +127,7 @@ export function buildWorld() {
   put({ kind: "post", x: (DOCK.pier.x1 + 1) * TILE + 4, y: DOCK.pier.y * TILE + 4, h: 18 });
   put({ kind: "barrel", x: 39 * TILE + 8, y: 25 * TILE + 22 }, [[39, 25]]);
   put({ kind: "crate", x: 40 * TILE + 12, y: 25 * TILE + 26 }, [[40, 25]]);
-  put({ kind: "rowboat", x: 40 * TILE + 8, y: 31 * TILE + 20 });
+  put({ kind: "rowboat", x: 41 * TILE + 20, y: 28 * TILE + 22, id: "boat" });
 
   // --- the ruins: broken walls around a court, pillars, the goblin camp
   const wall = (x0, x1, y, broken = []) => {
@@ -127,12 +151,27 @@ export function buildWorld() {
   };
   vwall(12, 4, 12, [7, 8]);
   vwall(28, 4, 12, [9, 10]);
-  for (const [px, py, h] of [[16, 6, 3], [24, 6, 2], [16, 10, 1], [24, 10, 3]]) put({ kind: "pillar", x: px * TILE + 16, y: py * TILE + 28, h, seed: px + py }, [[px, py]]);
+  for (const [px, py, h] of [[16, 6, 3], [24, 6, 2], [16, 10, 1], [24, 10, 0]]) put({ kind: "pillar", x: px * TILE + 16, y: py * TILE + 28, h, seed: px + py }, [[px, py]]);
+  // the broken column, and the trapdoor at its foot (hidden until Tomé shows it)
+  put({ kind: "rubble", x: 25 * TILE + 4, y: 10 * TILE + 24, seed: 77 });
+  put({ kind: "trapdoor", x: 24 * TILE + 16, y: 11 * TILE + 24, id: "trapdoor", hidden: true });
   put({ kind: "campfire", x: 20 * TILE + 16, y: 8 * TILE + 24, goblin: true }, [[20, 8]]);
   put({ kind: "banner", x: 18 * TILE + 16, y: 5 * TILE + 26 }, [[18, 5]]);
   put({ kind: "bones", x: 22 * TILE + 10, y: 10 * TILE + 20 });
   put({ kind: "bones", x: 14 * TILE + 20, y: 8 * TILE + 12 });
   for (let i = 0; i < 6; i++) put({ kind: "rubble", x: (13 + ((i * 37) % 15)) * TILE + 10, y: (5 + ((i * 23) % 7)) * TILE + 20, seed: i + 40 });
+
+  // the Cardo's banks stay open: nothing tall right beside it, and no tree on the south bank close enough
+  // for its canopy to stand over the water (the boat sails down here at the end)
+  for (let ty = 0; ty < MH; ty++)
+    for (let tx = 54; tx < MW; tx++) {
+      const x = tx * TILE + 16, y = ty * TILE + 16;
+      let d = 1e9;
+      for (let i = 0; i < RIVER.length - 1; i++) d = Math.min(d, segDist(x, y, ...RIVER[i], ...RIVER[i + 1]));
+      let waterAbove = false;
+      for (let k = 1; k <= 5; k++) if (tileAt(tx, ty - k) === T.WATER) waterAbove = true;
+      if (d < 2.5 * TILE || (waterAbove && d < 6 * TILE)) keep(tx, ty, tx, ty);
+    }
 
   // --- trees: a dense border, then scattered groves
   const R = new Rng(7);

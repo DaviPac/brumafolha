@@ -22,6 +22,8 @@
   <div id="tooltip"></div>
   <div id="corner" class="hidden">
     <button id="menuBtn" title="Menu (Esc)">☰</button>
+    <button id="bagBtn" title="Bolsa (I)">🎒</button>
+    <button id="bookBtn" title="Diário (J)">📖</button>
     <button id="mute" title="Som (M)">🔊</button>
   </div>
   <div id="pause" class="hidden">
@@ -30,9 +32,12 @@
       <h3>Som</h3>
       <label class="chk"><input type="checkbox" id="muteAll"> Silenciar tudo <span class="key">M</span></label>
       <div id="vols"></div>
+      <h3>Jogo</h3>
+      <label class="chk"><input type="checkbox" id="tutOn"> Dicas do tutorial</label>
       <h3>Controles</h3>
       <ul class="keys">
         <li><b>Clique</b> ou <b>WASD</b> anda · <b>E</b> interage · <b>Tab</b> troca de personagem</li>
+        <li><b>I</b> abre a Bolsa · <b>J</b> abre o Diário (missões e lembranças)</li>
         <li>Combate: <b>1–5</b> ação · <b>Espaço</b> encerra o turno · <b>Esc</b> cancela a ação</li>
         <li><b>Esc</b> ou <b>P</b> pausa · <b>M</b> liga/desliga o som</li>
       </ul>
@@ -48,8 +53,22 @@
     <div class="dc"></div>
     <div class="d20"><svg viewBox="0 0 100 100"><polygon points="50,3 93,27 93,73 50,97 7,73 7,27" /><polygon class="in" points="50,22 78,68 22,68" /><line x1="50" y1="3" x2="50" y2="22"/><line x1="93" y1="27" x2="78" y2="68"/><line x1="7" y1="27" x2="22" y2="68"/><line x1="50" y1="97" x2="78" y2="68"/><line x1="50" y1="97" x2="22" y2="68"/><line x1="93" y1="73" x2="78" y2="68"/><line x1="7" y1="73" x2="22" y2="68"/><line x1="93" y1="27" x2="50" y2="22"/><line x1="7" y1="27" x2="50" y2="22"/></svg><span class="num">20</span></div>
     <div class="result"></div>
+    <div class="extra"></div>
     <div class="hint">clique para continuar</div>
   </div>
+  <div id="hint" class="hidden"></div>
+  <div id="journal" class="hidden"></div>
+  <div id="fade"></div>
+  <div id="cine"></div>
+  <div id="endscreen" class="hidden"></div>
+  <div id="tutask" class="hidden">
+    <div class="box">
+      <h1>Primeira vez em Brumafolha?</h1>
+      <p>O tutorial mostra dicas curtas na primeira vez que algo acontece: andar, conversar, testes de d20, combate. Ele nunca pausa o jogo e pode ser desligado no menu a qualquer momento.</p>
+      <div class="row"><button class="yes">Jogar com tutorial</button><button class="no">Jogar sem tutorial</button></div>
+    </div>
+  </div>
+  <div id="creator" class="hidden"></div>
   <div id="title">
     <div class="box">
       <h1>Brumafolha</h1>

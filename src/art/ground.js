@@ -91,7 +91,7 @@ export function paintGround(W) {
     }
   }
   // pebbles on the road
-  for (let k = 0; k < 9000; k++) {
+  for (let k = 0; k < 11000; k++) {
     const x = R.int(0, w - 1), y = R.int(0, h - 1);
     if (pathField(x, y) > 13) continue;
     set(x, y, PAL.dirt[4]); set(x + 1, y, PAL.dirt[3]); set(x, y + 1, PAL.dirt[0]); set(x + 1, y + 1, PAL.dirt[0]);
@@ -177,7 +177,7 @@ function paintDock(set, d, w) {
 export function waterSparkles(W) {
   const out = [];
   const R = new Rng(5);
-  for (let k = 0; k < 9000; k++) {
+  for (let k = 0; k < 11000; k++) {
     const x = R.int(0, MW * TILE), y = R.int(0, MH * TILE), wf = waterField(x, y);
     if (wf > -0.02) continue;
     const tx = (x / TILE) | 0, ty = (y / TILE) | 0;

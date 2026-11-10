@@ -20,7 +20,7 @@ const cheb = (a, b) => { const [ax, ay] = tileOf(a), [bx, by] = tileOf(b); retur
 const fmtRoll = (r) => `${r.rolls.join("+")}${r.mod ? (r.mod > 0 ? "+" + r.mod : r.mod) : ""}`;
 
 function occupiedBy(tx, ty, except) {
-  return [...G.party, ...G.enemies, ...G.npcs].find((u) => u !== except && u.hp > 0 && !u.gone && tileOf(u)[0] === tx && tileOf(u)[1] === ty);
+  return [...G.party, ...G.enemies, ...G.npcs, ...G.followers].find((u) => u !== except && u.hp > 0 && !u.gone && !u.ghost && tileOf(u)[0] === tx && tileOf(u)[1] === ty);
 }
 export function blockedFor(u) {
   return (tx, ty) => G.W.blocked(tx, ty) || !!occupiedBy(tx, ty, u);
@@ -36,15 +36,40 @@ export const ABILITIES = {
   attack: { name: "Ataque", icon: "⚔️", cost: "action", range: 1, kind: "attack", desc: "Golpe corpo a corpo com a arma. Clique num inimigo adjacente." },
   cleave: { name: "Golpe Giratório", icon: "🌀", cost: "action", range: 0, kind: "cleave", per: "combat", desc: "Gira a espada e atinge todos os inimigos adjacentes. 1x por combate." },
   secondwind: { name: "Retomar Fôlego", icon: "💨", cost: "bonus", range: 0, kind: "self", per: "rest", desc: "Ação bônus: recupera 1d10 + nível PV. 1x por descanso." },
-  firebolt: { name: "Rajada de Fogo", icon: "🔥", cost: "action", range: 10, kind: "bolt", dmg: "1d10", desc: "Truque: dispara uma bola de fogo. 1d10 de dano de fogo, alcance 10." },
+  firebolt: { name: "Rajada de Fogo", icon: "🔥", cost: "action", range: 10, kind: "bolt", dmg: "1d10", pal: "fire", desc: "Truque: dispara uma bola de fogo. 1d10 de dano de fogo, alcance 10." },
   missiles: { name: "Mísseis Mágicos", icon: "✨", cost: "action", range: 10, kind: "missiles", slot: true, desc: "Magia de 1º círculo: três dardos que nunca erram, 1d4+1 cada." },
-  heal: { name: "Curar Ferimentos", icon: "💚", cost: "action", range: 6, kind: "heal", slot: true, desc: "Magia de 1º círculo: um aliado recupera 1d8+3 PV." },
+  heal: { name: "Curar Ferimentos", icon: "💚", cost: "action", range: 6, kind: "heal", slot: true, heal: "1d8", desc: "Magia de 1º círculo: um aliado recupera 1d8+3 PV." },
+  shoot: { name: "Disparar", icon: "🏹", cost: "action", range: 10, kind: "shoot", desc: "Ataque à distância com o arco." },
+  sacredflame: { name: "Chama Sagrada", icon: "☀️", cost: "action", range: 8, kind: "bolt", dmg: "1d8", pal: "holy", desc: "Truque: luz radiante desce sobre um inimigo. 1d8 de dano, alcance 8." },
+  healword: { name: "Palavra Curativa", icon: "🕊️", cost: "bonus", range: 6, kind: "heal", slot: true, heal: "1d4", desc: "Ação bônus, magia de 1º círculo: um aliado à distância recupera 1d4 + SAB PV." },
+  cunning: { name: "Ação Ardilosa", icon: "👟", cost: "bonus", range: 0, kind: "dash", desc: "Ação bônus: dispara e ganha movimento extra igual ao seu deslocamento." },
+  mark: { name: "Marca do Caçador", icon: "🎯", cost: "bonus", range: 12, kind: "mark", slot: true, desc: "Ação bônus, magia: marca um inimigo; seus ataques com arma nele causam +1d6." },
   potion: { name: "Poção de Cura", icon: "🧪", cost: "bonus", range: 1, kind: "potion", desc: "Ação bônus: você ou um aliado adjacente bebe e recupera 2d4+2 PV." },
+  rage: { name: "Fúria", icon: "😤", cost: "bonus", range: 0, kind: "rage", per: "combat", desc: "Ação bônus: até o fim do combate, +2 de dano corpo a corpo e metade do dano de armas. 1x por combate." },
+  smite: { name: "Golpe Divino", icon: "⚡", cost: "bonus", range: 0, kind: "smite", slot: true, desc: "Ação bônus, gasta um espaço: o próximo acerto corpo a corpo causa +2d8 de dano radiante." },
+  layhands: { name: "Cura pelas Mãos", icon: "🤲", cost: "action", range: 1, kind: "layhands", per: "rest", desc: "Toque num aliado adjacente (ou em você): cura 5 × nível PV. 1x por descanso." },
+  mockery: { name: "Zombaria Viciosa", icon: "🎭", cost: "action", range: 8, kind: "bolt", dmg: "1d4", pal: "arcane", effect: "mock", desc: "Truque: um insulto com magia. 1d4 de dano psíquico, e o próximo ataque do alvo leva −5." },
+  inspire: { name: "Inspiração de Bardo", icon: "🎵", cost: "bonus", range: 8, kind: "inspire", per: "combat", desc: "Ação bônus: um aliado soma 1d6 ao próximo ataque. 1x por combate." },
+  eldritch: { name: "Rajada Mística", icon: "🔮", cost: "action", range: 12, kind: "bolt", dmg: "1d10", pal: "arcane", desc: "Truque: um raio de força crepitante. 1d10 de dano, alcance 12." },
+  hex: { name: "Maldição", icon: "👁️", cost: "bonus", range: 12, kind: "mark", slot: true, desc: "Ação bônus, magia: amaldiçoa um inimigo; todos os seus ataques nele, magias também, causam +1d6." },
+  produceflame: { name: "Criar Chama", icon: "🔥", cost: "action", range: 6, kind: "bolt", dmg: "1d8", pal: "fire", desc: "Truque: uma chama na palma da mão, arremessada. 1d8 de dano de fogo, alcance 6." },
+  entangle: { name: "Constrição", icon: "🌿", cost: "action", range: 8, kind: "entangle", slot: true, desc: "Magia: raízes agarram um inimigo. Ele rola d20 + bônus contra a CD das suas magias; se falhar, perde o próximo turno." },
+  flurry: { name: "Rajada de Golpes", icon: "👊", cost: "bonus", range: 1, kind: "flurry", desc: "Ação bônus, depois de atacar neste turno: dois golpes desarmados rápidos num inimigo adjacente." },
+  lampejo: { name: "Lampejo de Velmoor", icon: "🍃", cost: "free", range: 0, kind: "flash", per: "rest", desc: "Sem custo de ação: o próximo ataque do grupo rola o d20 duas vezes e fica com o melhor. 1x por descanso (o mesmo Lampejo que rerola testes)." },
 };
 
-export function abilitiesOf(u) {
-  return u.abilities.map((k) => ({ key: k, ...ABILITIES[k] }));
+/** An ability as this unit has it (the bow's range and damage come from the unit). */
+export function abilityOf(u, key) {
+  const ab = { key, ...ABILITIES[key] };
+  if (key === "attack" && u.reach) ab.range = u.reach;
+  if (key === "shoot" && u.bow) Object.assign(ab, { range: u.bow.range, name: `Disparar (${u.bow.name})`, desc: `Ataque à distância: ${u.bow.dmg} de dano, alcance ${u.bow.range}.` });
+  return ab;
 }
+export function abilitiesOf(u) {
+  return u.abilities.map((k) => abilityOf(u, k));
+}
+
+export const isFriendly = (ab) => ["heal", "potion", "layhands", "inspire"].includes(ab.kind);
 
 function canUse(u, ab) {
   if (ab.cost === "action" && !u.action) return false;
@@ -53,11 +78,12 @@ function canUse(u, ab) {
   if (ab.per === "rest" && u.restUsed[ab.key]) return false;
   if (ab.slot && u.slots <= 0) return false;
   if (ab.kind === "potion" && G.potions <= 0) return false;
+  if (ab.kind === "flurry" && !u.attackedThisTurn) return false;
   return true;
 }
 
 // ---------------------------------------------------------------- start / end
-export function startCombat(group) {
+export function startCombat(group, opts = {}) {
   if (G.mode === "combat") return;
   const enemies = living(group);
   if (!enemies.length) return;
@@ -78,7 +104,7 @@ export function startCombat(group) {
   party.forEach(snap); enemies.forEach(snap);
   const order = [...party, ...enemies].map((u) => ({ u, init: rollDie(20) + u.dex }));
   order.sort((a, b) => b.init - a.init);
-  G.combat = { order: order.map((o) => o.u), idx: -1, active: null, group, ability: null, preview: null, busy: false };
+  G.combat = { order: order.map((o) => o.u), idx: -1, round: 0, active: null, group, opts, ability: null, preview: null, busy: false };
   for (const u of G.combat.order) u.used = {};
   log("<b>Combate!</b> Iniciativa: " + order.map((o) => `${o.u.name} ${o.init}`).join(", "), "sys");
   banner("Combate");
@@ -94,6 +120,7 @@ function checkEnd() {
     G.mode = "explore";
     G.combat = null;
     for (const p of G.party) if (p.hp <= 0) { p.hp = 1; floater(p.x, p.y - 36, "De pé!", "info"); }
+    for (const p of G.party) { p.raging = p.smiteNext = p.inspired = p.mocked = false; p.marked = null; }
     toast(`Vitória!  +${xp} XP`);
     sfx.victory();
     log(`Vitória. Cada um recebe ${xp} XP.`, "sys");
@@ -113,12 +140,38 @@ function checkEnd() {
 async function nextTurn() {
   const C = G.combat;
   if (!C || checkEnd()) return;
-  do { C.idx = (C.idx + 1) % C.order.length; } while (C.order[C.idx].hp <= 0);
+  const prev = C.idx;
+  do { C.idx = (C.idx + 1) % C.order.length; } while (C.order[C.idx].hp <= 0 || C.order[C.idx].gone);
+  if (C.idx <= prev || prev < 0) C.round++;
   const u = (C.active = C.order[C.idx]);
-  u.moveLeft = u.move; u.action = 1; u.bonus = 1;
+  u.moveLeft = u.move; u.action = 1; u.bonus = 1; u.sneakUsed = false; u.attackedThisTurn = false;
   C.ability = null;
   updateInitiative(); updateParty();
-  if (u.team === "party") {
+  // the story can step in at the start of a turn (allies arriving, a voice that stops time)
+  if (G.hooks.turnStart) {
+    C.busy = true;
+    await G.hooks.turnStart(u, C);
+    C.busy = false;
+    if (G.combat !== C || checkEnd()) return;
+    if (u.hp <= 0 || u.gone) return nextTurn();
+    updateInitiative(); updateParty();
+  }
+  if (u.skip > 0) {
+    u.skip--;
+    floater(u.x, u.y - 40, u.skipNote ?? "Surpreso!", "info");
+    log(`${u.name} perde o turno.`, "sys");
+    C.busy = true; buildHotbar([]);
+    await sleep(700);
+    C.busy = false;
+    if (G.combat === C) nextTurn();
+    return;
+  }
+  if (u.forgotten) {
+    u.forgotten = false; u.bonus = 0;
+    floater(u.x, u.y - 40, "Esquecido", "info");
+    log(`${u.name} esqueceu o que ia fazer: sem ação bônus neste turno.`, "miss");
+  }
+  if (u.team === "party" && !u.ai) {
     sfx.turn();
     G.hooks.focus?.(u);
     refreshCombatHotbar();
@@ -126,7 +179,7 @@ async function nextTurn() {
     buildHotbar([]);
     C.busy = true;
     await sleep(450);
-    await enemyTurn(u);
+    await aiTurn(u);
     C.busy = false;
     if (G.combat) nextTurn();
   }
@@ -157,10 +210,10 @@ export function refreshCombatHotbar() {
 export function selectAbility(key) {
   const C = G.combat;
   if (!C || C.busy) return;
-  const u = C.active, ab = { key, ...ABILITIES[key] };
+  const u = C.active, ab = abilityOf(u, key);
   sfx.select();
   if (!canUse(u, ab)) return;
-  if (ab.kind === "self") { useAbility(u, ab, u); return; }
+  if (["self", "dash", "flash", "rage", "smite"].includes(ab.kind)) { useAbility(u, ab, u); return; }
   if (ab.kind === "cleave") { useAbility(u, ab, null); return; }
   C.ability = C.ability === key ? null : key;
   refreshCombatHotbar();
@@ -175,12 +228,13 @@ export function combatHover(tx, ty) {
   const abKey = C.ability ?? (target && target.team === "enemy" ? "attack" : null);
   C.preview = null;
   if (abKey && target) {
-    const ab = { key: abKey, ...ABILITIES[abKey] };
+    const ab = abilityOf(u, abKey);
     const d = cheb(u, target);
-    const friendly = ab.kind === "heal" || ab.kind === "potion";
+    const friendly = isFriendly(ab);
     if (friendly !== (target.team === "party")) { tooltip(null); return; }
-    if (ab.kind === "attack" || ab.kind === "bolt") {
-      const pct = hitChance(u, target, u.atk);
+    if (ab.kind === "attack" || ab.kind === "bolt" || ab.kind === "shoot") {
+      const bonus = ab.kind === "shoot" ? u.bow.atk : ab.kind === "bolt" ? u.spellAtk ?? u.atk : u.atk;
+      const pct = hitChance(u, target, bonus);
       const inRange = d <= ab.range;
       let note = "";
       if (!inRange && ab.kind === "attack") {
@@ -188,9 +242,11 @@ export function combatHover(tx, ty) {
         note = app ? `<br>vai até ele (${app.path.length} de movimento)` : "<br><span style='color:#ff8a7a'>longe demais</span>";
         if (app) C.preview = { path: app.path };
       } else if (!inRange) note = "<br><span style='color:#ff8a7a'>fora de alcance</span>";
-      tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">${pct}%</span> de acerto · ${ab.kind === "bolt" ? ab.dmg : u.dmg} dano<br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}${note}`);
+      tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">${pct}%</span> de acerto · ${ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg} dano${u.marked === target ? " +1d6 (marca)" : ""}<br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}${note}`);
     } else if (ab.kind === "missiles") tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">100%</span> · 3×(1d4+1)${d > ab.range ? "<br>fora de alcance" : ""}`);
+    else if (ab.kind === "mark") tooltip(`<b>${ab.name}</b> → ${target.name}<br>+1d6 nos seus ataques com arma${d > ab.range ? "<br>fora de alcance" : ""}`);
     else if (friendly) tooltip(`<b>${ab.name}</b> → ${target.name}<br>PV ${target.hp}/${target.maxHp}${d > ab.range ? "<br>fora de alcance" : ""}`);
+    else tooltip(`<b>${ab.name}</b> → ${target.name}${d > ab.range ? "<br><span style='color:#ff8a7a'>fora de alcance</span>" : ""}`);
     return;
   }
   tooltip(target ? `<b>${target.name}</b><br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}` : null);
@@ -222,9 +278,9 @@ export async function combatClick(tx, ty) {
   const target = [...G.enemies, ...G.party].find((e) => e.hp > 0 && tileOf(e)[0] === tx && tileOf(e)[1] === ty);
   const abKey = C.ability ?? (target && target.team === "enemy" ? "attack" : null);
   if (abKey && target) {
-    const ab = { key: abKey, ...ABILITIES[abKey] };
+    const ab = abilityOf(u, abKey);
     if (!canUse(u, ab)) { floater(u.x, u.y - 36, ab.cost === "bonus" ? "Sem ação bônus" : "Sem ação", "info"); return; }
-    const friendly = ab.kind === "heal" || ab.kind === "potion";
+    const friendly = isFriendly(ab);
     if (friendly !== (target.team === "party")) return;
     if (cheb(u, target) > ab.range) {
       if (ab.kind !== "attack") { floater(u.x, u.y - 36, "Fora de alcance", "info"); return; }
@@ -272,7 +328,11 @@ function lunge(u, t) {
 }
 
 function damage(t, amount, crit, src, kind = "blade") {
+  amount = Math.max(1, amount);
+  if (t.fireRes && (kind === "fire" || kind === "ember")) { amount = Math.max(1, amount >> 1); floater(t.x, t.y - 48, "Resistente", "info"); }
+  if (t.raging && (kind === "blade" || kind === "arrow")) amount = Math.max(1, amount >> 1);
   t.hp -= amount;
+  if (t.hp <= 0 && t.relentless && !t.restUsed.relentless) { t.hp = 1; t.restUsed.relentless = true; setTimeout(() => floater(t.x, t.y - 50, "Implacável!", "crit"), 200); }
   t.flashT = 0.16;
   const dx = t.x - src.x, dy = t.y - src.y, l = Math.hypot(dx, dy) || 1;
   t.knock = { x: (dx / l) * 3, y: (dy / l) * 3, t: 0.2 };
@@ -287,12 +347,13 @@ function damage(t, amount, crit, src, kind = "blade") {
         G.fx.spawn(FX.poof, { x: t.x, y: t.y });
         t.gone = true;
       }, 250);
-      log(`${t.name} cai.`, "sys");
+      log(t.yields ? `${t.name} recua, ferida.` : `${t.name} cai.`, "sys");
       sfx.enemyDown();
     } else {
       floater(t.x, t.y - 46, "Caído", "info");
       log(`${t.name} está caído!`, "miss");
       sfx.partyDown();
+      G.hooks.partyDown?.(t);
     }
   }
   updateParty(); updateInitiative();
@@ -305,8 +366,13 @@ function heal(t, amount) {
 }
 
 function attackRoll(u, t, bonus) {
-  const d = rollDie(20), total = d + bonus;
-  const crit = d === 20, hit = crit || (d !== 1 && total >= t.ac);
+  let d = rollDie(20);
+  if (d === 1 && u.lucky) { d = rollDie(20); floater(u.x, u.y - 46, "Sortudo!", "info"); }
+  if (u.team === "party" && G.advNext) { G.advNext = false; const d2 = rollDie(20); if (d2 > d) d = d2; floater(u.x, u.y - 52, "Lampejo!", "crit"); }
+  let total = d + bonus;
+  if (u.inspired) { u.inspired = false; const i = rollDie(6); total += i; floater(u.x, u.y - 52, `Inspiração +${i}`, "info"); }
+  if (u.mocked) { u.mocked = false; total -= 5; floater(u.x, u.y - 52, "Abalado −5", "info"); }
+  const crit = d >= (u.critMin ?? 20), hit = crit || (d !== 1 && total >= t.ac);
   return { d, total, crit, hit };
 }
 
@@ -317,7 +383,26 @@ function rollDmg(expr, crit) {
   return r;
 }
 
+/** Extra weapon damage: Hunter's Mark, Sneak Attack (an ally next to the target), Savage Attacks on a crit. */
+function weaponExtras(u, t, crit, melee) {
+  let add = 0;
+  const notes = [];
+  const dice = (n) => roll(`${crit ? 2 : 1}d${n}`).total;
+  if (u.marked === t) { const v = dice(6); add += v; notes.push(`marca +${v}`); }
+  if (u.sneak && !u.sneakUsed && G.party.some((p) => p !== u && p.hp > 0 && cheb(p, t) <= 1)) {
+    u.sneakUsed = true;
+    const v = dice(6); add += v; notes.push(`furtivo +${v}`);
+    floater(t.x, t.y - 50, "Ataque furtivo!", "crit");
+  }
+  if (melee && crit && u.savage) { const v = roll(u.dmg.replace(/[+-]\d+$/, "")).total; add += v; notes.push(`selvagem +${v}`); }
+  if (melee && u.raging) { add += 2; notes.push("fúria +2"); }
+  if (melee && u.smiteNext) { u.smiteNext = false; const v = dice(8) + dice(8); add += v; notes.push(`golpe divino +${v}`); floater(t.x, t.y - 50, "Golpe Divino!", "crit"); G.fx.spawn(FX.bloom, { x: t.x, y: t.y + 2, palette: PAL.holy }); }
+  if (melee && u.wfx?.vsForgotten && t.esvaido) { const v = roll(u.wfx.vsForgotten).total; add += v; notes.push(`prata +${v}`); }
+  return { add, note: notes.length ? ` [${notes.join(", ")}]` : "" };
+}
+
 async function meleeAttack(u, t, expr) {
+  u.attackedThisTurn = true;
   lunge(u, t);
   const flip = t.x < u.x;
   await sleep(120);
@@ -326,10 +411,10 @@ async function meleeAttack(u, t, expr) {
   sfx.swing();
   await sleep(110);
   if (r.hit) {
-    const dm = rollDmg(expr, r.crit);
+    const dm = rollDmg(expr, r.crit), ex = u.team === "party" ? weaponExtras(u, t, r.crit, true) : { add: 0, note: "" };
     G.fx.spawn(r.crit ? FX.critHit : FX.hitSpark, { x: t.x, y: t.y - 14, flip });
-    damage(t, dm.total, r.crit, u);
-    log(`${u.name} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total} (${fmtRoll(dm)})`, r.crit ? "crit" : "hit");
+    damage(t, dm.total + ex.add, r.crit, u);
+    log(`${u.name} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total + ex.add} (${fmtRoll(dm)})${ex.note}`, r.crit ? "crit" : "hit");
   } else {
     floater(t.x, t.y - 34, "Errou", "miss");
     sfx.miss();
@@ -338,7 +423,7 @@ async function meleeAttack(u, t, expr) {
   await sleep(380);
 }
 
-const soundKind = (palette) => (palette === PAL.fire ? "fire" : palette === PAL.arcane ? "arcane" : palette === PAL.wood ? "arrow" : "ember");
+const soundKind = (palette) => (palette === PAL.fire ? "fire" : palette === PAL.arcane || palette === PAL.holy ? "arcane" : palette === PAL.wood ? "arrow" : "ember");
 
 function bolt(u, t, palette, onHit, arc = 0, dur = null) {
   return new Promise((res) => {
@@ -354,22 +439,26 @@ function bolt(u, t, palette, onHit, arc = 0, dur = null) {
   });
 }
 
-async function rangedSpell(u, t, expr, palette, label) {
+async function rangedSpell(u, t, expr, palette, label, bonus = u.atk, weapon = false, effect = null) {
   face(u, t);
   const arrow = soundKind(palette) === "arrow";
   u.pose = "cast"; u.poseT = arrow ? 0.85 : 0.5;
   if (arrow) sfx.bowDraw(0.5); // draw the bow before letting go
   await sleep(arrow ? 560 : 200);
-  const r = attackRoll(u, t, u.atk);
+  const r = attackRoll(u, t, bonus);
   await bolt(u, t, palette, () => {
     if (r.hit) {
-      const dm = rollDmg(expr, r.crit);
-      damage(t, dm.total, r.crit, u, soundKind(palette));
-      log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total}`, r.crit ? "crit" : "hit");
+      const dm = rollDmg(expr, r.crit), ex = weapon ? weaponExtras(u, t, r.crit, false) : { add: 0, note: "" };
+      if (!weapon && u.markSpells && u.marked === t) { const v = roll("1d6").total; ex.add += v; ex.note += ` [maldição +${v}]`; }
+      if (!weapon && palette === PAL.fire && u.wfx?.fireBonus) { ex.add += u.wfx.fireBonus; ex.note += ` [cajado +${u.wfx.fireBonus}]`; }
+      if (effect === "mock" && t.hp > 0) { t.mocked = true; setTimeout(() => floater(t.x, t.y - 50, "Zombado", "info"), 250); }
+      damage(t, dm.total + ex.add, r.crit, u, soundKind(palette));
+      if (u.ranged?.forget && t.hp > 0 && !t.forgetWard) { t.forgotten = true; setTimeout(() => floater(t.x, t.y - 50, "Esquecido", "info"), 250); }
+      log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${bonus}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total + ex.add}${ex.note}`, r.crit ? "crit" : "hit");
     } else {
       floater(t.x, t.y - 34, "Errou", "miss");
     sfx.miss();
-      log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} · errou`, "miss");
+      log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${bonus}=${r.total} · errou`, "miss");
     }
   });
   await sleep(350);
@@ -387,7 +476,90 @@ export async function useAbility(u, ab, target) {
   if (ab.slot) u.slots--;
   switch (ab.kind) {
     case "attack": await meleeAttack(u, target, u.dmg); break;
-    case "bolt": await rangedSpell(u, target, ab.dmg, PAL.fire, ab.name); break;
+    case "bolt": await rangedSpell(u, target, ab.dmg, PAL[ab.pal ?? "fire"], ab.name, u.spellAtk ?? u.atk, false, ab.effect); break;
+    case "rage": {
+      u.raging = true;
+      G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2, palette: PAL.ember });
+      floater(u.x, u.y - 40, "FÚRIA!", "crit");
+      log(`${u.name} entra em fúria: +2 de dano corpo a corpo e metade do dano de armas.`, "sys");
+      sfx.swing(true);
+      await sleep(400);
+      break;
+    }
+    case "smite": {
+      u.smiteNext = true;
+      G.fx.spawn(FX.hitSpark, { x: u.x, y: u.y - 20, palette: PAL.holy });
+      floater(u.x, u.y - 40, "Arma brilha", "info");
+      sfx.cast("arcane");
+      await sleep(350);
+      break;
+    }
+    case "layhands": {
+      face(u, target);
+      u.pose = "cast"; u.poseT = 0.6;
+      G.fx.spawn(FX.bloom, { x: target.x, y: target.y + 2, palette: PAL.holy });
+      sfx.heal();
+      await sleep(450);
+      heal(target, 5 * u.level);
+      log(`${u.name} impõe as mãos em ${target.name}: +${5 * u.level} PV`, "heal");
+      await sleep(300);
+      break;
+    }
+    case "inspire": {
+      face(u, target);
+      u.pose = "cast"; u.poseT = 0.5;
+      target.inspired = true;
+      G.fx.spawn(FX.hitSpark, { x: target.x, y: target.y - 18, palette: PAL.gold });
+      floater(target.x, target.y - 40, "Inspirado", "heal");
+      log(`${u.name} inspira ${target.name}: +1d6 no próximo ataque.`, "sys");
+      sfx.cast("arcane");
+      await sleep(400);
+      break;
+    }
+    case "entangle": {
+      face(u, target);
+      u.pose = "cast"; u.poseT = 0.6;
+      G.fx.spawn(FX.bloom, { x: target.x, y: target.y + 2, palette: PAL.heal });
+      sfx.cast("arcane");
+      await sleep(450);
+      const dc = 8 + (u.spellAtk ?? 4), save = rollDie(20) + Math.max(0, (target.atk ?? 3) - 2);
+      if (save < dc) { target.skip = (target.skip ?? 0) + 1; target.skipNote = "Enredado"; floater(target.x, target.y - 40, "Enredado!", "crit"); log(`Raízes prendem ${target.name} (${save} vs CD ${dc}): perde o próximo turno.`, "hit"); }
+      else { floater(target.x, target.y - 40, "Se soltou", "miss"); log(`${target.name} arrebenta as raízes (${save} vs CD ${dc}).`, "miss"); }
+      await sleep(350);
+      break;
+    }
+    case "flurry": {
+      for (let i = 0; i < 2 && target.hp > 0; i++) await meleeAttack(u, target, u.unarmed ?? "1d4");
+      break;
+    }
+    case "shoot": await rangedSpell(u, target, u.bow.dmg, PAL.wood, u.bow.name, u.bow.atk, true); break;
+    case "flash": {
+      G.advNext = true;
+      G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2, palette: PAL.arcane });
+      floater(u.x, u.y - 40, "Lampejo de Velmoor", "crit");
+      log(`${u.name} acende o Lampejo: o próximo ataque do grupo rola com vantagem.`, "sys");
+      sfx.cast("arcane");
+      await sleep(400);
+      break;
+    }
+    case "dash": {
+      u.moveLeft += u.move;
+      floater(u.x, u.y - 36, `+${u.move} movimento`, "info");
+      sfx.miss();
+      await sleep(250);
+      break;
+    }
+    case "mark": {
+      face(u, target);
+      u.pose = "cast"; u.poseT = 0.4;
+      u.marked = target;
+      G.fx.spawn(FX.hitSpark, { x: target.x, y: target.y - 14, palette: PAL.gold });
+      sfx.cast("arcane");
+      floater(target.x, target.y - 40, "Marcado", "info");
+      log(`${u.name} marca ${target.name}: +1d6 nos ataques com arma.`, "sys");
+      await sleep(350);
+      break;
+    }
     case "missiles": {
       face(u, target);
       u.pose = "cast"; u.poseT = 0.9;
@@ -407,7 +579,7 @@ export async function useAbility(u, ab, target) {
       G.fx.spawn(FX.bloom, { x: target.x, y: target.y + 2 });
       sfx.heal();
       await sleep(500);
-      const r = roll("1d8+3"); heal(target, r.total);
+      const cm = (u.castMod ?? 3) + (u.wfx?.healBonus ?? 0), r = roll(`${ab.heal ?? "1d8"}${cm < 0 ? "" : "+"}${cm}`); heal(target, Math.max(1, r.total));
       log(`${u.name} cura ${target.name}: +${r.total} PV`, "heal");
       await sleep(400);
       break;
@@ -455,9 +627,11 @@ export async function useAbility(u, ab, target) {
   refreshCombatHotbar();
 }
 
-// ---------------------------------------------------------------- enemy AI
-async function enemyTurn(u) {
-  const foes = living(G.party);
+// ---------------------------------------------------------------- AI (enemies, and allies who fight on their own)
+async function aiTurn(u) {
+  const C = G.combat;
+  if (u.noncombat) { await sleep(300); return; }
+  const foes = (u.team === "enemy" ? living(G.party) : living(C.group).filter((e) => !e.gone)).filter((f) => f.key !== u.spare);
   if (!foes.length) return;
   const byDist = foes.map((f) => ({ f, d: cheb(u, f) })).sort((a, b) => a.d - b.d || a.f.hp - b.f.hp);
   G.hooks.focus?.(u);

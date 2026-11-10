@@ -296,6 +296,17 @@ const TRACKS = {
       if (bar === 1 && s === 10 && loop % 2) I.bell(t, 81, 0.25, out);
     },
   },
+  dream: { // dreamed Velmoor and the Relicário: a slow bed, far bells, a flute that never resolves
+    bpm: 50, bars: 4, prog: ["F", "C", "Dm", "Bb"],
+    step(bar, s, t, loop, out, sp) {
+      const ch = PC[this.prog[bar]];
+      if (s === 0) I.pad(t, [...voicing(ch, 53), rootAt(ch, 41)], sp * 16, 0.8, out, 700);
+      if (s === 0 && bar % 2 === 0) I.bell(t, voicing(ch, 77)[0], 0.3, out, 0.9);
+      if (s === 8 && hashf(loop, bar, 3) < 0.6) I.bell(t, voicing(ch, 72)[(hashf(bar, loop, 1) * 3) | 0], 0.18, out, 0.9);
+      if (bar === 2 && s === 4 && loop % 2 === 0) I.flute(t, 69, sp * 10, 0.35, out);
+      if (bar === 3 && s === 6 && loop % 2 === 1) I.flute(t, 67, sp * 8, 0.3, out);
+    },
+  },
   combat: {
     bpm: 128, bars: 8, prog: ["Dm", "Dm", "Bb", "C", "Dm", "Gm", "Bb", "A"],
     step(bar, s, t, loop, out, sp) {
@@ -563,6 +574,7 @@ def("chest", "world", (t) => {
   }
 });
 def("talk", "ui", (t) => I.pluck(t, 69, 0.2, 0.4, OUT));
+def("bells", "world", (t) => { [[0, 74, 0.35], [0.9, 69, 0.25], [1.7, 77, 0.2], [3.1, 72, 0.18]].forEach(([d, m, v]) => I.bell(t + d, m, v, OUT, 0.95)); });
 def("rest", "jingles", (t) => { duck(0.3, 2.5); [62, 66, 69, 74].forEach((m, i) => I.bell(t + i * 0.18, m, 0.7, OUT)); I.pad(t, [50, 57, 62, 66], 1.6, 1.2, OUT, 1400); });
 def("victory", "jingles", (t) => {
   duck(0.05, 3.2);

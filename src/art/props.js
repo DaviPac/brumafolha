@@ -62,9 +62,10 @@ function leafCanopy(pb, R, cx, cy, rx, ry, rp, n) {
   }
 }
 
-function trunk(pb, R, cx, base, w, h, rp) {
+/** A trunk `h` tall with roots flaring at the base; `ext` carries it further up, straight, into the canopy. */
+function trunk(pb, R, cx, base, w, h, rp, ext = 0) {
   // roots flare out at the base
-  for (let y = base - h; y <= base; y++) {
+  for (let y = base - h - ext; y <= base; y++) {
     const t = (y - (base - h)) / h;
     const flare = t > 0.7 ? ((t - 0.7) / 0.3) ** 2 * w * 0.9 : 0;
     const hw = w / 2 + flare + Math.sin(y * 0.5) * 0.4;
@@ -77,20 +78,34 @@ function trunk(pb, R, cx, base, w, h, rp) {
   }
 }
 
+/**
+ * Wind: the trunk and the leaves as separate layers, so the renderer can slide the leaves sideways row by row as the
+ * wind blows (most at `top`, nothing at `bottom`, where they meet the trunk or the ground). `c` is the still picture.
+ */
+function swayable(base, leaves, top, bottom, amp) {
+  const still = new PixBuf(base.w, base.h);
+  still.d.set(base.d);
+  for (let i = 0; i < leaves.d.length; i += 4) if (leaves.d[i + 3]) still.d.set(leaves.d.subarray(i, i + 4), i);
+  still.outline(INK);
+  base.outline(INK);
+  leaves.outline(INK);
+  return { c: still.canvas(), trunk: base.canvas(), leaves: leaves.canvas(), sway: { top, bottom, amp } };
+}
+
 export function makeTree(seed) {
   const R = new Rng(seed), W = 100, H = 118;
-  const pb = new PixBuf(W, H);
+  const pb = new PixBuf(W, H), leaves = new PixBuf(W, H);
   const autumn = R.chance(0.1);
-  trunk(pb, R, 50, 112, R.range(9, 13), 44, RAMP.bark);
-  leafCanopy(pb, R, 50, 46, R.range(36, 44), R.range(30, 36), autumn ? RAMP.autumn : RAMP.leaf, R.int(9, 13));
-  pb.outline(INK);
-  return { c: pb.canvas(), ox: 50, oy: 112, canopy: { x: 6, y: 6, w: 88, h: 80 }, shadow: 34 };
+  // the trunk goes on up into the middle of the canopy, so no gap can open between them however the leaves fall
+  trunk(pb, R, 50, 112, R.range(9, 13), 44, RAMP.bark, 20);
+  leafCanopy(leaves, R, 50, 46, R.range(36, 44), R.range(30, 36), autumn ? RAMP.autumn : RAMP.leaf, R.int(9, 13));
+  return { ...swayable(pb, leaves, 8, 84, 3.2), ox: 50, oy: 112, canopy: { x: 6, y: 6, w: 88, h: 80 }, shadow: 34 };
 }
 
 export function makePine(seed) {
   const R = new Rng(seed), W = 64, H = 112;
-  const pb = new PixBuf(W, H);
-  trunk(pb, R, 32, 106, 7, 22, RAMP.bark);
+  const base = new PixBuf(W, H), pb = new PixBuf(W, H);
+  trunk(base, R, 32, 106, 7, 22, RAMP.bark, 14);
   const tiers = R.int(4, 5);
   for (let t = 0; t < tiers; t++) {
     const top = 6 + t * 17, bot = top + 34, hw = 9 + t * 5.5;
@@ -105,8 +120,7 @@ export function makePine(seed) {
       }
     }
   }
-  pb.outline(INK);
-  return { c: pb.canvas(), ox: 32, oy: 106, canopy: { x: 4, y: 0, w: 56, h: 84 }, shadow: 22 };
+  return { ...swayable(base, pb, 6, 96, 2.2), ox: 32, oy: 106, canopy: { x: 4, y: 0, w: 56, h: 84 }, shadow: 22 };
 }
 
 export function makeDeadTree(seed) {
@@ -159,8 +173,7 @@ export function makeBush(seed) {
     const berry = R.chance(0.5) ? ramp("#8a1e2a", "#e04a4a") : ramp("#4a2a8a", "#9a6ae0");
     for (let k = 0; k < 6; k++) { const x = R.int(6, 28), y = R.int(6, 20); if (pb.alpha(x, y) && pb.alpha(x, y + 1)) { pb.set(x, y, berry[1]); pb.set(x, y + 1, berry[0]); } }
   }
-  pb.outline(INK);
-  return { c: pb.canvas(), ox: 20, oy: 27, shadow: 13 };
+  return { ...swayable(new PixBuf(W, H), pb, 6, 26, 1.6), ox: 20, oy: 27, shadow: 13 };
 }
 
 export function makeFern(seed) {
@@ -242,9 +255,8 @@ export function makeWall(h, seed, broken) {
   return { c: pb.canvas(), ox: 0, oy: H - 1 };
 }
 
-export function makePillar(h, seed) {
+export function makePillar(h, seed, S = RAMP.stone, mossy = true) {
   const W = 22, colH = 14 + h * 10, H = colH + 16, pb = new PixBuf(W, H);
-  const S = RAMP.stone;
   for (let y = 0; y < colH; y++)
     for (let x = 3; x < 19; x++) {
       const u = (x - 3) / 16;
@@ -254,13 +266,13 @@ export function makePillar(h, seed) {
     }
   // broken top
   for (let x = 3; x < 19; x++) {
-    const j = Math.floor(vnoise(x / 3, 1, seed) * 5);
+    const j = mossy ? Math.floor(vnoise(x / 3, 1, seed) * 5) : 0; // the Relicário's pillars are whole
     for (let y = 0; y < 5 + j; y++) pb.set(x, H - 4 - colH + y, rampAt(S, 0.85 - y * 0.05, x, y));
     for (let y = 0; y < j; y++) pb.set(x, H - 4 - colH - 1 + y, null);
   }
   // plinth
   for (let x = 0; x < W; x++) for (let y = 0; y < 5; y++) pb.set(x, H - 5 + y, rampAt(S, 0.6 - y * 0.12 - Math.abs(x - 8) * 0.01, x, y));
-  for (let y = 0; y < colH; y++) if (fbm(y / 4, seed, 6, 2) > 0.55) pb.set(4 + (y % 3), H - 4 - y, RAMP.moss[2]);
+  if (mossy) for (let y = 0; y < colH; y++) if (fbm(y / 4, seed, 6, 2) > 0.55) pb.set(4 + (y % 3), H - 4 - y, RAMP.moss[2]);
   pb.outline(INK);
   return { c: pb.canvas(), ox: 11, oy: H - 1 };
 }
