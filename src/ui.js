@@ -2,6 +2,7 @@
 import { G } from "./state.js";
 import { makeCanvas } from "./util.js";
 import { sfx } from "./audio.js";
+import { icon } from "./art/icons.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -119,7 +120,7 @@ export function buildHotbar(entries, extra = "") {
   entries.forEach((e, i) => {
     const s = document.createElement("div");
     s.className = "slot" + (e.off ? " off" : "") + (e.sel ? " sel" : "");
-    s.innerHTML = `<span class="ic">${e.icon}</span><span class="k">${i + 1}</span>${e.count != null ? `<span class="n">${e.count}</span>` : ""}`;
+    s.innerHTML = `<span class="ic">${icon(e.icon)}</span><span class="k">${i + 1}</span>${e.count != null ? `<span class="n">${e.count}</span>` : ""}`;
     s.onmouseenter = () => { s._tip = true; };
     s.onmousemove = () => tooltip(`<b>${e.name}</b><br>${e.desc}`);
     s.onmouseleave = () => tooltip(null);

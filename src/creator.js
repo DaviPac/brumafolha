@@ -2,6 +2,7 @@
 // A live, turnable preview in the middle and the derived character sheet on the right.
 import { buildCharacter, SW, SH } from "./art/chars.js";
 import { sfx } from "./audio.js";
+import { icon } from "./art/icons.js";
 import { ABILITIES } from "./combat.js";
 import {
   RACES, CLASSES, ABILS, ABIL_NAMES, POINTS, mod, signed, pointsSpent, canRaise, canLower, finalScores, derive, specOf,
@@ -27,14 +28,14 @@ export function openCreator(done, companion) {
     <div class="cc">
       <aside class="left"><nav class="tabs">${TABS.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join("")}</nav><div class="pane"></div></aside>
       <section class="stage">
-        <div class="namebox"><input class="name" maxlength="18" spellcheck="false" aria-label="Nome"><button class="reroll" title="Nome aleatório">🎲</button></div>
+        <div class="namebox"><input class="name" maxlength="18" spellcheck="false" aria-label="Nome"><button class="reroll" title="Nome aleatório">${icon("d20")}</button></div>
         <div class="who"></div>
         <div class="podium"><canvas class="preview" width="${SW * 6}" height="${SH * 6}"></canvas></div>
-        <div class="turn"><button data-rot="-1" title="Girar">⟲</button>${POSES.map(([k, l]) => `<button data-pose="${k}">${l}</button>`).join("")}<button data-rot="1" title="Girar">⟳</button></div>
+        <div class="turn"><button data-rot="-1" title="Girar">${icon("rotl")}</button>${POSES.map(([k, l]) => `<button data-pose="${k}">${l}</button>`).join("")}<button data-rot="1" title="Girar">${icon("rotr")}</button></div>
       </section>
       <aside class="right sheet"></aside>
     </div>
-    <footer><button class="random">🎲 Tudo aleatório</button><button class="go">Começar a aventura</button></footer>`;
+    <footer><button class="random">${icon("d20")} Tudo aleatório</button><button class="go">Começar a aventura</button></footer>`;
   root.classList.remove("hidden");
   root.querySelectorAll("[data-tab]").forEach((el) => (el.onclick = () => { tab = el.dataset.tab; sfx.click(); render(); }));
   root.querySelectorAll("[data-pose]").forEach((el) => (el.onclick = () => { pose = el.dataset.pose; sfx.click(); syncStage(); }));
@@ -109,7 +110,7 @@ function racePane() {
 
 function classPane() {
   const C = CLASSES[b.cls];
-  const abil = (k) => { const a = ABILITIES[k]; return `<li title="${a.desc}"><span class="ic">${a.icon}</span>${a.name}</li>`; };
+  const abil = (k) => { const a = ABILITIES[k]; return `<li title="${a.desc}"><span class="ic">${icon(a.icon)}</span>${a.name}</li>`; };
   const armorWord = ["só roupas", "armadura leve", "armadura média", "armadura pesada"][C.profs.armor];
   return `<div class="cards">${Object.entries(CLASSES).map(([k, c]) => `<button class="card ${k === b.cls ? "on" : ""}" data-cls="${k}"><b>${className(k, b.gender)}</b><small>d${c.hitDie} de vida${c.caster ? ` · magia (${c.caster})` : ""}</small></button>`).join("")}</div>
     <p class="desc">${C.desc}</p>
@@ -120,7 +121,7 @@ function classPane() {
 function swatches(key, list, color, opts = {}) {
   return `<div class="swatches">${list.map((item, i) => {
     const c = color(item);
-    return `<button class="sw ${b.look[key] === i ? "on" : ""}" data-look="${key}" data-i="${i}" title="${opts.title?.(item, i) ?? ""}" style="${c ? `background:${css(c)}` : ""}">${c ? "" : "✕"}</button>`;
+    return `<button class="sw ${b.look[key] === i ? "on" : ""}" data-look="${key}" data-i="${i}" title="${opts.title?.(item, i) ?? ""}" style="${c ? `background:${css(c)}` : ""}">${c ? "" : icon("close", "sm")}</button>`;
   }).join("")}</div>`;
 }
 function choices(key, list) {
@@ -215,8 +216,8 @@ function sheet() {
       ${d.bow ? `<li><b>${d.bow.name}</b> ${signed(d.bow.atk)} · ${d.bow.dmg} · alcance ${d.bow.range}</li>` : ""}
       ${d.spellAtk != null ? `<li><b>Magia</b> ${signed(d.spellAtk)} para acertar · ${d.maxSlots} espaços de 1º círculo</li>` : ""}</ul>
     <h4>Habilidades</h4>
-    <div class="icons">${abilities.map((k) => `<span title="${ABILITIES[k].name}: ${ABILITIES[k].desc}">${ABILITIES[k].icon}</span>`).join("")}</div>
-    ${d.notes.map((n) => `<p class="warn">⚠ ${n}</p>`).join("")}
+    <div class="icons">${abilities.map((k) => `<span title="${ABILITIES[k].name}: ${ABILITIES[k].desc}">${icon(ABILITIES[k].icon)}</span>`).join("")}</div>
+    ${d.notes.map((n) => `<p class="warn">${icon("warn", "sm")} ${n}</p>`).join("")}
     ${Object.keys(d.fx).length ? `<p class="passive">${[d.weapon, ARMORS[b.equip.armor]].filter((x) => x?.fx).map((x) => `<b>${x.name}:</b> ${x.desc}`).join("<br>")}</p>` : ""}
     ${C.sneak ? `<p class="passive"><b>Ataque furtivo:</b> +1d6 uma vez por turno se um aliado estiver ao lado do alvo.</p>` : ""}
     <h4>Perícias</h4>

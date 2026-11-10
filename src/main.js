@@ -13,12 +13,13 @@ import * as UI from "./ui.js";
 import { openDialogue, dialogueKey } from "./dialogue.js";
 import { initAudio, playMusic, updateAmbience, sfx, settings as audioSet, toggleMute, setMuted, setVolume, previewSound, SOUND_GROUPS } from "./audio.js";
 import { openCreator } from "./creator.js";
-import { CLASSES, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
+import { CLASSES, newBuild, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
 import { WEAPONS, ARMORS, gearItem } from "./items.js";
 import { startCombat, combatClick, combatHover, endTurn, selectAbility, abilitiesOf, abilityOf, tileOf, tileCenter, blockedFor, refreshCombatHotbar } from "./combat.js";
 import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
+import { icon, installIcons } from "./art/icons.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -33,6 +34,8 @@ const nextFrame = () => new Promise((r) => setTimeout(r, 16));
 // ---------------------------------------------------------------- boot
 async function boot() {
   const t0 = performance.now();
+  installIcons();
+  for (const el of document.querySelectorAll("[data-icon]")) el.innerHTML = icon(el.dataset.icon);
   for (let v = 0; v < 6; v++) grassArt.push(A.makeTallGrass(v));
   mist = makeMist();
   fgLeft = silhouette(11); fgRight = silhouette(29);
@@ -50,6 +53,17 @@ async function boot() {
   btn.classList.remove("hidden");
   btn.onclick = create;
   requestAnimationFrame(loop);
+  // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
+  const q = new URLSearchParams(location.search);
+  if (q.get("dev")) {
+    initAudio();
+    document.getElementById("title").classList.add("hidden");
+    const b = newBuild(q.get("race") ?? "humano", q.get("cls") ?? "guerreiro");
+    if (!b.name) b.name = "Teste";
+    recruit(b);
+    setupMenu();
+    S.devJump(q.get("dev"), (q.get("f") ?? "").split(",").filter(Boolean));
+  }
 }
 
 function create() {
@@ -430,12 +444,12 @@ function exploreHotbar() {
   if (G.mode === "combat" || !G.party.length) return;
   const u = lead();
   UI.buildHotbar([
-    { icon: "🧪", name: "Poção de Cura", desc: `Recupera 2d4+2 PV de ${u.name}. Você tem ${G.potions}.`, count: G.potions, off: G.potions <= 0 || u.hp >= u.maxHp,
+    { icon: "potion", name: "Poção de Cura", desc: `Recupera 2d4+2 PV de ${u.name}. Você tem ${G.potions}.`, count: G.potions, off: G.potions <= 0 || u.hp >= u.maxHp,
       use: () => { G.potions--; const r = 2 + Math.ceil(Math.random() * 4) + Math.ceil(Math.random() * 4); u.hp = Math.min(u.maxHp, u.hp + r); UI.floater(u.x, u.y - 34, `+${r}`, "heal"); G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2 }); UI.updateParty(); exploreHotbar(); } },
-    { icon: "🔁", name: "Trocar líder", desc: "Controla o outro personagem (Tab).", off: G.party.length < 2, use: () => selectLeader((G.leader + 1) % G.party.length) },
-    { icon: "🎒", name: "Bolsa", desc: "Itens e cartas (I).", use: () => toggleJournal("bag") },
-    { icon: "📖", name: "Diário", desc: "Missões e lembranças (J).", use: () => toggleJournal("quests") },
-  ], `<div class="econ"><div>🪙 ${G.gold} ouro</div></div>`);
+    { icon: "swap", name: "Trocar líder", desc: "Controla o outro personagem (Tab).", off: G.party.length < 2, use: () => selectLeader((G.leader + 1) % G.party.length) },
+    { icon: "bag", name: "Bolsa", desc: "Itens e cartas (I).", use: () => toggleJournal("bag") },
+    { icon: "book", name: "Diário", desc: "Missões e lembranças (J).", use: () => toggleJournal("quests") },
+  ], `<div class="econ"><div>${icon("coin")} ${G.gold} ouro</div></div>`);
 }
 
 // ---------------------------------------------------------------- explore: movement and interaction
@@ -642,7 +656,7 @@ function updateAudio(dt) {
   }
 }
 function syncMute(muted) {
-  document.getElementById("mute").textContent = muted ? "🔇" : "🔊";
+  document.getElementById("mute").innerHTML = icon(muted ? "mute" : "sound");
   document.getElementById("muteAll").checked = muted;
   document.getElementById("pause").classList.toggle("muted", muted);
 }

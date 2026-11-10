@@ -98,10 +98,10 @@ const speaker = (name, specKey) => ({ name, portrait: portrait(buildCharacter(SP
 
 // ---------------------------------------------------------------- items
 const ITEMS = {
-  letter: { id: "letter", name: "Carta do Contrato", icon: "✉️", desc: "Selada com uma pena de sabiá. O lacre tem o desenho de uma torre.",
+  letter: { id: "letter", name: "Carta do Contrato", icon: "letter", desc: "Selada com uma pena de sabiá. O lacre tem o desenho de uma torre.",
     read: "<p><i>Ao portador desta:</i></p><p>sob as Ruínas de Velmoor, no vale de Brumafolha, dorme algo que não pode ser esquecido. Traga-o a Vau-de-Cardo, à taverna do Sabiá Cego, e receba trezentas peças.</p><p>Não abra o que encontrar. Não escute o que ele disser.</p><p class='sig'>— L.</p>" },
-  net: { id: "net", name: "Rede da Maren", icon: "🕸️", desc: "Uma rede de pesca remendada tantas vezes que já é mais remendo do que rede." },
-  chair: { id: "chair", name: "Cadeira do Otávio", icon: "🪑", desc: "Uma cadeira de balanço. No encosto, entalhado à faca, com um talho em forma de anzol: \"Para a Maren, do teu Otávio\"." },
+  net: { id: "net", name: "Rede da Maren", icon: "net", desc: "Uma rede de pesca remendada tantas vezes que já é mais remendo do que rede." },
+  chair: { id: "chair", name: "Cadeira do Otávio", icon: "chair", desc: "Uma cadeira de balanço. No encosto, entalhado à faca, com um talho em forma de anzol: \"Para a Maren, do teu Otávio\"." },
 };
 
 // ---------------------------------------------------------------- the cast, map by map
@@ -197,6 +197,17 @@ export function quests({ all } = {}) {
   return out;
 }
 const trimObjs = (o) => { const open = o.filter(([, d]) => !d); return open.length ? open : o.slice(-1); };
+
+/** Development: jump straight to a point in the story (see the ?dev= shortcut in main.js). */
+export function devJump(where, flags) {
+  for (const f of flags) { const [k, v] = f.split("="); F[k] = v ?? true; }
+  G.tutorial = false;
+  G.party = [G.hero, G.mate];
+  F.awake = true; F.dream_done = true;
+  if (where === "camp") E.loadMap("vale", 15, 38, 3);
+  E.partyChanged();
+  G.mode = "explore";
+}
 
 // ---------------------------------------------------------------- 6.1 the dream
 export async function start() {

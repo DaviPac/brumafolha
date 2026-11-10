@@ -234,7 +234,7 @@ html, body { margin: 0; height: 100%; background: #0b0a10; overflow: hidden; col
 #creator .skills { columns: 2; column-gap: 14px; }
 #creator .skills li { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); padding: 2px 0; break-inside: avoid; }
 #creator .skills li.pro { color: var(--text); }
-#creator .skills li.pro span::before { content: "◆ "; color: var(--gold); font-size: 10px; }
+#creator .skills li.pro span::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; background: var(--gold); transform: rotate(45deg); }
 #creator .mate { margin: 14px 0 0; font-size: 13px; color: var(--muted); border-top: 1px solid #ffffff14; padding-top: 10px; }
 #creator .mate b { color: var(--teal); }
 #creator footer { display: flex; justify-content: center; gap: 12px; }
@@ -325,9 +325,9 @@ html, body { margin: 0; height: 100%; background: #0b0a10; overflow: hidden; col
 #journal .quest .note { color: #c8b890; font-style: italic; font-size: 14px; margin: 6px 0 0; border-left: 2px solid var(--gold-dim); padding-left: 8px; }
 #journal .mems { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
 #journal .mems li { padding: 8px 12px 8px 30px; position: relative; font-family: Georgia, serif; font-size: 16px; color: #e8dcc0; background: #ffffff05; border: 1px solid #2e2618; }
-#journal .mems li::before { content: "🍃"; position: absolute; left: 8px; top: 8px; font-size: 13px; }
+#journal .mems li::before { content: ""; position: absolute; left: 6px; top: 8px; width: 16px; height: 16px; background: var(--atlas) calc(var(--mi, 6) * -16px) calc(var(--mj, 1) * -16px) / calc(16px * var(--atlas-cols)) auto; image-rendering: pixelated; }
 #journal .mems li.origin { border-color: #4a5a7a; }
-#journal .mems li.origin::before { content: "✦"; color: #a8c4ff; }
+#journal .mems li.origin::before { --mi: 10; --mj: 2; }
 #journal .mems li.struck { text-decoration: line-through; opacity: 0.45; }
 #journal .mems li.flicker { animation: flicker 1.6s infinite; }
 @keyframes flicker { 0%, 100% { opacity: 1; } 8% { opacity: 0.15; } 12% { opacity: 0.9; } 40% { opacity: 0.6; } 44% { opacity: 0.05; } 50% { opacity: 1; } }
@@ -364,3 +364,11 @@ html, body { margin: 0; height: 100%; background: #0b0a10; overflow: hidden; col
 #journal .gslot span { width: 130px; color: var(--muted); }
 #journal .gslot b { flex: 1; }
 @media (max-width: 640px) { #journal .gearsheet { grid-template-columns: 1fr; } #journal .gstats { grid-template-columns: 1fr 1fr; } #creator .gearlist { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- icons: one code-drawn atlas (src/art/icons.js) */
+.ico { display: inline-block; flex: none; --s: var(--is, 2); width: calc(16px * var(--s)); height: calc(16px * var(--s)); vertical-align: middle;
+  background-image: var(--atlas); background-repeat: no-repeat; background-size: calc(16px * var(--atlas-cols) * var(--s)) auto;
+  background-position: calc(var(--ix) * -16px * var(--s)) calc(var(--iy) * -16px * var(--s)); image-rendering: pixelated; }
+.ico.sm { --s: 1; }
+#corner button { display: grid; place-items: center; }
+#corner .ico { --s: 1.5; }

@@ -2,6 +2,7 @@
 // Turned on or off when the game starts, and from the pause menu.
 import { G } from "./state.js";
 import { sfx } from "./audio.js";
+import { icon } from "./art/icons.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -10,9 +11,9 @@ const HINTS = {
   interact: ["Interagir", "Pessoas e objetos com nome ao passar o mouse podem ser usados: <b>clique</b> neles, ou chegue perto e aperte <b>E</b>."],
   check: ["Testes de perícia", "Opções com <span class='chk'>[Perícia CD X]</span> pedem um teste: rola-se um <b>d20</b> e soma-se o bônus de quem do grupo é melhor naquela perícia. Igual ou acima da CD, sucesso. Um 20 natural sempre passa; um 1 sempre falha."],
   party: ["O grupo", "<b>Tab</b> (ou clicar no retrato à esquerda) troca quem você controla. Os outros seguem o líder."],
-  quest: ["Objetivos", "Os objetivos ficam no canto superior direito. O <b>Diário</b> (<b>J</b> ou 📖) guarda as missões e as lembranças."],
-  gear: ["Equipamento", "Armas, armaduras e escudos vão para a Bolsa. Abra a aba <b>⚔️ Equipamento</b> (tecla <b>I</b>) para vestir cada membro do grupo; a prévia mostra a CA e o ataque antes de trocar."],
-  bag: ["A Bolsa", "<b>I</b> (ou 🎒) abre a Bolsa. Itens com 📜 podem ser lidos: clique neles."],
+  quest: ["Objetivos", `Os objetivos ficam no canto superior direito. O <b>Diário</b> (<b>J</b> ou ${icon("book", "sm")}) guarda as missões e as lembranças.`],
+  gear: ["Equipamento", `Armas, armaduras e escudos vão para a Bolsa. Abra a aba ${icon("sword", "sm")} <b>Equipamento</b> (tecla <b>I</b>) para vestir cada membro do grupo; a prévia mostra a CA e o ataque antes de trocar.`],
+  bag: ["A Bolsa", `<b>I</b> (ou ${icon("bag", "sm")}) abre a Bolsa. Itens com ${icon("scroll", "sm")} podem ser lidos: clique neles.`],
   rest: ["Descansar", "Na fogueira do acampamento você faz um <b>descanso longo</b>: vida, magias e habilidades voltam. Só dá para descansar sem inimigos por perto."],
   approach: ["Abordagens", "Nem todo encontro precisa virar luta. Cada opção é um jeito diferente de resolver; o teste mostra quem rola e o bônus."],
   combat: ["Combate", "O combate é por turnos. A faixa no alto mostra a ordem de <b>iniciativa</b> (d20 + Destreza). O anel dourado marca de quem é a vez."],
@@ -44,7 +45,7 @@ function next() {
   if (!showing) { el.classList.add("hidden"); return; }
   G.hintsSeen.add(showing);
   const [title, html] = HINTS[showing];
-  el.innerHTML = `<div class="ht">💡 ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi</button><button class="off">Desligar dicas</button></div>`;
+  el.innerHTML = `<div class="ht">${icon("bulb")} ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi</button><button class="off">Desligar dicas</button></div>`;
   el.classList.remove("hidden");
   el.querySelector(".ok").onclick = () => { sfx.click(); next(); };
   el.querySelector(".off").onclick = () => { sfx.click(); setTutorial(false); };

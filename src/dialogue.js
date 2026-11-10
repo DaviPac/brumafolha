@@ -5,6 +5,7 @@ import { G } from "./state.js";
 import { rollDie } from "./util.js";
 import { updateQuest, log, updateParty } from "./ui.js";
 import { sfx } from "./audio.js";
+import { icon } from "./art/icons.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -38,7 +39,7 @@ export function skillCheck(skill, who, bonus, dc, lucky = false) {
         if (!ok && G.hooks.lampejo?.can()) {
           const b = document.createElement("button");
           b.className = "lampejo";
-          b.innerHTML = "🍃 Lampejo de Velmoor: rolar de novo";
+          b.innerHTML = `${icon("leaf")} Lampejo de Velmoor: rolar de novo`;
           b.onclick = (e) => { e.stopPropagation(); G.hooks.lampejo.use(); sfx.cast("arcane"); spin(); };
           extra.appendChild(b);
         }
