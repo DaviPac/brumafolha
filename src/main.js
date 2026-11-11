@@ -1040,7 +1040,7 @@ function drawReflections(cx, cy, items) {
   const W = G.W;
   if (!W.waterMask) return;
   const vw = G.vw, vh = G.vh;
-  if (!reflA || reflA[0].width !== vw || reflA[0].height !== vh) { reflA = makeCanvas(vw, vh); reflB = makeCanvas(vw, vh); }
+  if (!reflA || reflA[0].width !== vw || reflA[0].height !== vh) { reflA = makeCanvas(vw, vh); reflB = makeCanvas(vw, vh); reflB[0].dyn = true; }
   const [ca, a] = reflA, [cb, b] = reflB;
   a.clearRect(0, 0, vw, vh);
   let any = false;
@@ -1114,7 +1114,8 @@ function drawFog(cx, cy) {
   if (!fogC || fogC.width !== w || fogC.height !== h) { [fogC, fogX] = makeCanvas(w, h); fogC.img = fogX.createImageData(w, h); fogC.age = 99; }
   const ox = Math.floor(cx / C) - M, oy = Math.floor(cy / C) - M;
   // the field drifts slowly: it is worked out every third frame (or when the camera outruns the margin) and reused between
-  if (++fogC.age >= 3 || fogC.map !== G.W || Math.abs(ox - fogC.ox) >= M || Math.abs(oy - fogC.oy) >= M) {
+  const fresh = ++fogC.age >= 3 || fogC.map !== G.W || Math.abs(ox - fogC.ox) >= M || Math.abs(oy - fogC.oy) >= M;
+  if (fresh) {
     fogC.age = 0; fogC.map = G.W; fogC.ox = ox; fogC.oy = oy;
     const d = fogC.img.data, t = G.time;
     for (let j = 0; j < h; j++)
@@ -1125,16 +1126,24 @@ function drawFog(cx, cy) {
         const k = (j * w + i) * 4;
         d[k] = 236; d[k + 1] = 240; d[k + 2] = 246; d[k + 3] = clamp(f, 0, 1) * 235;
       }
-    fogX.putImageData(fogC.img, 0, 0);
   }
+  const x = fogC.ox * C - cx, y = fogC.oy * C - cy;
+  if (ctx.pixels) { ctx.pixels("fog", fogC.img.data, w, h, fresh ? null : false, x, y, w * C, h * C, true); return; }
+  if (fresh || fogC.stale) fogX.putImageData(fogC.img, 0, 0);
+  fogC.stale = false;
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(fogC, fogC.ox * C - cx, fogC.oy * C - cy, w * C, h * C);
+  ctx.drawImage(fogC, x, y, w * C, h * C);
   ctx.restore();
 }
 
+const SEC = {}; let secT = 0;
+/** Close a section of the frame for the F3 meter. */
+function sec(name) { if (!meter) return; const n = performance.now(); SEC[name] = (SEC[name] ?? 0) + n - secT; secT = n; }
+
 function draw() {
   const vw = G.vw, vh = G.vh;
+  secT = performance.now();
   let cx = Math.round(G.cam.x), cy = Math.round(G.cam.y);
   if (G.shake > 0) { cx += Math.round((Math.random() - 0.5) * 4); cy += Math.round((Math.random() - 0.5) * 4); }
   const W = G.W;
@@ -1159,6 +1168,7 @@ function draw() {
     if (len > 3) ctx.fillRect(x + 1, y - 1, len - 2, 1);
   }
 
+  sec("chão");
   // click marker
   if (clickMark) ring(clickMark.x - cx, clickMark.y - cy, `rgba(232,192,106,${clickMark.t * 2})`, 6 + (0.5 - clickMark.t) * 10);
   S.drawGround(ctx, cx, cy);
@@ -1172,7 +1182,9 @@ function draw() {
   for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) if (!u.gone && !u.hidden && inView(u.x, u.y)) items.push({ y: u.y + (u.float ? 40 : 0), u });
   G.chests.forEach((c) => inView(c.x, c.y) && items.push({ y: c.y, c }));
   items.sort((a, b) => a.y - b.y);
+  sec("ordem");
   drawReflections(cx, cy, items);
+  sec("reflexos");
   // shadows first, so nothing's shadow falls on top of a neighbour
   for (const it of items) {
     const r = it.o ? (it.o.clip ? 0 : it.o.art?.shadow) : it.u ? (it.u.float || it.u.ghost ? 0 : it.u.small ? 7 : 9) : it.c ? 12 : 0;
@@ -1216,6 +1228,7 @@ function draw() {
     drawProp(ctx, o, x, y);
     ctx.globalAlpha = 1;
   }
+  sec("sprites");
   if (lit) { S.drawOver(ctx, cx, cy); ctx = LY[2].x; }
   drawBars(cx, cy);
 
@@ -1228,7 +1241,9 @@ function draw() {
   } else if (W.id === "sonho") { ctx.fillStyle = "rgba(170,180,230,0.16)"; ctx.fillRect(0, 0, vw, vh); }
   else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
   if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
+  sec("barras");
   G.fx.draw(ctx, cx, cy, lit);
+  sec("efeitos");
   if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
   const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : W.id === "vau" ? 0.05 : 0.15;
@@ -1236,7 +1251,9 @@ function draw() {
   const mx = -((cx * 1.0 + t * 8) % mist.width) - mist.width, my = -((cy * 1.0 + t * 3) % mist.height) - mist.height;
   for (let y = my; y < vh; y += mist.height) for (let x = mx; x < vw; x += mist.width) ctx.drawImage(mist, Math.round(x), Math.round(y));
   ctx.globalAlpha = 1;
+  sec("névoa fina");
   drawFog(cx, cy);
+  sec("bruma");
   if (!lit) S.drawOver(ctx, cx, cy);
 
   // framing: branches at the bottom corners (outdoors), and a vignette
@@ -1256,6 +1273,7 @@ function draw() {
     renderLight({ cam: [cx, cy], add: G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null, amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy) });
     ctx = screen;
   }
+  sec(lit ? "moldura+luz" : "moldura");
 }
 
 // ---------------------------------------------------------------- light: what shines, what blocks it, how dark it is
@@ -1340,7 +1358,7 @@ let meter = null, mAcc = 0, mN = 0, mWorst = 0, mU = 0, mD = 0;
 function toggleMeter() {
   if (meter) { meter.remove(); meter = null; return; }
   meter = document.createElement("div");
-  meter.style.cssText = "position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:999;padding:3px 6px;background:rgba(10,8,16,.8);color:#f4ecdc;font:12px/1.3 monospace;white-space:pre;pointer-events:none";
+  meter.style.cssText = "position:fixed;left:6px;top:64px;z-index:999;padding:3px 6px;background:rgba(10,8,16,.8);color:#f4ecdc;font:12px/1.3 monospace;white-space:pre;pointer-events:none";
   document.body.appendChild(meter);
 }
 addEventListener("keydown", (e) => { if (e.key === "F3") { e.preventDefault(); toggleMeter(); } });
@@ -1349,6 +1367,9 @@ if (new URLSearchParams(location.search).has("fps")) toggleMeter();
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop); // schedule first: an error in one frame must not freeze the game
+  // on a 120/144/165 Hz screen, paint every second or third refresh: the art moves in whole pixels and gains nothing
+  // from more, and the time goes back to the browser (music, input, the interface)
+  if (now - last < 9.5) return;
   const dt = Math.min(0.05, (now - last) / 1000);
   if (meter) { mAcc += now - last; mN++; mWorst = Math.max(mWorst, now - last); }
   last = now;
@@ -1362,7 +1383,8 @@ function loop(now) {
   if (meter) {
     mU += G.perf.update; mD += G.perf.draw;
     if (mAcc >= 500) {
-      meter.textContent = `${Math.round(1000 * mN / mAcc)} qps  pior ${mWorst.toFixed(0)} ms\nlógica ${(mU / mN).toFixed(1)}  desenho ${(mD / mN).toFixed(1)} ms\n${G.vw}×${G.vh} ×${G.scale}  luz ${lightOn() ? lightSettings.mode : lightAvailable() ? "off" : "sem WebGL2"}`;
+      meter.textContent = `${Math.round(1000 * mN / mAcc)} qps  pior ${mWorst.toFixed(0)} ms\nlógica ${(mU / mN).toFixed(1)}  desenho ${(mD / mN).toFixed(1)} ms\n${G.vw}×${G.vh} ×${G.scale}  luz ${lightOn() ? lightSettings.mode : lightAvailable() ? "off" : "sem WebGL2"}\n` + Object.entries(SEC).map(([k, v]) => `${k} ${(v / mN).toFixed(1)}`).join("  ");
+      for (const k in SEC) SEC[k] = 0;
       mAcc = mN = mWorst = mU = mD = 0;
     }
   }

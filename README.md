@@ -107,7 +107,11 @@ A interface foi refeita com estrutura de Baldur's Gate 3 e acabamento de pixel a
 
 ## Luz
 
-Um renderizador WebGL2 ([src/light.js](src/light.js)) ilumina a cena pintada em canvas 2D:
+Com a luz ligada, o quadro inteiro é desenhado em WebGL2 ([src/light.js](src/light.js)): o código do jogo continua
+chamando `drawImage`, `fillRect` e companhia, mas num substituto do contexto 2D que junta os sprites num atlas na GPU e
+os desenha em lotes, em três camadas (chão, sprites, sobreposição). Copiar um canvas 2D para o WebGL a cada quadro,
+como a primeira versão fazia, custa uma leitura de volta da GPU no Firefox e derrubava o jogo para 26 quadros por
+segundo.
 
 - **Fontes**: fogueiras, lanternas e janelas, Lumes e a marca do herói, magias e faíscas do pixelfx.
 - **Ambiente** por área e por hora: o vale amanhece, as ruínas são um degrau mais escuras, o Relicário é frio,
@@ -191,10 +195,14 @@ um controle de verdade.
 
 Falta, ou ficou pela metade:
 
-- **Desempenho**: medido nesta máquina (RTX 3060 de notebook), em navegadores sem janela, 640×360 de jogo ampliado:
-  no Chrome, 3 a 4 ms de desenho por quadro com a luz alta ou desligada; no Firefox, perto de 9 ms com a luz alta e
-  6 ms desligada (lá cada camada enviada à GPU custa ~0,6 ms e cada `drawImage` é mais caro). Não foi medido em
-  máquinas fracas. **F3** (ou `?fps` no endereço) mostra quadros por segundo e os tempos de lógica e desenho.
+- **Desempenho**: medido nesta máquina (RTX 3060 de notebook, tela de 165 Hz) numa janela real do Firefox, nas
+  ruínas, com 960×497 de jogo: luz alta, 7 ms de desenho e 83 quadros por segundo; luz desligada (o caminho 2D
+  antigo), 13 ms e 62. No Chrome sem janela, 3 a 5 ms nos dois modos. Testes em navegador sem janela enganam: lá o
+  canvas 2D não é acelerado e os custos são outros. Em telas acima de 100 Hz o jogo desenha um quadro sim, um não.
+  Não foi medido em máquinas fracas. **F3** (ou `?fps` no endereço) mostra quadros por segundo e o tempo de cada
+  parte do desenho.
+- **Reflexos na água com a luz ligada** ainda passam por um canvas 2D copiado para a GPU a cada quadro; perto da água
+  o Firefox pode perder quadros. O modo desligado no Firefox é mais lento que o ligado.
 - **Luz**: os sprites são iluminados pela posição na tela, sem altura (a copa de uma árvore na frente de uma
   fogueira clareia como se estivesse no chão). As sombras caem só no chão, não sobre outros sprites. Cores que
   não estão em nenhuma rampa (misturas com transparência) seguem a rampa mais próxima, então o degrau é aproximado

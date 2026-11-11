@@ -1,6 +1,8 @@
-// Dynamic 2D light for pixel art, in WebGL2. The game keeps painting with canvas 2D, but into four layers instead
-// of one (ground, standing sprites, overlay, additive glow); this module lights the first two and puts all four
-// together.
+// Dynamic 2D light for pixel art, in WebGL2. With the light on, the game paints its frame through this module
+// instead of the 2D canvas: three layers (ground, standing sprites, overlay) that take the same handful of calls the
+// game already makes (drawImage, fillRect, globalAlpha, save/restore...), drawn as batched quads from a sprite atlas
+// on the GPU. This module then lights the first two layers and puts everything together. Nothing is copied from a
+// 2D canvas to the GPU per frame: browsers (Firefox above all) pay a read-back for each such copy.
 //
 // The light never blends colours towards white or black. It moves each pixel up or down its own colour ramp:
 // a 3D lookup texture, built from every ramp the art uses, says for any colour what "one step darker" and "one
@@ -11,7 +13,6 @@
 // Light sources add up in a low-resolution buffer. Each source that casts shadows first draws them into a mask:
 // one tapered quad per prop or person, pointing away from the light. Shadows fall on the ground layer only.
 // Turned off, none of this runs and the game draws straight to the screen as it always did.
-import { makeCanvas } from "./util.js";
 
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -81,10 +82,8 @@ void main() {
   vec2 px = vec2(gl_FragCoord.x, uView.y - gl_FragCoord.y);
   ivec2 w = ivec2(floor(px + uCam));
   float bay = (B[(w.y & 3) * 4 + (w.x & 3)] + 0.5) / 16.0;
-  // the four painted layers come in as the browser keeps them (top row first, colour already multiplied by alpha),
-  // so that handing them over is a plain copy
-  vec2 uvL = vec2(uv.x, 1.0 - uv.y);
-  vec4 g = texture(uGround, uvL), s = texture(uSprites, uvL), ov = texture(uOver, uvL), ad = texture(uAdd, uvL);
+  // the three painted layers hold colour already multiplied by alpha; the effects' light comes as raw rows, top first
+  vec4 g = texture(uGround, uv), s = texture(uSprites, uv), ov = texture(uOver, uv), ad = texture(uAdd, vec2(uv.x, 1.0 - uv.y));
   vec3 col = shade(g.rgb, texture(uLitS, uv).rgb, bay);
   if (s.a > 0.004) col = mix(col, shade(s.rgb / s.a, texture(uLitO, uv).rgb, bay), s.a);
   col = col * (1.0 - ov.a) + ov.rgb;
@@ -117,10 +116,10 @@ function compile(type, src) {
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
   return s;
 }
-function program(vs, fs) {
+function program(vs, fs, attrs = ["aPos", "aK"]) {
   const p = gl.createProgram();
   gl.attachShader(p, compile(gl.VERTEX_SHADER, vs)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
-  gl.bindAttribLocation(p, 0, "aPos"); gl.bindAttribLocation(p, 1, "aK");
+  attrs.forEach((a, i) => gl.bindAttribLocation(p, i, a));
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u = {};
@@ -137,6 +136,7 @@ function tex2d(w, h, internal = gl.RGBA8, format = gl.RGBA) {
 
 function setup() {
   progShadow = program(VS, FS_SHADOW); progLight = program(VS, FS_LIGHT); progMix = program(VS, FS_MIX);
+  setupSprites();
   vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 12, 0);
@@ -215,16 +215,13 @@ function buildLut() {
 }
 
 // ---------------------------------------------------------------- per-frame
-/** The three 2D layers to paint this frame: [ground, sprites, overlay], each { c, x }. The additive light of the effects comes as raw pixels. */
+/** The three layers to paint this frame: [ground, sprites, overlay], each { x } with x standing in for a 2D context. */
 export function lightLayers(w, h) {
   if (!layers || size[0] !== w || size[1] !== h) {
-    // kept in plain memory (willReadFrequently): handing a GPU-backed canvas to WebGL makes the browser read it back first
-    layers = [0, 1, 2].map(() => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingEnabled = false; return { c, x }; });
     size = [w, h];
     glCanvas.width = w; glCanvas.height = h;
     const mk = () => tex2d(w, h);
     for (const t of [texLitS, texLitO, texMask, ...layerTex]) if (t) gl.deleteTexture(t);
-    // the four layers get fixed storage once, and each frame only refills it
     layerTex.length = 0; addBox = null;
     for (let i = 0; i < 4; i++) {
       const t = gl.createTexture();
@@ -232,6 +229,12 @@ export function lightLayers(w, h) {
       for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
       layerTex.push(t);
     }
+    layers ??= [0, 1, 2].map((i) => ({ x: new Layer(i) }));
+    layers.forEach((l, i) => {
+      l.x.fbo ??= gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, l.x.fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, layerTex[i], 0);
+    });
     texLitS = mk(); texLitO = mk(); texMask = tex2d(w, h, gl.R8, gl.RED);
     fboLight ??= gl.createFramebuffer(); fboMask ??= gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fboLight);
@@ -242,8 +245,187 @@ export function lightLayers(w, h) {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texMask, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
-  for (let i = 1; i < 3; i++) layers[i].x.clearRect(0, 0, w, h);
+  frameNo++; curLayer = null; nQ = 0;
+  gl.disable(gl.BLEND); gl.clearColor(0, 0, 0, 0);
+  for (const l of layers) { l.x.reset(); gl.bindFramebuffer(gl.FRAMEBUFFER, l.x.fbo); gl.clear(gl.COLOR_BUFFER_BIT); }
   return layers;
+}
+
+// ---------------------------------------------------------------- sprites on the GPU: a stand-in for the 2D context
+const VS_SPR = `#version 300 es
+in vec2 aPos; in vec2 aUV; in vec4 aCol;
+uniform vec2 uView;
+out vec2 vUV; out vec4 vCol;
+void main() { vUV = aUV; vCol = aCol; vec2 c = aPos / uView * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0); }`;
+const FS_SPR = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+in vec2 vUV; in vec4 vCol; out vec4 o;
+void main() { o = texture(uTex, vUV) * vCol; }`;
+
+const PAGE = 2048, BIG = 640, MAXQ = 4096, FPV = 8;
+let progSpr, vaoS, vboS, pages = [], srcs = new WeakMap(), named = new Map();
+let frameNo = 0, curLayer = null, curTex = null, curBlend = 0, nQ = 0;
+const qv = new Float32Array(MAXQ * 6 * FPV);
+
+function setupSprites() {
+  progSpr = program(VS_SPR, FS_SPR, ["aPos", "aUV", "aCol"]);
+  vaoS = gl.createVertexArray(); gl.bindVertexArray(vaoS);
+  vboS = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vboS);
+  gl.bufferData(gl.ARRAY_BUFFER, qv.byteLength, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, FPV * 4, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, FPV * 4, 8);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, FPV * 4, 16);
+  pages = []; srcs = new WeakMap(); named = new Map(); curLayer = null; nQ = 0;
+  newPage();
+}
+function plainTex(w, h, smooth) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+  const f = smooth ? gl.LINEAR : gl.NEAREST;
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, f], [gl.TEXTURE_MAG_FILTER, f], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+  return t;
+}
+function newPage() {
+  const p = { tex: plainTex(PAGE, PAGE), w: PAGE, h: PAGE, shelves: [], y: 4 };
+  // a few white texels in the corner: plain rectangles are drawn from them, in the same batch as the sprites
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(16).fill(255));
+  pages.push(p);
+  return p;
+}
+/** Where an image lives on the GPU: a slot in an atlas page, or a texture of its own if it is large. Sent once. */
+function place(img) {
+  const w = img.width, h = img.height;
+  let e;
+  if (w > BIG || h > BIG || img.dyn) e = { tex: plainTex(w, h), tw: w, th: h, x: 0, y: 0, w, h };
+  else {
+    let spot = null;
+    for (const p of pages) {
+      // shelves: rows of similar height, filled left to right
+      for (const sh of p.shelves) if (sh.h >= h && sh.h <= h * 1.35 + 4 && sh.x + w + 1 <= PAGE) { spot = { p, x: sh.x, y: sh.y }; sh.x += w + 1; break; }
+      if (!spot && p.y + h + 1 <= PAGE) { p.shelves.push({ y: p.y, h, x: w + 1 }); spot = { p, x: 0, y: p.y }; p.y += h + 1; }
+      if (spot) break;
+    }
+    if (!spot) { const p = newPage(); p.shelves.push({ y: p.y, h, x: w + 1 }); spot = { p, x: 0, y: p.y }; p.y += h + 1; }
+    e = { tex: spot.p.tex, tw: PAGE, th: PAGE, x: spot.x, y: spot.y, w, h };
+    gl.bindTexture(gl.TEXTURE_2D, e.tex);
+  }
+  send(e, img);
+  srcs.set(img, e);
+  return e;
+}
+function send(e, img) {
+  gl.bindTexture(gl.TEXTURE_2D, e.tex);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, e.x, e.y, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  e.stamp = frameNo;
+}
+function flush() {
+  if (!nQ || !curLayer) { nQ = 0; return; }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, curLayer.fbo);
+  gl.viewport(0, 0, size[0], size[1]);
+  gl.useProgram(progSpr.p); gl.uniform2f(progSpr.u.uView, size[0], size[1]); gl.uniform1i(progSpr.u.uTex, 0);
+  gl.bindVertexArray(vaoS); gl.bindBuffer(gl.ARRAY_BUFFER, vboS);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, qv, 0, nQ * 6 * FPV);
+  gl.enable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
+  // colours carry their alpha already; "lighter" adds light without thickening the layer
+  if (curBlend) gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE); else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, curTex);
+  gl.drawArrays(gl.TRIANGLES, 0, nQ * 6);
+  nQ = 0;
+}
+const colors = new Map();
+function parseColor(str) {
+  let c = colors.get(str);
+  if (c) return c;
+  if (str[0] === "#") {
+    const h = str.length === 4 ? str[1] + str[1] + str[2] + str[2] + str[3] + str[3] : str.slice(1), n = parseInt(h, 16);
+    c = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1];
+  } else {
+    const m = str.match(/[\d.]+/g) ?? [0, 0, 0];
+    c = [m[0] / 255, m[1] / 255, m[2] / 255, m[3] == null ? 1 : +m[3]];
+  }
+  if (colors.size > 4000) colors.clear();
+  colors.set(str, c);
+  return c;
+}
+
+/** One layer of the frame. It answers to the part of CanvasRenderingContext2D the game draws with. */
+class Layer {
+  constructor(i) { this.i = i; this.fbo = null; this.reset(); }
+  reset() {
+    this.m = [1, 0, 0, 1, 0, 0]; this.flat = true; this.stack = [];
+    this.globalAlpha = 1; this.blend = 0; this.lineWidth = 1; this.imageSmoothingEnabled = false;
+    this.fs = "#000"; this.fc = [0, 0, 0, 1]; this.ss = "#000"; this.sc = [0, 0, 0, 1];
+  }
+  get fillStyle() { return this.fs; }
+  set fillStyle(v) { if (v !== this.fs) { this.fs = v; this.fc = parseColor(v); } }
+  get strokeStyle() { return this.ss; }
+  set strokeStyle(v) { if (v !== this.ss) { this.ss = v; this.sc = parseColor(v); } }
+  get globalCompositeOperation() { return this.blend ? "lighter" : "source-over"; }
+  set globalCompositeOperation(v) { this.blend = v === "lighter" ? 1 : 0; }
+  save() { this.stack.push([this.m.slice(), this.flat, this.globalAlpha, this.blend, this.fs, this.fc, this.ss, this.sc, this.lineWidth]); }
+  restore() { const s = this.stack.pop(); if (s) [this.m, this.flat, this.globalAlpha, this.blend, this.fs, this.fc, this.ss, this.sc, this.lineWidth] = s; }
+  translate(x, y) { const m = this.m; m[4] += m[0] * x + m[2] * y; m[5] += m[1] * x + m[3] * y; this.flat = false; }
+  scale(x, y) { const m = this.m; m[0] *= x; m[1] *= x; m[2] *= y; m[3] *= y; this.flat = false; }
+  rotate(a) { const m = this.m, c = Math.cos(a), s = Math.sin(a), [a0, a1, a2, a3] = m; m[0] = a0 * c + a2 * s; m[1] = a1 * c + a3 * s; m[2] = a2 * c - a0 * s; m[3] = a3 * c - a1 * s; this.flat = false; }
+
+  /** A quad of texture `tex` (u, v in 0..1) at x, y, w, h, tinted by r, g, b, a (alpha already multiplied in). */
+  quad(tex, u0, v0, u1, v1, x, y, w, h, r, g, b, a) {
+    if (curLayer !== this || curTex !== tex || curBlend !== this.blend || nQ >= MAXQ) { flush(); curLayer = this; curTex = tex; curBlend = this.blend; }
+    let x0 = x, y0 = y, x1 = x + w, y1 = y, x2 = x, y2 = y + h, x3 = x + w, y3 = y + h;
+    if (!this.flat) {
+      const m = this.m, X = (px, py) => m[0] * px + m[2] * py + m[4], Y = (px, py) => m[1] * px + m[3] * py + m[5];
+      [x0, y0, x1, y1, x2, y2, x3, y3] = [X(x, y), Y(x, y), X(x + w, y), Y(x + w, y), X(x, y + h), Y(x, y + h), X(x + w, y + h), Y(x + w, y + h)];
+    }
+    let o = nQ++ * 6 * FPV;
+    const v = qv, put = (px, py, pu, pv) => { v[o++] = px; v[o++] = py; v[o++] = pu; v[o++] = pv; v[o++] = r; v[o++] = g; v[o++] = b; v[o++] = a; };
+    put(x0, y0, u0, v0); put(x1, y1, u1, v0); put(x2, y2, u0, v1);
+    put(x2, y2, u0, v1); put(x1, y1, u1, v0); put(x3, y3, u1, v1);
+  }
+  rect(x, y, w, h, c) {
+    const a = c[3] * this.globalAlpha, t = pages[0];
+    this.quad(t.tex, 0.5 / PAGE, 0.5 / PAGE, 1 / PAGE, 1 / PAGE, x, y, w, h, c[0] * a, c[1] * a, c[2] * a, a);
+  }
+  fillRect(x, y, w, h) { this.rect(x, y, w, h, this.fc); }
+  strokeRect(x, y, w, h) {
+    const l = this.lineWidth, k = l / 2, c = this.sc;
+    this.rect(x - k, y - k, w + l, l, c); this.rect(x - k, y + h - k, w + l, l, c);
+    this.rect(x - k, y + k, l, h - l, c); this.rect(x + w - k, y + k, l, h - l, c);
+  }
+  /** drawImage(img, dx, dy) · (img, dx, dy, dw, dh) · (img, sx, sy, sw, sh, dx, dy, dw, dh) */
+  drawImage(img, a, b, c, d, e, f, g, h) {
+    if (!img.width || !img.height) return;
+    let t = srcs.get(img);
+    if (!t) t = place(img);
+    else if (img.dyn && t.stamp !== frameNo) { flush(); send(t, img); } // a canvas repainted every frame (reflections)
+    let sx = 0, sy = 0, sw = t.w, sh = t.h, dx = a, dy = b, dw = t.w, dh = t.h;
+    if (e !== undefined) { sx = a; sy = b; sw = c; sh = d; dx = e; dy = f; dw = g; dh = h; } else if (c !== undefined) { dw = c; dh = d; }
+    const ga = this.globalAlpha;
+    this.quad(t.tex, (t.x + sx) / t.tw, (t.y + sy) / t.th, (t.x + sx + sw) / t.tw, (t.y + sy + sh) / t.th, dx, dy, dw, dh, ga, ga, ga, ga);
+  }
+  /**
+   * Raw RGBA pixels (plain alpha, top row first) that change every frame: effects, fog. `name` keeps one texture per use;
+   * `box` [x, y, w, h] is the part of the w×h image worth sending (null: all of it, false: nothing new since last time).
+   * Drawn from that box, or all of it if none was given, to dx, dy, dw, dh.
+   */
+  pixels(name, data, w, h, box, dx, dy, dw, dh, smooth = false) {
+    let t = named.get(name);
+    if (!t || t.w !== w || t.h !== h) { if (t) gl.deleteTexture(t.tex); t = { tex: plainTex(w, h, smooth), w, h }; named.set(name, t); if (box === false) box = null; }
+    if (box !== false) {
+      const [bx, by, bw, bh] = box ?? [0, 0, w, h];
+      if (curTex === t.tex) flush();
+      gl.bindTexture(gl.TEXTURE_2D, t.tex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, bx); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, by);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, bx, by, bw, bh, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    }
+    const [sx, sy, sw, sh] = box || [0, 0, w, h], ga = this.globalAlpha;
+    this.quad(t.tex, sx / w, sy / h, (sx + sw) / w, (sy + sh) / h, dx, dy, dw, dh, ga, ga, ga, ga);
+  }
 }
 
 const quad = new Float32Array(18);
@@ -262,13 +444,12 @@ let verts = new Float32Array(6 * 3 * 256);
  */
 export function renderLight(s) {
   const [w, h] = size, high = lightSettings.mode === "high", I = lightSettings.intensity;
+  flush(); curLayer = null;
   gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
   gl.viewport(0, 0, w, h);
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-  layers.forEach((l, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, layerTex[i]); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, l.c); });
+  layers.forEach((l, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, layerTex[i]); });
   // the effects' light: opaque where there is any, so it needs no alpha handling; nothing to send on most frames
   gl.activeTexture(gl.TEXTURE3);
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   if (s.add) {
     // only the box that holds light now, or held it at the last upload (to wipe what moved away)
     const A = s.add, R = addBox ? [Math.min(A.x0, addBox[0]), Math.min(A.y0, addBox[1]), Math.max(A.x1, addBox[2]), Math.max(A.y1, addBox[3])] : [A.x0, A.y0, A.x1, A.y1];

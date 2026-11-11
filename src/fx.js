@@ -75,23 +75,30 @@ export class FxLayer {
     clearFrame(f);
     f.ox = camX | 0; f.oy = camY | 0;
     for (const e of vis) e.fx.draw(f);
-    // the frame's pixels are already laid out like ImageData's (R in the low byte): copy whole words
-    const L = f.light, l32 = this.l32;
-    this.c32.set(f.color);
-    // ...and note the box the light falls in, so only that much has to travel to the GPU
-    let x0 = f.w, y0 = f.h, x1 = -1, y1 = -1;
-    for (let y = 0, i = 0; y < f.h; y++) {
-      let any = false;
-      for (let x = 0; x < f.w; x++, i++) { const l = L[i] & 0xffffff; if (l) { l32[i] = l | 0xff000000; any = true; if (x < x0) x0 = x; if (x > x1) x1 = x; } else l32[i] = 0; }
+    // the frame's pixels are already laid out like ImageData's (R in the low byte): copy whole words, and note the box
+    // each layer's pixels fall in, so only that much is handed to the canvas (or, for the light, to the GPU)
+    const C = f.color, L = f.light, c32 = this.c32, l32 = this.l32, w = f.w, h = f.h;
+    let cx0 = w, cy0 = h, cx1 = -1, cy1 = -1, x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0, i = 0; y < h; y++) {
+      let anyC = false, any = false;
+      for (let x = 0; x < w; x++, i++) {
+        const c = C[i], l = L[i] & 0xffffff;
+        c32[i] = c;
+        if (c >>> 24) { anyC = true; if (x < cx0) cx0 = x; if (x > cx1) cx1 = x; }
+        if (l) { l32[i] = l | 0xff000000; any = true; if (x < x0) x0 = x; if (x > x1) x1 = x; } else l32[i] = 0;
+      }
+      if (anyC) { if (y < cy0) cy0 = y; cy1 = y; }
       if (any) { if (y < y0) y0 = y; y1 = y; }
     }
-    const anyL = x1 >= 0;
-    this.cctx.putImageData(this.ci, 0, 0);
-    ctx.drawImage(this.cc, 0, 0);
-    if (anyL && lit) this.lightPixels = { data: this.li.data, x0, y0, x1, y1 };
-    else if (anyL) {
-      this.lctx.putImageData(this.li, 0, 0);
-      { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, 0, 0); ctx.restore(); }
+    if (cx1 >= 0) {
+      const bw = cx1 - cx0 + 1, bh = cy1 - cy0 + 1;
+      if (ctx.pixels) ctx.pixels("fx", this.ci.data, w, h, [cx0, cy0, bw, bh], cx0, cy0, bw, bh); // the GPU layer takes the pixels as they are
+      else { this.cctx.putImageData(this.ci, 0, 0, cx0, cy0, bw, bh); ctx.drawImage(this.cc, cx0, cy0, bw, bh, cx0, cy0, bw, bh); }
     }
+    if (x1 < 0) return;
+    if (lit) { this.lightPixels = { data: this.li.data, x0, y0, x1, y1 }; return; }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    this.lctx.putImageData(this.li, 0, 0, x0, y0, bw, bh);
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, x0, y0, bw, bh, x0, y0, bw, bh); ctx.restore();
   }
 }
