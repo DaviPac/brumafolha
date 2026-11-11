@@ -14,6 +14,7 @@ import { sfx } from "./audio.js";
 import { FX, PAL } from "./fx.js";
 import { openJournal, refreshJournal } from "./journal.js";
 import { refreshCombatHotbar } from "./combat.js";
+import * as A1 from "./act1.js";
 
 let E;
 const F = G.f; // story flags
@@ -31,6 +32,7 @@ export function init(engine) {
   G.hooks.partyDown = () => { if (G.combat) G.combat.someoneDown = true; hint("down"); };
   G.hooks.itemRead = itemRead;
   G.hooks.journalClosed = () => { const f = afterJournal; afterJournal = null; f?.(); };
+  A1.init({ E, F, cast, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint, refreshJournal });
 }
 
 // ---------------------------------------------------------------- little tools
@@ -106,6 +108,7 @@ const ITEMS = {
 
 // ---------------------------------------------------------------- the cast, map by map
 export function populate(W) {
+  if (W.id === "vau" || W.id === "travessia") return A1.populate(W);
   const npc = (spec, def) => { const u = E.unit(spec, { team: "npc", maxHp: 6, ac: 10, ...def }); W.npcs.push(u); if (def.key) cast[def.key] = u; return u; };
   if (W.id === "vale") {
     const gob = (tx, ty, group, n, spec = "goblin", key) => {
@@ -169,6 +172,7 @@ export function populate(W) {
 
 // ---------------------------------------------------------------- the quest log
 export function quests({ all } = {}) {
+  if (F.act1) return A1.quests({ all });
   if (!F.awake) return G.W?.id === "sonho" ? [{ title: "Um sonho", objs: [["Siga a avenida até a luz", !!F.dream_done]] }] : [];
   const out = [];
   const o = [];
@@ -207,6 +211,17 @@ export function devJump(where, flags) {
   if (where === "camp") E.loadMap("vale", 15, 38, 3);
   E.partyChanged();
   G.mode = "explore";
+  if (where === "ato1") {
+    // straight to Vau-de-Cardo, as if the prologue had ended with these flags (?dev=ato1&f=goblin_pact,maren_aboard,...)
+    F.echo ??= "accepted"; F.escape = F.escape_done = true;
+    if (F.echo === "accepted") G.hero.abilities.push("lampejo");
+    G.hero.glow = { r: 30, c: [160, 200, 255], a: 0.35, h: 18 };
+    for (const [id, text, origin] of [["dream", "A cidade branca do sonho, e a mulher de prata.", false], ["o1", "Quem me ensinou a ser quem eu sou: minha mãe, Ana.", true], ["o2", "O lugar que eu chamo de casa: a estrada.", true], ["sunset", "O pôr do sol no Lago Espelhado.", false]]) G.memories.push({ id, text, origin });
+    giveItem(ITEMS.letter);
+    if (!F.returned_heirloom && F.maren_aboard) giveItem(ITEMS.chair);
+    G.gold += 40;
+    A1.begin();
+  }
 }
 
 // ---------------------------------------------------------------- 6.1 the dream
@@ -363,6 +378,7 @@ async function deerTalk() {
 }
 
 export function onRest() {
+  if (F.act1) return A1.onRest();
   if (G.W.id !== "vale" || F.rested_story || !F.awake) return;
   F.rested_story = true;
   scene(async () => {
@@ -996,6 +1012,7 @@ async function cendraScene() {
 
 async function turnStart(u, C) {
   if (u.team === "party" && !u.ai) { hint("turn"); hint("actions"); if (u.abilities.some((k) => ["missiles", "heal", "healword", "mark"].includes(k))) hint("spells"); }
+  if (F.act1) return A1.turnStart(u, C);
   if (C.group !== relicGroup) return;
   if (C.round >= 3 && F.goblin_pact && !C.alliesIn) { C.alliesIn = true; await alliesArrive(C); }
   if (!F.echo && (C.round >= 4 || C.someoneDown)) await echoMoment();
@@ -1056,6 +1073,7 @@ export function onRetry() {
 
 export function onCombatEnd(group) {
   const W = G.W;
+  if (F.act1) return A1.onCombatEnd(group);
   if (group === W.groups.patrol) {
     G.groups.patrol.passive = true;
     setTimeout(() => scene(() => say(null, "O último goblin, caído, ainda agarra a rede: \"Não... a fumaça... precisa...\"")), 900);
@@ -1348,13 +1366,15 @@ function endScreen() {
     <h3>O que o vale vai lembrar</h3><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>
     ${mems ? `<h3>Quem você é</h3><ul>${mems}</ul>` : ""}
     <p class="muted">Nível ${G.hero.level} · ${G.gold} peças de ouro</p>
-    <button onclick="location.reload()">Jogar de novo</button></div>`;
+    <div class="row"><button class="go" data-default id="toAct1">Continuar: Ato I</button><button class="quiet" onclick="location.reload()">Jogar de novo</button></div></div>`;
   el.classList.remove("hidden");
+  el.querySelector("#toAct1").onclick = () => A1.begin();
   UI.fade(0, 1200);
 }
 
 // ---------------------------------------------------------------- what's clickable, per map
 export function interactables() {
+  if (F.act1) return A1.interactables();
   const out = [];
   const W = G.W;
   const at = (tx, ty, name, act, extra = {}) => out.push({ x: tx * TILE + 16, y: ty * TILE + 26, name, r: 16, act, ...extra });
@@ -1399,6 +1419,7 @@ export function update(dt) {
   for (let i = timers.length - 1; i >= 0; i--) if ((timers[i].t -= dt) <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); }
   const W = G.W, l = lead();
   if (!l) return;
+  if (F.act1) return A1.update(dt);
   // a little life
   if (W.id === "vale") {
     const deer = E.obj("deer");
@@ -1439,8 +1460,9 @@ export function update(dt) {
 }
 
 // ---------------------------------------------------------------- the Bruma, as a field the renderer samples
-export const hasFog = () => !!G.W && (G.W.id !== "relicario" || !!F.relic_collapse);
+export const hasFog = () => !!G.W && (F.act1 ? A1.hasFog() : G.W.id !== "relicario" || !!F.relic_collapse);
 export function fogAt(x, y) {
+  if (F.act1) return A1.fogAt(x, y);
   const W = G.W, l = lead();
   if (W.id === "sonho") {
     let m = 0;

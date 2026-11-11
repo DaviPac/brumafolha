@@ -3,6 +3,8 @@ import { G, lead, living } from "./state.js";
 import { TILE, makeCanvas, hash2, Rng, dist, clamp, vnoise } from "./util.js";
 import { buildWorld, MW, MH, zoneAt, T, waterField } from "./world.js";
 import { buildDream, buildRelic } from "./maps.js";
+import { buildVau, buildTravessia } from "./maps1.js";
+import * as TW from "./art/town.js";
 import { paintGround, waterSparkles, PAL as GPAL } from "./art/ground.js";
 import * as A from "./art/props.js";
 import * as I from "./art/interiors.js";
@@ -111,14 +113,16 @@ function begin() {
 
 // ---------------------------------------------------------------- the maps
 function buildMap(id) {
-  const W = id === "vale" ? buildWorld() : id === "sonho" ? buildDream() : buildRelic();
+  if (maps[id]) return maps[id];
+  const W = { vale: buildWorld, sonho: buildDream, relicario: buildRelic, vau: buildVau, travessia: buildTravessia }[id]();
+  if (id === "vale") W.outdoor = true;
   const g = document.createElement("canvas");
   g.width = W.w * TILE; g.height = W.h * TILE;
-  const img = id === "vale" ? paintGround(W) : I.paintInterior(W, T);
+  const img = id === "vale" ? paintGround(W) : W.outdoor ? TW.paintOutdoor(W, T) : I.paintInterior(W, T);
   g.getContext("2d").putImageData(img, 0, 0);
   W.ground = g;
-  if (id === "vale") W.waterMask = waterMask(img);
-  W.sparkles = id === "vale" ? waterSparkles(W) : [];
+  if (W.outdoor) W.waterMask = waterMask(img);
+  W.sparkles = id === "vale" ? waterSparkles(W) : W.outdoor ? TW.outdoorSparkles(W, T) : [];
   W.enemies = []; W.npcs = []; W.chests = []; W.groups = {};
   S.populate(W);
   for (const o of W.objects) o.art = propArt(o);
@@ -169,6 +173,8 @@ function makeCritters(W) {
       const x = inR ? R.range(10, 30) * TILE : R.range(32, 76) * TILE, y = inR ? R.range(3, 14) * TILE : R.range(17, 37) * TILE;
       out.push({ kind: "ff", x, y, ph: R.range(0, 9), r: R.range(8, 30), sp: R.range(0.15, 0.4) });
     }
+  } else if (W.outdoor) {
+    for (let i = 0; i < 40; i++) out.push({ kind: "ff", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(8, 30), sp: R.range(0.15, 0.4) });
   } else {
     // slow pale motes of light
     for (let i = 0; i < 50; i++) out.push({ kind: "mote", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(10, 40), sp: R.range(0.08, 0.2) });
@@ -194,6 +200,13 @@ function propArt(o) {
     case "trapdoor": return key(`trapdoor${o.open ? 1 : 0}`);
     case "relief": return o.spec ? key(`relief-${o.who}-${o.blank ? 0 : 1}-${o.v ?? 0}`) : null;
     case "deer": return key(`deer${o.frame ?? 0}`);
+    case "palisade": return key(`palisade${o.seed % 6}`);
+    case "house": return key(`house${o.w}-${o.seed}-${JSON.stringify(o.opts)}`);
+    case "stall": return key(`stall${o.color}-${o.seed}`);
+    case "table": return key(`table${o.seed}`);
+    case "cart": return key(`cart${o.wrecked ? 1 : 0}`);
+    case "board": return key(`board${o.wanted === false ? 0 : 1}`);
+    case "strongbox": return key(`strongbox${o.open ? 1 : 0}`);
     default: return key(o.kind);
   }
 }
@@ -229,6 +242,18 @@ function makeArt(o) {
     case "loot": return I.makeLoot();
     case "trapdoor": return I.makeTrapdoor(o.open);
     case "marker": return I.makeMarker();
+    case "palisade": return TW.makePalisade(o.seed % 6);
+    case "house": return TW.makeHouse(o.w, o.seed, o.opts);
+    case "stall": return TW.makeStall(o.color, o.seed);
+    case "lamp": return TW.makeLamp();
+    case "well": return TW.makeWell();
+    case "table": return TW.makeTable(o.seed);
+    case "sign": return TW.makeSign();
+    case "board": return TW.makeBoard(o.wanted !== false);
+    case "cart": return TW.makeCart(!!o.wrecked);
+    case "shrine": return TW.makeShrine();
+    case "strongbox": return TW.makeStrongbox(!!o.open);
+    case "satchel": return TW.makeSatchel();
   }
 }
 const shadowOf = (r) => { r = Math.round(r); if (!shadows.has(r)) shadows.set(r, A.makeShadow(r)); return shadows.get(r); };
@@ -313,6 +338,7 @@ function spawnCompanions() {
 function regear(u, look = true) {
   const keep = u.abilities.filter((k) => k === "lampejo");
   Object.assign(u, combatStats(u.build, u.equip, undefined, u.bonusAtk ?? 0));
+  if (u.ecoEyes) for (const s of ["Percepção", "Intuição", "Investigação"]) u.skills[s] = (u.skills[s] ?? 0) + 2; // a gift of the Echo
   u.abilities.push(...keep);
   if (u.maxSlots) { u.maxSlots += u.slotBonus ?? 0; u.slots = Math.min(u.slots ?? u.maxSlots, u.maxSlots); }
   if (look) { u.spec = specOf(u.build, u.equip); u.ch = buildCharacter(u.spec); u.portrait = portrait(u.ch); }
@@ -351,7 +377,9 @@ const sleep = (ms) => new Promise((r) => {
   setTimeout(tick, Math.min(ms, 50));
 });
 const E = {
-  unit, loadMap, sleep, tileCenter, tileOf, propArt,
+  unit, loadMap, sleep, tileCenter, tileOf, propArt, buildMap,
+  /** A party-grade character built by the creator's rules (Kael, Lyra, Nix), wherever the story needs them. */
+  companion(b, key, extra = {}) { const u = unit(specOf(b), { ...heroDef(b, key), ...extra }); u.spec = specOf(b); u.hp = u.maxHp; u.slots = u.maxSlots ?? 0; return u; },
   map: (id) => maps[id],
   obj: (id, W = G.W) => W.objects.find((o) => o.id === id),
   refresh: (o) => { o.art = propArt(o); },
@@ -695,14 +723,14 @@ function surfaceAt(x, y) {
 }
 function updateAudio(dt) {
   if (G.mode === "title" || G.mode === "create" || !G.party.length) return;
-  const l = lead(), vale = G.W.id === "vale";
+  const l = lead(), vale = G.W.id === "vale", out = !!G.W.outdoor;
   const zone = vale ? zoneAt(l.x, l.y) : G.W.zone, ruins = zone === "Ruínas de Velmoor";
-  const track = G.musicOverride !== undefined ? G.musicOverride : G.mode === "combat" ? "combat" : G.mode === "over" ? null : !vale ? "dream" : ruins ? "ruins" : "meadow";
+  const track = G.musicOverride !== undefined ? G.musicOverride : G.mode === "combat" ? "combat" : G.mode === "over" ? null : !out ? "dream" : ruins ? "ruins" : G.W.music ?? "meadow";
   playMusic(track, G.mode === "combat" ? 0.5 : 2.5);
   const w = vale ? waterField(l.x, l.y) : 9, fire = Math.max(0, ...campfires().map((o) => 1 - dist(o.x, o.y, l.x, l.y) / 220));
   updateAmbience({
-    wind: !vale ? 0.35 : ruins ? 1 : 0.7, water: clamp(1 - w / 1.1, 0, 1), fire,
-    birds: !vale || ruins || G.mode === "combat" || G.f.escape ? 0 : 1, ruins: !vale ? 0.8 : ruins ? 1 : 0,
+    wind: !out ? 0.35 : ruins ? 1 : 0.7, water: vale ? clamp(1 - w / 1.1, 0, 1) : out ? clamp(1 - Math.abs(G.W.id === "vau" ? l.y - 25 * TILE : l.x - 31 * TILE) / (7 * TILE)) : 0, fire,
+    birds: !out || ruins || G.mode === "combat" || (vale && G.f.escape) || G.clock > 19.5 || G.clock < 5.5 ? 0 : 1, ruins: !out ? 0.8 : ruins ? 1 : 0,
   }, dt, G.time);
   // footsteps: one every ~20 px walked, quieter for everyone but the leader
   for (const u of [...G.party, ...G.enemies, ...G.followers]) {
@@ -819,7 +847,7 @@ function update(dt) {
     // zone names
     if ((zoneT -= dt) < 0) {
       zoneT = 0.5;
-      const z = G.W.id === "vale" ? zoneAt(l.x, l.y) : G.W.zone;
+      const z = G.W.id === "vale" ? zoneAt(l.x, l.y) : G.W.zoneAt ? G.W.zoneAt(l.x, l.y) : G.W.zone;
       if (z !== zoneNow) { zoneNow = z; UI.banner(z); }
     }
   } else if (G.mode === "combat") {
@@ -1131,7 +1159,7 @@ function draw() {
   // everything standing, sorted by its feet
   const items = [];
   const inView = (x, y, m = 120) => x > cx - m && x < cx + vw + m && y > cy - 20 && y < cy + vh + 160;
-  for (const o of W.objects) if (!o.hidden && inView(o.x, o.y)) items.push({ y: o.y + (o.sortY ?? 0), o });
+  for (const o of W.objects) if (!o.hidden && inView(o.x, o.y, o.kind === "house" ? 210 : 120)) items.push({ y: o.y + (o.sortY ?? 0), o });
   for (const g of W.grass) if (inView(g.x, g.y, 20)) items.push({ y: g.y, g });
   for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) if (!u.gone && !u.hidden && inView(u.x, u.y)) items.push({ y: u.y + (u.float ? 40 : 0), u });
   G.chests.forEach((c) => inView(c.x, c.y) && items.push({ y: c.y, c }));
@@ -1195,7 +1223,7 @@ function draw() {
   G.fx.draw(ctx, cx, cy, lit ? LY[3].x : null);
   if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
-  const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : 0.15;
+  const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : W.id === "vau" ? 0.05 : 0.15;
   ctx.globalAlpha = mk;
   const mx = -((cx * 1.0 + t * 8) % mist.width) - mist.width, my = -((cy * 1.0 + t * 3) % mist.height) - mist.height;
   for (let y = my; y < vh; y += mist.height) for (let x = mx; x < vw; x += mist.width) ctx.drawImage(mist, Math.round(x), Math.round(y));
@@ -1204,7 +1232,7 @@ function draw() {
   if (!lit) S.drawOver(ctx, cx, cy);
 
   // framing: branches at the bottom corners (outdoors), and a vignette
-  if (W.id === "vale") {
+  if (W.id === "vale" || W.id === "travessia") {
     ctx.drawImage(fgLeft, Math.round(-30 - (cx * 0.05) % 10), vh - fgLeft.height + 34);
     ctx.save(); ctx.scale(-1, 1); ctx.drawImage(fgRight, Math.round(-vw - 24 + (cx * 0.05) % 10), vh - fgRight.height + 40); ctx.restore();
   }

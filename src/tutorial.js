@@ -27,6 +27,7 @@ const HINTS = {
   stealth: ["Furtividade", "Um teste de Furtividade bem-sucedido deixa você passar sem ser visto, ou começar uma luta com <b>rodada surpresa</b>."],
   lampejo: ["Lampejo de Velmoor", "Uma vez por descanso: depois de um teste que falhou, você pode <b>rolar o d20 de novo</b>. Em combate, ele está na barra e dá <b>vantagem</b> no próximo ataque do grupo."],
   escape: ["Corra!", "Siga a trilha marcada até o barco no cais. Não pare: a Bruma está logo atrás."],
+  light: ["Luz", "De noite, lanternas e fogueiras iluminam e fazem sombra. O menu (<b>Esc</b>) tem a luz em <b>desligada</b>, <b>baixa</b> ou <b>alta</b>, e a intensidade."],
   pause: ["Menu", "<b>Esc</b> ou <b>P</b> pausa o jogo e abre o volume de cada som. As dicas do tutorial também podem ser desligadas lá."],
 };
 

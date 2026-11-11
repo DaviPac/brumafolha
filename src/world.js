@@ -2,7 +2,7 @@
 import { TILE, fbm, vnoise, segDist, Rng, hash2 } from "./util.js";
 
 export const MW = 80, MH = 48; // the valley runs east along the river; the small areas reuse the same grid stride
-export const T = { GRASS: 0, PATH: 1, WATER: 2, DOCK: 3, STONE: 4, MARBLE: 5, WALL: 6, RELIEF: 7, STAIRS: 8, ROOF: 9, MIST: 10 };
+export const T = { GRASS: 0, PATH: 1, WATER: 2, DOCK: 3, STONE: 4, MARBLE: 5, WALL: 6, RELIEF: 7, STAIRS: 8, ROOF: 9, MIST: 10, COBBLE: 11 };
 
 const LAKE = { cx: 47.5 * TILE, cy: 27 * TILE, rx: 12.5 * TILE, ry: 10 * TILE };
 const POND = { cx: 8 * TILE, cy: 22 * TILE, rx: 3.2 * TILE, ry: 2.4 * TILE };
