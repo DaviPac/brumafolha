@@ -17,7 +17,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-export const lightSettings = { mode: "off", intensity: 1, ...store.get("brum.light", {}) };
+export const lightSettings = { mode: "high", intensity: 1, ...store.get("brum.light", {}) };
 export function setLight(patch) { Object.assign(lightSettings, patch); store.set("brum.light", lightSettings); }
 
 const VS = `#version 300 es
@@ -27,12 +27,12 @@ out float vK;
 void main() { vK = aK; vec2 c = aPos / uView * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0); }`;
 
 const FS_SHADOW = `#version 300 es
-precision mediump float;
+precision highp float;
 in float vK; out vec4 o;
 void main() { o = vec4(vK, 0.0, 0.0, 1.0); }`;
 
 const FS_LIGHT = `#version 300 es
-precision mediump float;
+precision highp float;
 uniform vec2 uView; uniform vec3 uLight; uniform vec3 uColor; uniform float uPow; uniform sampler2D uMask;
 layout(location = 0) out vec4 oShadowed; layout(location = 1) out vec4 oOpen;
 void main() {

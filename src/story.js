@@ -287,6 +287,7 @@ async function campWake() {
     await talk(G.mate, mateIs("kael") ? kaelOpening() : lyraOpening());
   });
   F.awake = true;
+  G.clock = 6.7; G.clockTarget = 10; // dawn at the camp, and the morning comes up as you set out
   UI.updateQuest();
   UI.banner("O que dorme em Velmoor");
   hint("party"); hint("quest");
@@ -1162,6 +1163,7 @@ async function escapeStart() {
     G.followers.forEach((u) => (u.hidden = false));
     E.loadMap("vale", 24, 12, 0);
     F.escape = true;
+    G.clock = 17.2; G.clockTarget = 17.9; // the afternoon is going
     G.speedCap = 70;
     G.musicOverride = "combat";
     esc.R = -48; esc.hold = 0; esc.fires = [];
@@ -1272,6 +1274,7 @@ async function boatEnding() {
   G.speedCap = null;
   G.musicOverride = "dream";
   G.tint = "rgba(255,120,50,0.2)"; // the sun going down over the lake
+  G.clockTarget = 19.4;
   boat.noReflect = true; // its reflection, with one passenger too many, is drawn by drawOver
   G.camFocus = { x: boat.x, y: boat.y, speed: 2 };
   esc.stop = false; esc.ending = true;
@@ -1422,7 +1425,7 @@ export function update(dt) {
     if (!F.patrol && !F.patrol_met && !F.patrol_cd && near(l, 22, 21, 7.5)) patrolScene();
     if (F.patrol_cd && !near(l, 22, 21, 9.5)) F.patrol_cd = false;
     // the ruins
-    if (ty <= 15 && tx >= 9 && tx <= 31) F.ruins_entered = true;
+    if (ty <= 15 && tx >= 9 && tx <= 31) { F.ruins_entered = true; G.clockTarget = 15; }
     if (!F.clan) {
       if (!F.breach_asked && tx >= 29 && tx <= 31 && ty >= 7 && ty <= 12) breachScene();
       else if (tx >= 13 && tx <= 27 && ty >= 4 && ty <= 13) gorzaScene(false);

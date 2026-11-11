@@ -66,7 +66,12 @@ function glyphs(bold) {
     const minX = Math.min(0, ...px.map((p) => p[0]));
     px = px.map(([x, y]) => [x - minX, y]);
     w = Math.max(w - minX, ...px.map((p) => p[0] + 1));
-    if (bold) { px = [...px, ...px.map(([x, y]) => [x + 1, y])]; w++; }
+    if (bold) {
+      // thicken every stroke to the right, but never close a one-pixel gap (m, w, #)
+      const has = new Set(px.map(([x, y]) => x + "," + y));
+      px = [...px, ...px.filter(([x, y]) => !has.has(x + 2 + "," + y) || has.has(x + 1 + "," + y)).map(([x, y]) => [x + 1, y])];
+      w++;
+    }
     out.push({ ch, w, px });
   };
   for (const [ch, src] of Object.entries(G7)) add(ch, parse(src));
