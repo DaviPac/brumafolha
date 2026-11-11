@@ -56,7 +56,7 @@ export function rampAt(r, v, x, y) {
 
 export const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
 export const lerp = (a, b, t) => a + (b - a) * t;
-export const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+export const dist = (ax, ay, bx, by) => { const dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy); }; // Math.hypot is several times slower, and the fog asks this per cell
 
 export function segDist(px, py, ax, ay, bx, by) {
   const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;

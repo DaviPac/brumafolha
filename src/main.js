@@ -811,7 +811,7 @@ function setPaused(p) {
 let zoneNow = "", zoneT = 0;
 function update(dt) {
   G.time += dt;
-  if (G.clockTarget != null) G.clock += clamp(G.clockTarget - G.clock, -dt / 30, dt / 30); // the story moves the sun
+  if (G.clockTarget != null) G.clock += clamp(G.clockTarget - G.clock, -dt / 45, dt / 45); // the story moves the sun
   if (G.hitstop > 0) { G.hitstop -= dt; return; }
   G.fx.update(dt);
   if (!G.party.length) return;
@@ -1023,13 +1023,16 @@ function drawProp(target, o, x, y) {
   const gust = 0.68 + 0.32 * Math.sin(t * 0.45 - o.x * 0.004); // never quite still
   const speed = o.kind === "bush" ? 2.2 : o.kind === "pine" ? 1.3 : 1.6;
   target.drawImage(a.trunk, x, y);
-  const L = a.leaves, B = 2;
-  for (let row = 0; row < L.height; row += B) {
-    if (row >= bottom) { target.drawImage(L, 0, row, L.width, L.height - row, x, y + row, L.width, L.height - row); break; }
+  // bands two pixels tall, but neighbours that slide by the same amount go out as one blit (a tree is a handful, not fifty)
+  const L = a.leaves, B = 2, LW = L.width, LH = L.height, rest = Math.min(LH, Math.ceil(bottom / B) * B);
+  let r0 = 0, o0 = 0;
+  for (let row = 0; row < rest; row += B) {
     const k = Math.min(1, (bottom - row) / (bottom - top));
     const off = Math.round(amp * k * gust * (Math.sin(t * speed + ph - row * 0.035) + 0.35 * Math.sin(t * speed * 2.3 + ph * 1.7 - row * 0.06)));
-    target.drawImage(L, 0, row, L.width, B, x + off, y + row, L.width, B);
+    if (off !== o0) { if (row > r0) target.drawImage(L, 0, r0, LW, row - r0, x + o0, y + r0, LW, row - r0); r0 = row; o0 = off; }
   }
+  if (rest > r0) target.drawImage(L, 0, r0, LW, rest - r0, x + o0, y + r0, LW, rest - r0);
+  if (LH > rest) target.drawImage(L, 0, rest, LW, LH - rest, x, y + rest, LW, LH - rest);
 }
 
 /** Mirror images of whatever stands by the water: flipped at the feet, rippling, cut to the water and tinted by it. */
@@ -1107,21 +1110,26 @@ function drawGlows(cx, cy) {
 /** The Bruma: a soft pearly fog from the story's fog field, rendered at a quarter resolution. */
 function drawFog(cx, cy) {
   if (!S.hasFog()) return;
-  const C = 4, w = Math.ceil(G.vw / C) + 1, h = Math.ceil(G.vh / C) + 1;
-  if (!fogC || fogC.width !== w || fogC.height !== h) { [fogC, fogX] = makeCanvas(w, h); fogC.img = fogX.createImageData(w, h); }
-  const d = fogC.img.data, t = G.time, ox = Math.floor(cx / C), oy = Math.floor(cy / C);
-  for (let j = 0; j < h; j++)
-    for (let i = 0; i < w; i++) {
-      const wx = (ox + i) * C, wy = (oy + j) * C;
-      let f = S.fogAt(wx, wy);
-      if (f > 0.01) f *= 0.7 + vnoise(wx / 70 + t * 0.12, wy / 50 - t * 0.05, 5) * 0.55;
-      const k = (j * w + i) * 4;
-      d[k] = 236; d[k + 1] = 240; d[k + 2] = 246; d[k + 3] = clamp(f, 0, 1) * 235;
-    }
-  fogX.putImageData(fogC.img, 0, 0);
+  const C = 4, M = 4, w = Math.ceil(G.vw / C) + 1 + M * 2, h = Math.ceil(G.vh / C) + 1 + M * 2;
+  if (!fogC || fogC.width !== w || fogC.height !== h) { [fogC, fogX] = makeCanvas(w, h); fogC.img = fogX.createImageData(w, h); fogC.age = 99; }
+  const ox = Math.floor(cx / C) - M, oy = Math.floor(cy / C) - M;
+  // the field drifts slowly: it is worked out every third frame (or when the camera outruns the margin) and reused between
+  if (++fogC.age >= 3 || fogC.map !== G.W || Math.abs(ox - fogC.ox) >= M || Math.abs(oy - fogC.oy) >= M) {
+    fogC.age = 0; fogC.map = G.W; fogC.ox = ox; fogC.oy = oy;
+    const d = fogC.img.data, t = G.time;
+    for (let j = 0; j < h; j++)
+      for (let i = 0; i < w; i++) {
+        const wx = (ox + i) * C, wy = (oy + j) * C;
+        let f = S.fogAt(wx, wy);
+        if (f > 0.01) f *= 0.7 + vnoise(wx / 70 + t * 0.12, wy / 50 - t * 0.05, 5) * 0.55;
+        const k = (j * w + i) * 4;
+        d[k] = 236; d[k + 1] = 240; d[k + 2] = 246; d[k + 3] = clamp(f, 0, 1) * 235;
+      }
+    fogX.putImageData(fogC.img, 0, 0);
+  }
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(fogC, ox * C - cx, oy * C - cy, w * C, h * C);
+  ctx.drawImage(fogC, fogC.ox * C - cx, fogC.oy * C - cy, w * C, h * C);
   ctx.restore();
 }
 
@@ -1220,7 +1228,7 @@ function draw() {
   } else if (W.id === "sonho") { ctx.fillStyle = "rgba(170,180,230,0.16)"; ctx.fillRect(0, 0, vw, vh); }
   else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
   if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
-  G.fx.draw(ctx, cx, cy, lit ? LY[3].x : null);
+  G.fx.draw(ctx, cx, cy, lit);
   if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
   const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : W.id === "vau" ? 0.05 : 0.15;
@@ -1245,7 +1253,7 @@ function draw() {
   }
   ctx.drawImage(vignette, 0, 0);
   if (lit) {
-    renderLight({ cam: [cx, cy], amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy) });
+    renderLight({ cam: [cx, cy], add: G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null, amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy) });
     ctx = screen;
   }
 }
@@ -1327,10 +1335,22 @@ function drawCritters(cx, cy, ruinK) {
   ctx.restore();
 }
 
+// a frame meter for when the game feels slow: F3, or ?fps in the address
+let meter = null, mAcc = 0, mN = 0, mWorst = 0, mU = 0, mD = 0;
+function toggleMeter() {
+  if (meter) { meter.remove(); meter = null; return; }
+  meter = document.createElement("div");
+  meter.style.cssText = "position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:999;padding:3px 6px;background:rgba(10,8,16,.8);color:#f4ecdc;font:12px/1.3 monospace;white-space:pre;pointer-events:none";
+  document.body.appendChild(meter);
+}
+addEventListener("keydown", (e) => { if (e.key === "F3") { e.preventDefault(); toggleMeter(); } });
+if (new URLSearchParams(location.search).has("fps")) toggleMeter();
+
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop); // schedule first: an error in one frame must not freeze the game
   const dt = Math.min(0.05, (now - last) / 1000);
+  if (meter) { mAcc += now - last; mN++; mWorst = Math.max(mWorst, now - last); }
   last = now;
   const a = performance.now();
   pollInput(now);
@@ -1339,6 +1359,13 @@ function loop(now) {
   const b = performance.now();
   draw();
   G.perf = { update: b - a, draw: performance.now() - b };
+  if (meter) {
+    mU += G.perf.update; mD += G.perf.draw;
+    if (mAcc >= 500) {
+      meter.textContent = `${Math.round(1000 * mN / mAcc)} qps  pior ${mWorst.toFixed(0)} ms\nlógica ${(mU / mN).toFixed(1)}  desenho ${(mD / mN).toFixed(1)} ms\n${G.vw}×${G.vh} ×${G.scale}  luz ${lightOn() ? lightSettings.mode : lightAvailable() ? "off" : "sem WebGL2"}`;
+      mAcc = mN = mWorst = mU = mD = 0;
+    }
+  }
 }
 
 G.chestArt = [A.makeChest(false), A.makeChest(true)];

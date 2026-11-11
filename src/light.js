@@ -81,19 +81,22 @@ void main() {
   vec2 px = vec2(gl_FragCoord.x, uView.y - gl_FragCoord.y);
   ivec2 w = ivec2(floor(px + uCam));
   float bay = (B[(w.y & 3) * 4 + (w.x & 3)] + 0.5) / 16.0;
-  vec4 g = texture(uGround, uv), s = texture(uSprites, uv), ov = texture(uOver, uv), ad = texture(uAdd, uv);
+  // the four painted layers come in as the browser keeps them (top row first, colour already multiplied by alpha),
+  // so that handing them over is a plain copy
+  vec2 uvL = vec2(uv.x, 1.0 - uv.y);
+  vec4 g = texture(uGround, uvL), s = texture(uSprites, uvL), ov = texture(uOver, uvL), ad = texture(uAdd, uvL);
   vec3 col = shade(g.rgb, texture(uLitS, uv).rgb, bay);
-  if (s.a > 0.004) col = mix(col, shade(s.rgb, texture(uLitO, uv).rgb, bay), s.a);
-  col = mix(col, ov.rgb, ov.a);
-  col += ad.rgb * ad.a;
+  if (s.a > 0.004) col = mix(col, shade(s.rgb / s.a, texture(uLitO, uv).rgb, bay), s.a);
+  col = col * (1.0 - ov.a) + ov.rgb;
+  col += ad.rgb;
   o = vec4(col, 1.0);
 }`;
 
 let gl = null, glCanvas = null, ok = false, failed = false;
 let progShadow, progLight, progMix, vbo, vao;
-let fboLight, texLitS, texLitO, fboMask, texMask, texNone, texDark, texBright;
+let fboLight, texLitS, texLitO, fboMask, texMask, texNone, texClear, texDark, texBright;
 const layerTex = [];
-let layers = null, size = [0, 0];
+let layers = null, size = [0, 0], addBox = null;
 let ramps = [];
 
 /** Give the renderer every colour ramp the art uses (arrays of [r,g,b], dark to light). Call before the first frame. */
@@ -132,22 +135,30 @@ function tex2d(w, h, internal = gl.RGBA8, format = gl.RGBA) {
   return t;
 }
 
+function setup() {
+  progShadow = program(VS, FS_SHADOW); progLight = program(VS, FS_LIGHT); progMix = program(VS, FS_MIX);
+  vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 12, 0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 12, 8);
+  texClear = tex2d(1, 1); // transparent black
+  texNone = tex2d(1, 1, gl.R8, gl.RED);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]));
+  // everything sized to the view is made again by lightLayers
+  layerTex.length = 0; layers = null; size = [0, 0];
+  texLitS = texLitO = texMask = fboLight = fboMask = texDark = texBright = null;
+  buildLut();
+}
 export function initLight(canvas) {
   glCanvas = canvas;
   try {
     gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: "high-performance" });
     if (!gl) throw new Error("no WebGL2");
-    progShadow = program(VS, FS_SHADOW); progLight = program(VS, FS_LIGHT); progMix = program(VS, FS_MIX);
-    vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-    vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 12, 0);
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 12, 8);
-    texNone = tex2d(1, 1, gl.R8, gl.RED);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array([0]));
-    for (let i = 0; i < 4; i++) layerTex.push(tex2d(1, 1));
+    setup();
     ok = true;
-    buildLut();
-    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); ok = false; failed = true; canvas.style.display = "none"; });
+    // a driver hiccup takes the context away; the plain 2D picture carries on until it comes back
+    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); ok = false; console.warn("lighting: context lost"); });
+    canvas.addEventListener("webglcontextrestored", () => { try { setup(); ok = true; } catch (e) { console.warn("lighting unavailable:", e.message); failed = true; } });
   } catch (e) {
     console.warn("lighting unavailable:", e.message);
     ok = false; failed = true;
@@ -204,14 +215,23 @@ function buildLut() {
 }
 
 // ---------------------------------------------------------------- per-frame
-/** The four 2D layers to paint this frame: [ground, sprites, overlay, additive], each { c, x }. */
+/** The three 2D layers to paint this frame: [ground, sprites, overlay], each { c, x }. The additive light of the effects comes as raw pixels. */
 export function lightLayers(w, h) {
   if (!layers || size[0] !== w || size[1] !== h) {
-    layers = [0, 1, 2, 3].map(() => { const [c, x] = makeCanvas(w, h); return { c, x }; });
+    // kept in plain memory (willReadFrequently): handing a GPU-backed canvas to WebGL makes the browser read it back first
+    layers = [0, 1, 2].map(() => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d", { willReadFrequently: true }); x.imageSmoothingEnabled = false; return { c, x }; });
     size = [w, h];
     glCanvas.width = w; glCanvas.height = h;
     const mk = () => tex2d(w, h);
-    for (const t of [texLitS, texLitO, texMask]) if (t) gl.deleteTexture(t);
+    for (const t of [texLitS, texLitO, texMask, ...layerTex]) if (t) gl.deleteTexture(t);
+    // the four layers get fixed storage once, and each frame only refills it
+    layerTex.length = 0; addBox = null;
+    for (let i = 0; i < 4; i++) {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+      layerTex.push(t);
+    }
     texLitS = mk(); texLitO = mk(); texMask = tex2d(w, h, gl.R8, gl.RED);
     fboLight ??= gl.createFramebuffer(); fboMask ??= gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fboLight);
@@ -222,7 +242,7 @@ export function lightLayers(w, h) {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texMask, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
-  for (let i = 1; i < 4; i++) layers[i].x.clearRect(0, 0, w, h);
+  for (let i = 1; i < 3; i++) layers[i].x.clearRect(0, 0, w, h);
   return layers;
 }
 
@@ -236,6 +256,7 @@ let verts = new Float32Array(6 * 3 * 256);
 
 /**
  * Light the frame and show it. `s` is:
+ *   add: { data, x0, y0, x1, y1 }, RGBA pixels of the view (top row first) to add on top and the box that holds them, or null;
  *   cam: [x, y] of the view's top-left in the world; amb: { level, tint: [r,g,b], tintK };
  *   lights: [{ x, y, r, c: [r,g,b] 0..1, i, shadows }] and occluders: [{ x, y, w, h }], all in view pixels.
  */
@@ -243,9 +264,22 @@ export function renderLight(s) {
   const [w, h] = size, high = lightSettings.mode === "high", I = lightSettings.intensity;
   gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
   gl.viewport(0, 0, w, h);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  layers.forEach((l, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, layerTex[i]); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, l.c); });
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  layers.forEach((l, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, layerTex[i]); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, l.c); });
+  // the effects' light: opaque where there is any, so it needs no alpha handling; nothing to send on most frames
+  gl.activeTexture(gl.TEXTURE3);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  if (s.add) {
+    // only the box that holds light now, or held it at the last upload (to wipe what moved away)
+    const A = s.add, R = addBox ? [Math.min(A.x0, addBox[0]), Math.min(A.y0, addBox[1]), Math.max(A.x1, addBox[2]), Math.max(A.y1, addBox[3])] : [A.x0, A.y0, A.x1, A.y1];
+    addBox = [A.x0, A.y0, A.x1, A.y1];
+    gl.bindTexture(gl.TEXTURE_2D, layerTex[3]);
+    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, R[0]); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, R[1]);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, R[0], R[1], R[2] - R[0] + 1, R[3] - R[1] + 1, gl.RGBA, gl.UNSIGNED_BYTE, A.data);
+    gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+  }
+  else gl.bindTexture(gl.TEXTURE_2D, texClear);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 
   // ---- the light buffer
   gl.bindFramebuffer(gl.FRAMEBUFFER, fboLight);

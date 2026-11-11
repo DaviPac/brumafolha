@@ -191,8 +191,10 @@ um controle de verdade.
 
 Falta, ou ficou pela metade:
 
-- **Desempenho**: medido só com renderização por software (sem placa de vídeo): 13 a 15 ms por quadro em 1080p com
-  a luz alta, 7 a 8 ms com ela desligada. Cabe em 60 fps, mas não foi medido numa GPU real nem em máquinas fracas.
+- **Desempenho**: medido nesta máquina (RTX 3060 de notebook), em navegadores sem janela, 640×360 de jogo ampliado:
+  no Chrome, 3 a 4 ms de desenho por quadro com a luz alta ou desligada; no Firefox, perto de 9 ms com a luz alta e
+  6 ms desligada (lá cada camada enviada à GPU custa ~0,6 ms e cada `drawImage` é mais caro). Não foi medido em
+  máquinas fracas. **F3** (ou `?fps` no endereço) mostra quadros por segundo e os tempos de lógica e desenho.
 - **Luz**: os sprites são iluminados pela posição na tela, sem altura (a copa de uma árvore na frente de uma
   fogueira clareia como se estivesse no chão). As sombras caem só no chão, não sobre outros sprites. Cores que
   não estão em nenhuma rampa (misturas com transparência) seguem a rampa mais próxima, então o degrau é aproximado

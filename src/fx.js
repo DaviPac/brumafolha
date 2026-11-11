@@ -28,6 +28,8 @@ export class FxLayer {
     [this.cc, this.cctx] = makeCanvas(w, h);
     [this.lc, this.lctx] = makeCanvas(w, h);
     this.ci = new ImageData(w, h); this.li = new ImageData(w, h);
+    this.c32 = new Uint32Array(this.ci.data.buffer); this.l32 = new Uint32Array(this.li.data.buffer);
+    this.hadLight = false;
   }
   /** opts: pixelfx options plus x, y in world px. extra: { move: {x,y,dur}, onDone, layer } */
   spawn(mod, opts = {}, extra = {}) {
@@ -64,28 +66,32 @@ export class FxLayer {
     }
     return out;
   }
-  /** `add`: a second context that takes the additive light layer (the lit renderer adds it itself). */
-  draw(ctx, camX, camY, add) {
+  /** `lit`: the lighting renderer adds the light layer itself, straight from `lightPixels` (no canvas in between). */
+  draw(ctx, camX, camY, lit) {
     const vis = this.list.filter((e) => e.x > camX - 200 && e.x < camX + this.w + 200 && e.y > camY - 200 && e.y < camY + this.h + 260);
+    this.lightPixels = null;
     if (!vis.length) return;
     const f = this.frame;
     clearFrame(f);
     f.ox = camX | 0; f.oy = camY | 0;
     for (const e of vis) e.fx.draw(f);
-    const n = f.w * f.h, C = f.color, L = f.light, cd = this.ci.data, ld = this.li.data;
-    let anyL = false;
-    for (let i = 0; i < n; i++) {
-      const c = C[i], l = L[i], j = i * 4;
-      cd[j] = c & 255; cd[j + 1] = (c >>> 8) & 255; cd[j + 2] = (c >>> 16) & 255; cd[j + 3] = c >>> 24;
-      if (l & 0xffffff) { anyL = true; ld[j] = l & 255; ld[j + 1] = (l >>> 8) & 255; ld[j + 2] = (l >>> 16) & 255; ld[j + 3] = 255; }
-      else ld[j + 3] = 0;
+    // the frame's pixels are already laid out like ImageData's (R in the low byte): copy whole words
+    const L = f.light, l32 = this.l32;
+    this.c32.set(f.color);
+    // ...and note the box the light falls in, so only that much has to travel to the GPU
+    let x0 = f.w, y0 = f.h, x1 = -1, y1 = -1;
+    for (let y = 0, i = 0; y < f.h; y++) {
+      let any = false;
+      for (let x = 0; x < f.w; x++, i++) { const l = L[i] & 0xffffff; if (l) { l32[i] = l | 0xff000000; any = true; if (x < x0) x0 = x; if (x > x1) x1 = x; } else l32[i] = 0; }
+      if (any) { if (y < y0) y0 = y; y1 = y; }
     }
+    const anyL = x1 >= 0;
     this.cctx.putImageData(this.ci, 0, 0);
     ctx.drawImage(this.cc, 0, 0);
-    if (anyL) {
+    if (anyL && lit) this.lightPixels = { data: this.li.data, x0, y0, x1, y1 };
+    else if (anyL) {
       this.lctx.putImageData(this.li, 0, 0);
-      if (add) add.drawImage(this.lc, 0, 0);
-      else { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, 0, 0); ctx.restore(); }
+      { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, 0, 0); ctx.restore(); }
     }
   }
 }

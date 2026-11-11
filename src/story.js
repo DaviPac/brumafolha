@@ -287,6 +287,7 @@ async function campWake() {
   F.whiteK = 0;
   G.party = [G.hero, G.mate];
   E.loadMap("vale", 15, 38, 3);
+  G.clock = 5.9; G.clockTarget = null; // the last of the night: the fire is the light here until you leave it
   E.place(G.hero, 15, 38, 3);
   E.place(G.mate, 14, 37, 1);
   E.partyChanged();
@@ -302,7 +303,6 @@ async function campWake() {
     await talk(G.mate, mateIs("kael") ? kaelOpening() : lyraOpening());
   });
   F.awake = true;
-  G.clock = 6.7; G.clockTarget = 10; // dawn at the camp, and the morning comes up as you set out
   UI.updateQuest();
   UI.banner("O que dorme em Velmoor");
   hint("party"); hint("quest");
@@ -1442,6 +1442,8 @@ export function update(dt) {
   }
   if (W.id === "vale" && F.awake && !F.escape) {
     if (near(l, 13, 36, 3)) hint("rest");
+    // the sun comes up once you walk away from the fire, not while you are still talking beside it
+    if (!F.sunup && !near(l, 13, 36, 6.5)) { F.sunup = true; if (G.clock < 10 && G.clockTarget == null) G.clockTarget = 10; }
     // the patrol
     if (!F.patrol && !F.patrol_met && !F.patrol_cd && near(l, 22, 21, 7.5)) patrolScene();
     if (F.patrol_cd && !near(l, 22, 21, 9.5)) F.patrol_cd = false;
