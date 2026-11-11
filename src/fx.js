@@ -15,6 +15,10 @@ import { makeCanvas } from "./util.js";
 
 export const FX = { campfire, fireball, hitSpark, critHit, swordSlash, poof, bloom, butterfly, fireflies, leaves };
 export { PAL };
+const FX_LIGHT = new Map([
+  [fireball, { r: 70, i: 0.9, c: "#ffae35", life: 9, shadows: true }], [hitSpark, { r: 44, i: 0.8, c: "#fff6c4", life: 0.35 }], [critHit, { r: 60, i: 1, c: "#fff6c4", life: 0.45 }],
+  [bloom, { r: 64, i: 0.8, c: "#7ee88a", life: 1.1 }],
+]);
 
 export class FxLayer {
   constructor() { this.list = []; this.resize(16, 16); }
@@ -28,7 +32,7 @@ export class FxLayer {
   /** opts: pixelfx options plus x, y in world px. extra: { move: {x,y,dur}, onDone, layer } */
   spawn(mod, opts = {}, extra = {}) {
     const fx = createFx(mod, { seed: (Math.random() * 1e6) | 0, ...opts });
-    const e = { fx, x: opts.x ?? 0, y: opts.y ?? 0, ...extra, t: 0 };
+    const e = { fx, mod, pal: opts.palette, x: opts.x ?? 0, y: opts.y ?? 0, ...extra, t: 0 };
     if (e.move) { e.sx = e.x; e.sy = e.y; }
     this.list.push(e);
     return e;
@@ -47,7 +51,21 @@ export class FxLayer {
     }
     this.list = this.list.filter((e) => { const d = e.fx.done(); if (d) e.onDone?.(); return !d || e.keep; });
   }
-  draw(ctx, camX, camY, view) {
+  /** Light thrown by the effects in flight (spells, sparks, blooms), for the lighting renderer. Campfires are lit by their prop. */
+  lights() {
+    const out = [];
+    for (const e of this.list) {
+      const L = FX_LIGHT.get(e.mod);
+      if (!L) continue;
+      const fade = e.move ? (e.arrived ? 0 : 1) : Math.max(0, 1 - e.t / L.life);
+      if (fade <= 0) continue;
+      const hex = e.pal?.[Math.max(0, e.pal.length - 3)] ?? L.c, n = parseInt(hex.slice(1), 16);
+      out.push({ x: e.x, y: e.y, r: L.r, c: [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255], i: L.i * fade, shadows: !!L.shadows });
+    }
+    return out;
+  }
+  /** `add`: a second context that takes the additive light layer (the lit renderer adds it itself). */
+  draw(ctx, camX, camY, add) {
     const vis = this.list.filter((e) => e.x > camX - 200 && e.x < camX + this.w + 200 && e.y > camY - 200 && e.y < camY + this.h + 260);
     if (!vis.length) return;
     const f = this.frame;
@@ -66,7 +84,8 @@ export class FxLayer {
     ctx.drawImage(this.cc, 0, 0);
     if (anyL) {
       this.lctx.putImageData(this.li, 0, 0);
-      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, 0, 0); ctx.restore();
+      if (add) add.drawImage(this.lc, 0, 0);
+      else { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, 0, 0); ctx.restore(); }
     }
   }
 }

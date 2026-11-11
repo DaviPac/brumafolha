@@ -24,9 +24,12 @@ import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
 import { Input, pollInput, key, focusDefault, activeLayer } from "./input.js";
 import { diceReroll } from "./dialogue.js";
+import { initLight, lightOn, lightAvailable, lightLayers, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
+import * as RULES from "./rules.js";
 
 const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const screen = canvas.getContext("2d");
+let ctx = screen; // where the drawing functions paint: the screen, or one of the lit renderer's layers
 let mist, vignette, fgLeft, fgRight, fogC, fogX, reflA, reflB;
 const art = new Map();
 const shadows = new Map();
@@ -51,6 +54,7 @@ async function boot() {
   mist = makeMist();
   fgLeft = silhouette(11); fgRight = silhouette(29);
   G.fx = new FxLayer();
+  if (initLight(document.getElementById("gl"))) setRamps(collectRamps([GPAL, A.RAMP, I.IRAMP, SPECS, RULES, ARMORS]));
   spawnCompanions();
   S.init(E);
   for (const id of ["vale", "sonho", "relicario"]) { buildMap(id); await nextFrame(); }
@@ -640,7 +644,7 @@ function resize() {
   G.vw = Math.ceil(innerWidth / s); G.vh = Math.ceil(innerHeight / s);
   canvas.width = G.vw; canvas.height = G.vh;
   canvas.style.width = G.vw * s + "px"; canvas.style.height = G.vh * s + "px";
-  ctx.imageSmoothingEnabled = false;
+  screen.imageSmoothingEnabled = false;
   G.fx?.resize(G.vw, G.vh);
 }
 
@@ -745,6 +749,20 @@ function setupMenu() {
     box.appendChild(row);
   }
   syncMute(audioSet.muted);
+  // light: off / low / high, and how strong
+  const lo = document.getElementById("lightOpts");
+  const modes = [["off", "Desligada"], ["low", "Baixa"], ["high", "Alta"]];
+  const drawLight = () => {
+    lo.innerHTML = lightAvailable()
+      ? `<div class="seg">${modes.map(([k, l]) => `<button data-lm="${k}" class="${lightSettings.mode === k ? "on" : ""}">${l}</button>`).join("")}</div>
+        <label class="vrow ${lightSettings.mode === "off" ? "off" : ""}"><span>Intensidade</span><input type="range" min="0.4" max="1.4" step="0.1" value="${lightSettings.intensity}"><span class="pct">${Math.round(lightSettings.intensity * 100)}%</span></label>
+        <p class="muted">${lightSettings.mode === "off" ? "Sem luz dinâmica: o jogo como era." : lightSettings.mode === "low" ? "Luzes e hora do dia, sem sombras." : "Luzes, hora do dia e sombras dos objetos."}</p>`
+      : `<p class="muted">Este navegador não tem WebGL2: a luz dinâmica fica desligada.</p>`;
+    lo.querySelectorAll("[data-lm]").forEach((b) => (b.onclick = () => { setLight({ mode: b.dataset.lm }); sfx.click(); drawLight(); lo.querySelector(`[data-lm="${b.dataset.lm}"]`)?.focus(); }));
+    const r = lo.querySelector("input");
+    if (r) r.oninput = () => { setLight({ intensity: +r.value }); lo.querySelector(".pct").textContent = Math.round(r.value * 100) + "%"; };
+  };
+  drawLight();
   document.getElementById("keys").innerHTML = [
     [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
     [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
@@ -765,6 +783,7 @@ function setPaused(p) {
 let zoneNow = "", zoneT = 0;
 function update(dt) {
   G.time += dt;
+  if (G.clockTarget != null) G.clock += clamp(G.clockTarget - G.clock, -dt / 30, dt / 30); // the story moves the sun
   if (G.hitstop > 0) { G.hitstop -= dt; return; }
   G.fx.update(dt);
   if (!G.party.length) return;
@@ -1083,6 +1102,10 @@ function draw() {
   let cx = Math.round(G.cam.x), cy = Math.round(G.cam.y);
   if (G.shake > 0) { cx += Math.round((Math.random() - 0.5) * 4); cy += Math.round((Math.random() - 0.5) * 4); }
   const W = G.W;
+  // with the light on, the scene is painted in layers (ground, sprites, overlay, glow) and put together by light.js
+  const lit = lightOn(), LY = lit ? lightLayers(vw, vh) : null;
+  ctx = lit ? LY[0].x : screen;
+  showLight(lit, vw * G.scale, vh * G.scale);
   ctx.fillStyle = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : "#0b0a10"; ctx.fillRect(0, 0, vw, vh);
   ctx.drawImage(W.ground, -cx, -cy);
 
@@ -1126,6 +1149,7 @@ function draw() {
   // active / hover rings
   if (G.mode === "combat" && G.combat?.active) ring(G.combat.active.x - cx, G.combat.active.y - cy - 1, G.combat.active.team === "party" ? "#e8c06a" : "#ff5a4a", 11);
   else if (G.mode === "explore" && l) ring(l.x - cx, l.y - cy - 1, "rgba(232,192,106,0.55)", 9);
+  if (lit) ctx = LY[1].x;
   for (const it of items) {
     if (it.u) { drawUnit(it.u, cx, cy); continue; }
     if (it.c) { const a = G.chestArt[it.c.open ? 1 : 0]; ctx.drawImage(a.c, Math.round(it.c.x - cx - a.ox), Math.round(it.c.y - cy - a.oy)); continue; }
@@ -1156,18 +1180,20 @@ function draw() {
     drawProp(ctx, o, x, y);
     ctx.globalAlpha = 1;
   }
+  if (lit) { S.drawOver(ctx, cx, cy); ctx = LY[2].x; }
   drawBars(cx, cy);
 
   // atmosphere: the ruins are darker and misty; the dream is pale; the Relicário is cold
+  // (with the light on, the darkness of a place is its ambient light instead of a veil over the picture)
   let ruinK = 0;
   if (W.id === "vale" && l) {
     ruinK = clamp(1 - Math.max(0, (l.y - 15 * TILE)) / (6 * TILE)) * (l.x < 33 * TILE ? 1 : 0.3);
-    if (ruinK > 0.01) { ctx.fillStyle = `rgba(16,20,40,${0.32 * ruinK})`; ctx.fillRect(0, 0, vw, vh); }
+    if (ruinK > 0.01 && !lit) { ctx.fillStyle = `rgba(16,20,40,${0.32 * ruinK})`; ctx.fillRect(0, 0, vw, vh); }
   } else if (W.id === "sonho") { ctx.fillStyle = "rgba(170,180,230,0.16)"; ctx.fillRect(0, 0, vw, vh); }
-  else if (W.id === "relicario") { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
-  if (G.tint) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
-  G.fx.draw(ctx, cx, cy);
-  drawGlows(cx, cy);
+  else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
+  if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
+  G.fx.draw(ctx, cx, cy, lit ? LY[3].x : null);
+  if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
   const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : 0.15;
   ctx.globalAlpha = mk;
@@ -1175,7 +1201,7 @@ function draw() {
   for (let y = my; y < vh; y += mist.height) for (let x = mx; x < vw; x += mist.width) ctx.drawImage(mist, Math.round(x), Math.round(y));
   ctx.globalAlpha = 1;
   drawFog(cx, cy);
-  S.drawOver(ctx, cx, cy);
+  if (!lit) S.drawOver(ctx, cx, cy);
 
   // framing: branches at the bottom corners (outdoors), and a vignette
   if (W.id === "vale") {
@@ -1190,6 +1216,59 @@ function draw() {
     vignette = c;
   }
   ctx.drawImage(vignette, 0, 0);
+  if (lit) {
+    renderLight({ cam: [cx, cy], amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy) });
+    ctx = screen;
+  }
+}
+
+// ---------------------------------------------------------------- light: what shines, what blocks it, how dark it is
+const DAY = [ // hour, darkness in ramp steps, ambient colour, how much of it
+  [0, -2, [0.6, 0.72, 1.14], 0.9], [4.6, -2, [0.6, 0.72, 1.14], 0.9], [5.6, -1.4, [0.86, 0.78, 1.02], 0.75], [6.4, -0.7, [1.1, 0.9, 0.9], 0.6],
+  [7.6, 0, [1, 1, 1], 0], [16.4, 0, [1, 1, 1], 0], [17.6, -0.7, [1.16, 0.88, 0.72], 0.7], [19, -1.3, [0.92, 0.74, 0.92], 0.8], [20.4, -2, [0.6, 0.72, 1.14], 0.9], [24, -2, [0.6, 0.72, 1.14], 0.9],
+];
+/** The sky's light at an hour of the day (0–24): whole steps of darkness, and a colour for what stays dark. */
+function dayLight(h) {
+  h = ((h % 24) + 24) % 24;
+  let i = 0;
+  while (i < DAY.length - 2 && DAY[i + 1][0] <= h) i++;
+  const a = DAY[i], b = DAY[i + 1], k = clamp((h - a[0]) / (b[0] - a[0]));
+  const level = Math.round(a[1] + (b[1] - a[1]) * k);
+  return { level, tint: a[2].map((v, j) => v + (b[2][j] - v) * k), tintK: a[3] + (b[3] - a[3]) * k, gain: level === 0 ? 0.4 : 1 };
+}
+function ambientNow(ruinK) {
+  const W = G.W;
+  if (G.ambient) return G.ambient; // the story's say (a sunset, a room going dark)
+  if (W.amb) return W.amb; // indoors, or a dream: the hour doesn't matter
+  const d = dayLight(G.clock);
+  // the ruins sit under their own smoke: a step darker than the valley, and colder
+  if (W.id === "vale" && ruinK > 0.5 && d.level === 0) return { level: -1, tint: [0.78, 0.86, 1.1], tintK: 0.7 * ruinK, gain: 1 };
+  return d;
+}
+G.clock = 9;
+const flick = (seed) => { const t = Math.floor(G.time * 9); return 1 + 0.07 * Math.sin(t * 1.7 + seed) + 0.04 * Math.sin(t * 3.3 + seed * 2); };
+function gatherLights(cx, cy) {
+  const out = [];
+  const glow = (e, g) => out.push({ x: e.x - cx, y: e.y - cy - (g.h ?? 16), r: g.r * 2.6, c: (g.c ?? [150, 190, 255]).map((v) => v / 255), i: Math.min(1, (g.a ?? 0.35) * 2.4), shadows: g.r > 30 });
+  for (const o of G.W.objects) {
+    if (o.hidden) continue;
+    if (o.kind === "campfire") { if (!o.out) out.push({ x: o.x - cx, y: o.y - cy - 4, r: 150, c: o.goblin ? [0.72, 1, 0.66] : [1, 0.7, 0.38], i: flick(o.x), shadows: true }); }
+    else if (o.light) { if (!o.light.off) out.push({ x: o.x - cx + (o.light.dx ?? 0), y: o.y - cy - (o.light.h ?? 0), r: o.light.r, c: o.light.c, i: (o.light.i ?? 1) * (o.light.flicker ? flick(o.x) : 1), shadows: o.light.shadows ?? true }); }
+    else if (o.glow) glow(o, o.glow);
+    else if (o.kind === "statue" && o.lit) out.push({ x: o.x - cx, y: o.y - cy - 30, r: 90, c: [0.6, 0.78, 1], i: 0.9, shadows: true });
+  }
+  for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) glow(u, u.glow);
+  for (const L of G.fx.lights()) out.push({ ...L, x: L.x - cx, y: L.y - cy });
+  return out;
+}
+function gatherOccluders(items, cx, cy) {
+  const out = [];
+  for (const it of items) {
+    if (it.o) { const a = it.o.art; if (a?.shadow && !it.o.clip && it.o.kind !== "campfire") out.push({ x: it.o.x - cx, y: it.o.y - cy, w: a.shadow * 0.75, h: Math.min(110, a.c.height * 0.7) }); }
+    else if (it.u) { if (!it.u.float && !it.u.ghost && !(it.u.hp <= 0 && it.u.team === "party")) out.push({ x: it.u.x - cx, y: it.u.y - cy, w: it.u.small ? 4 : 5, h: it.u.small ? 20 : 28 }); }
+    else if (it.c) out.push({ x: it.c.x - cx, y: it.c.y - cy, w: 9, h: 14 });
+  }
+  return out;
 }
 
 function drawCritters(cx, cy, ruinK) {
