@@ -2,6 +2,7 @@
 // Opening it pauses the game.
 import { G } from "./state.js";
 import { icon } from "./art/icons.js";
+import { key, focusDefault } from "./input.js";
 import { sfx } from "./audio.js";
 import { derive, weaponProficient, armorAllowed, shieldAllowed, signed } from "./rules.js";
 import { WEAPONS, ARMORS, SHIELDS, ARMOR_CAT_NAMES, itemDef, weaponLine } from "./items.js";
@@ -32,7 +33,7 @@ export const toggleJournal = (t) => (open && (t === tab || !t) ? closeJournal() 
 
 function render() {
   const el = $("#journal");
-  el.innerHTML = `<div class="box"><nav>${TABS.map(([k, i, l]) => `<button data-t="${k}" class="${k === tab ? "on" : ""}">${icon(i)} ${l}</button>`).join("")}<button class="x" title="Fechar (Esc)">${icon("close")}</button></nav><div class="page"></div></div>`;
+  el.innerHTML = `<div class="box fr fr-panel"><nav><span class="hintkeys">${key("Q", "LB")}</span>${TABS.map(([k, i, l]) => `<button data-t="${k}" class="${k === tab ? "on" : ""}" ${k === tab ? "data-default" : ""}>${icon(i)} ${l}</button>`).join("")}<span class="hintkeys">${key("E", "RB")}</span><button class="x" title="Fechar (Esc)">${icon("close")}</button></nav><div class="page"></div></div>`;
   el.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => { tab = b.dataset.t; reading = null; sfx.click(); render(); }));
   el.querySelector(".x").onclick = closeJournal;
   const page = el.querySelector(".page");
@@ -47,12 +48,14 @@ function render() {
     G.hooks.itemRead?.(it);
   }));
   page.querySelector(".back")?.addEventListener("click", () => { reading = null; render(); });
+  page.querySelectorAll(".item.readable, .mems li.pick").forEach((b) => { b.tabIndex = 0; b.onkeydown = (e) => { if (e.key === "Enter") b.click(); }; });
+  focusDefault(el, true);
 }
 
 function bagPage() {
   if (reading) {
     const it = G.items.find((i) => i.id === reading);
-    return `<div class="reader"><h2>${icon(it.icon)} ${it.name}</h2><div class="paper">${it.read}</div><button class="back">${icon("left")} Voltar</button></div>`;
+    return `<div class="reader"><h2>${icon(it.icon)} ${it.name}</h2><div class="paper fr fr-paper">${it.read}</div><button class="back" data-default>${icon("left", "sm")} Voltar</button></div>`;
   }
   const rows = [
     `<div class="item"><span class="ic">${icon("coin")}</span><div><b>Ouro</b><p>${G.gold} peças.</p></div></div>`,

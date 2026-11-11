@@ -20,6 +20,10 @@ import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
 import { icon, installIcons } from "./art/icons.js";
+import { installFont } from "./art/font.js";
+import { installFrames } from "./art/frames.js";
+import { Input, pollInput, key, focusDefault, activeLayer } from "./input.js";
+import { diceReroll } from "./dialogue.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -35,6 +39,13 @@ const nextFrame = () => new Promise((r) => setTimeout(r, 16));
 async function boot() {
   const t0 = performance.now();
   installIcons();
+  installFrames();
+  await installFont();
+  resize();
+  document.getElementById("titleHelp").innerHTML = `
+    <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
+    <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
+    <li>${key("I", "Select")} Bolsa · ${key("J", "Y")} Diário · ${key("Esc", "Start")} opções</li>`;
   for (const el of document.querySelectorAll("[data-icon]")) el.innerHTML = icon(el.dataset.icon);
   for (let v = 0; v < 6; v++) grassArt.push(A.makeTallGrass(v));
   mist = makeMist();
@@ -52,6 +63,7 @@ async function boot() {
   const btn = document.getElementById("start");
   btn.classList.remove("hidden");
   btn.onclick = create;
+  focusDefault();
   requestAnimationFrame(loop);
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
@@ -358,7 +370,7 @@ const E = {
 };
 
 // ---------------------------------------------------------------- hooks used by other modules
-G.hooks.focus = (u) => { G.focus = u; };
+G.hooks.focus = (u) => { G.focus = u; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
 G.hooks.afterDialogue = () => exploreHotbar();
 G.hooks.hint = hint;
 G.hooks.gainXp = (p, xp) => {
@@ -391,11 +403,13 @@ G.hooks.gameOver = () => {
   playMusic(null, 0.6); sfx.defeat();
   const d = document.createElement("div");
   d.id = "gameover";
-  d.innerHTML = `<div style="text-align:center"><h1 style="font-size:54px;color:#ff6a5a;margin:0">O grupo caiu</h1><p style="color:#a89c86">As brumas do vale guardam mais um segredo.</p>
-    ${checkpoint ? '<button id="retry">Tentar a luta de novo</button> ' : ""}<button id="restart">Recomeçar do início</button></div>`;
+  d.className = "dim";
+  d.innerHTML = `<div class="fr fr-panel" style="padding:6rem 16rem 10rem"><h1>O grupo caiu</h1><p>As brumas guardam mais um segredo.</p>
+    ${checkpoint ? '<button id="retry" class="go" data-default>Tentar a luta de novo</button> ' : ""}<button id="restart" class="quiet">Recomeçar do início</button></div>`;
   document.getElementById("ui").appendChild(d);
   d.querySelector("#restart").onclick = () => location.reload();
   d.querySelector("#retry")?.addEventListener("click", () => { d.remove(); retry(); });
+  focusDefault(d, true);
 };
 G.hooks.lampejo = {
   can: () => G.hero?.abilities.includes("lampejo") && !G.hero.restUsed.lampejo,
@@ -446,10 +460,10 @@ function exploreHotbar() {
   UI.buildHotbar([
     { icon: "potion", name: "Poção de Cura", desc: `Recupera 2d4+2 PV de ${u.name}. Você tem ${G.potions}.`, count: G.potions, off: G.potions <= 0 || u.hp >= u.maxHp,
       use: () => { G.potions--; const r = 2 + Math.ceil(Math.random() * 4) + Math.ceil(Math.random() * 4); u.hp = Math.min(u.maxHp, u.hp + r); UI.floater(u.x, u.y - 34, `+${r}`, "heal"); G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2 }); UI.updateParty(); exploreHotbar(); } },
-    { icon: "swap", name: "Trocar líder", desc: "Controla o outro personagem (Tab).", off: G.party.length < 2, use: () => selectLeader((G.leader + 1) % G.party.length) },
+    { icon: "swap", name: "Trocar líder", desc: "Passa o controle para o próximo do grupo (Tab).", off: G.party.length < 2, use: () => selectLeader((G.leader + 1) % G.party.length) },
     { icon: "bag", name: "Bolsa", desc: "Itens e cartas (I).", use: () => toggleJournal("bag") },
     { icon: "book", name: "Diário", desc: "Missões e lembranças (J).", use: () => toggleJournal("quests") },
-  ], `<div class="econ"><div>${icon("coin")} ${G.gold} ouro</div></div>`);
+  ], { who: u, sub: `${u.cls ?? ""} · nível ${u.level}`, econ: `<div class="econ gold"><div>${icon("coin")} ${G.gold}</div></div>` });
 }
 
 // ---------------------------------------------------------------- explore: movement and interaction
@@ -542,10 +556,45 @@ let clickMark = null;
 
 // ---------------------------------------------------------------- input
 function setMouse(e) {
-  G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true;
+  G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true; cursor.on = false;
   G.mouse.wx = G.cam.x + G.mouse.x / G.scale; G.mouse.wy = G.cam.y + G.mouse.y / G.scale;
   G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
 }
+// a tile cursor for the keyboard and the pad: it stands in for the mouse during combat
+const cursor = { on: false, tx: 0, ty: 0 };
+function cursorMove(dx, dy) {
+  if (!G.combat) return;
+  if (!cursor.on) { [cursor.tx, cursor.ty] = tileOf(G.combat.active ?? lead()); cursor.on = true; }
+  const nx = cursor.tx + dx, ny = cursor.ty + dy;
+  if (nx >= 0 && ny >= 0 && nx < G.W.w && ny < G.W.h) { cursor.tx = nx; cursor.ty = ny; }
+  G.focus = { x: cursor.tx * TILE + 16, y: cursor.ty * TILE + 26 };
+}
+/** Buttons that reach the game because no menu is open (see input.js). */
+Input.onAction = (a) => {
+  if (G.mode === "title" || G.mode === "create" || G.mode === "over" || G.mode === "end") return;
+  if (a === "start") { setPaused(true); return; }
+  if (a === "select" && !document.getElementById("hint").classList.contains("hidden")) { document.querySelector("#hint .ok")?.click(); return; }
+  if (G.paused) return;
+  if (G.mode === "combat") {
+    if (a === "up") cursorMove(0, -1); else if (a === "down") cursorMove(0, 1); else if (a === "left") cursorMove(-1, 0); else if (a === "right") cursorMove(1, 0);
+    else if (a === "confirm") { cursorMove(0, 0); combatClick(cursor.tx, cursor.ty); }
+    else if (a === "cancel") { if (G.combat?.ability) { G.combat.ability = null; refreshCombatHotbar(); } }
+    else if (a === "x") UI.hotbarUse();
+    else if (a === "lb") UI.hotbarMove(-1); else if (a === "rb") UI.hotbarMove(1);
+    else if (a === "y") endTurn();
+  } else if (G.mode === "explore") {
+    if (a === "confirm") nearestInteractable()?.act();
+    else if (a === "x") UI.hotbarUse();
+    else if (a === "lb") UI.hotbarMove(-1); else if (a === "rb") UI.hotbarMove(1);
+    else if (a === "y") toggleJournal("quests");
+    else if (a === "select") toggleJournal("bag");
+  }
+};
+Input.onCancel = (layer) => {
+  if (layer === "pause") setPaused(false);
+  else if (layer === "journal") closeJournal();
+  else if (layer === "dice") document.getElementById("dice").click();
+};
 canvas.addEventListener("mousemove", setMouse);
 canvas.addEventListener("mouseleave", () => { G.mouse.in = false; UI.tooltip(null); });
 canvas.addEventListener("mousedown", (e) => { if (G.paused) return; setMouse(e); if (e.button === 0) onClick(); if (e.button === 2 && G.combat) { G.combat.ability = null; } });
@@ -555,6 +604,8 @@ addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   G.keys.add(k);
   if (k === "m" && G.mode !== "title") { syncMute(toggleMute()); return; }
+  if (k === "l") diceReroll();
+  if (k === "h") document.querySelector("#hint:not(.hidden) .ok")?.click();
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") return;
   if (journalOpen()) { if (k === "escape" || k === "i" || k === "j") closeJournal(); return; }
   // Esc first cancels a chosen combat action; otherwise it (or P) opens and closes the menu
@@ -565,11 +616,15 @@ addEventListener("keydown", (e) => {
   if (G.mode === "dialogue" && /^[1-9]$/.test(k)) dialogueKey(+k);
   else if (G.mode === "combat") {
     if (k === " ") { e.preventDefault(); endTurn(); }
-    if (/^[1-9]$/.test(k)) { const u = G.combat?.active; const ab = u?.team === "party" && !u.ai && abilitiesOf(u)[+k - 1]; if (ab) selectAbility(ab.key); }
+    const mv = { w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] }[k];
+    if (mv) { e.preventDefault(); document.body.classList.add("nav-keys"); cursorMove(...mv); }
+    if (k === "tab") { e.preventDefault(); UI.hotbarMove(e.shiftKey ? -1 : 1); }
+    if (k === "f") UI.hotbarUse();
+    if (/^[1-9]$/.test(k)) UI.hotbarUse(+k - 1);
   } else if (G.mode === "explore") {
     if (k === "e") nearestInteractable()?.act();
     if (k === "tab") { e.preventDefault(); selectLeader((G.leader + 1) % G.party.length); }
-    if (/^[1-9]$/.test(k)) document.querySelectorAll("#hotbar .slot")[+k - 1]?.click();
+    if (/^[1-9]$/.test(k)) UI.hotbarUse(+k - 1);
   }
 });
 addEventListener("keyup", (e) => G.keys.delete(e.key.toLowerCase()));
@@ -577,6 +632,10 @@ addEventListener("resize", resize);
 
 function resize() {
   const s = innerHeight >= 1000 ? 3 : innerHeight >= 520 ? 2 : 1;
+  // the interface has its own pixel size: 2 screen pixels per UI pixel at 1080p
+  const u = +new URLSearchParams(location.search).get("u") || (innerHeight >= 1500 ? 3 : innerHeight >= 950 && innerWidth >= 1500 ? 2 : innerHeight >= 640 && innerWidth >= 1000 ? 1.5 : 1);
+  document.documentElement.style.setProperty("--u", u);
+  G.ui = u;
   G.scale = s;
   G.vw = Math.ceil(innerWidth / s); G.vh = Math.ceil(innerHeight / s);
   canvas.width = G.vw; canvas.height = G.vh;
@@ -686,10 +745,17 @@ function setupMenu() {
     box.appendChild(row);
   }
   syncMute(audioSet.muted);
+  document.getElementById("keys").innerHTML = [
+    [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
+    [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
+    [key("Espaço", "Y"), "encerrar o turno"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
+    [key("Q E", "LB RB"), "trocar de aba nos menus"], [key("M", ""), "som"], [key("Esc P", "Start"), "este menu"],
+  ].map(([k, t]) => `<li>${k}</li><li>${t}</li>`).join("");
 }
 function setPaused(p) {
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") p = false;
   G.paused = p;
+  if (p) setTimeout(() => focusDefault(document.getElementById("pause"), true), 0);
   G.keys.clear();
   UI.tooltip(null);
   document.getElementById("pause").classList.toggle("hidden", !p);
@@ -710,9 +776,10 @@ function update(dt) {
     if (G.keys.has("s") || G.keys.has("arrowdown")) my++;
     if (G.keys.has("a") || G.keys.has("arrowleft")) mx--;
     if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
+    if (!mx && !my) { mx = Input.axis.x; my = Input.axis.y; }
     if (mx || my) {
       l.path = []; pending = null;
-      const k = Math.min(88, G.speedCap ?? 88) * dt / Math.hypot(mx, my);
+      const k = Math.min(88, G.speedCap ?? 88) * dt / Math.max(1, Math.hypot(mx, my));
       if (canStand(l.x + mx * k, l.y)) l.x += mx * k;
       if (canStand(l.x, l.y + my * k)) l.y += my * k;
       l.dir = mx ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
@@ -759,6 +826,11 @@ function update(dt) {
   G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
   if (G.shake > 0) G.shake -= dt;
   if (clickMark) { clickMark.t -= dt; if (clickMark.t <= 0) clickMark = null; }
+  // the keyboard/pad cursor moves the "mouse" during combat
+  if (cursor.on && G.mode === "combat") { [G.mouse.x, G.mouse.y] = UI.worldToScreen(cursor.tx * TILE + 16, cursor.ty * TILE + 12); G.mouse.in = true; }
+  else if (cursor.on) cursor.on = false;
+  // what the leader could use right now, with the key that does it
+  if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${key("E", "A")} ${it.name}`); } else UI.prompt(null);
   // mouse in world
   G.mouse.wx = G.cam.x + G.mouse.x / G.scale; G.mouse.wy = G.cam.y + G.mouse.y / G.scale;
   G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
@@ -766,7 +838,8 @@ function update(dt) {
   else if (G.mode === "explore" && G.mouse.in) {
     const it = underMouse();
     const en = G.enemies.find((e) => e.hp > 0 && !e.gone && !e.passive && Math.abs(G.mouse.wx - e.x) < 12 && G.mouse.wy < e.y + 3 && G.mouse.wy > e.y - 32);
-    UI.tooltip(it ? `<b>${it.name}</b>` : en ? `<b>${en.name}</b><br><span style="color:#ff8a7a">hostil</span>` : null);
+    UI.tooltip(it ? UI.tipHTML({ icon: it.ent ? "talk" : "hand", title: it.name, foot: `${key("Clique", "A")} ${it.ent ? "falar" : "usar"}` })
+      : en ? UI.tipHTML({ icon: "skull", title: en.name, sub: "hostil", rows: [["PV", `${en.hp}/${en.maxHp}`], ["CA", en.ac]] }) : null);
     canvas.style.cursor = it ? "pointer" : "";
   } else if (G.mode !== "combat") { UI.tooltip(null); canvas.style.cursor = ""; }
 }
@@ -876,7 +949,18 @@ function drawCombatGrid(cx, cy) {
   }
   // hovered tile
   const mx = G.mouse.tx, my = G.mouse.ty;
-  if (G.mouse.in && !G.W.blocked(mx, my)) { ctx.strokeStyle = "rgba(244,236,220,0.5)"; ctx.strokeRect(Math.round(mx * TILE - cx) + 0.5, Math.round(my * TILE - cy) + 0.5, TILE - 1, TILE - 1); }
+  if (G.mouse.in && cursor.on) {
+    // the keyboard/pad cursor: four gold corners that breathe
+    const x = Math.round(mx * TILE - cx), y = Math.round(my * TILE - cy), k = Math.floor(G.time * 3) % 2, L = 7;
+    for (const [c, w] of [["#18121e", 3], [G.W.blocked(mx, my) ? "#ff7a5a" : "#f6d056", 1]]) {
+      ctx.fillStyle = c;
+      const o = (w - 1) / 2;
+      for (const [ax, ay, sx, sy] of [[x - k, y - k, 1, 1], [x + TILE - 1 + k, y - k, -1, 1], [x - k, y + TILE - 1 + k, 1, -1], [x + TILE - 1 + k, y + TILE - 1 + k, -1, -1]]) {
+        ctx.fillRect(Math.min(ax, ax + sx * (L - 1)) - o, ay - o, L + o * 2, w);
+        ctx.fillRect(ax - o, Math.min(ay, ay + sy * (L - 1)) - o, w, L + o * 2);
+      }
+    }
+  } else if (G.mouse.in && !G.W.blocked(mx, my)) { ctx.strokeStyle = "rgba(244,236,220,0.5)"; ctx.strokeRect(Math.round(mx * TILE - cx) + 0.5, Math.round(my * TILE - cy) + 0.5, TILE - 1, TILE - 1); }
 }
 
 /**
@@ -1142,6 +1226,8 @@ function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   const a = performance.now();
+  pollInput(now);
+  UI.syncMode();
   if (!G.paused) update(dt);
   const b = performance.now();
   draw();

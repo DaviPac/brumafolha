@@ -1341,7 +1341,7 @@ function endScreen() {
   ];
   const mems = G.memories.filter((m) => m.origin).map((m) => `<li>${m.text}</li>`).join("");
   const el = document.getElementById("endscreen");
-  el.innerHTML = `<div class="box"><h1>Fim do Prólogo</h1><h2>A Bruma de Brumafolha</h2>
+  el.innerHTML = `<div class="box fr fr-panel"><h1>Fim do Prólogo</h1><h2>A Bruma de Brumafolha</h2>
     <h3>O que o vale vai lembrar</h3><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>
     ${mems ? `<h3>Quem você é</h3><ul>${mems}</ul>` : ""}
     <p class="muted">Nível ${G.hero.level} · ${G.gold} peças de ouro</p>

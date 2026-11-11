@@ -35,7 +35,7 @@ export function openCreator(done, companion) {
       </section>
       <aside class="right sheet"></aside>
     </div>
-    <footer><button class="random">${icon("d20")} Tudo aleatório</button><button class="go">Começar a aventura</button></footer>`;
+    <footer><button class="random quiet">${icon("d20")} Tudo aleatório</button><button class="go" data-default>Começar a aventura</button></footer>`;
   root.classList.remove("hidden");
   root.querySelectorAll("[data-tab]").forEach((el) => (el.onclick = () => { tab = el.dataset.tab; sfx.click(); render(); }));
   root.querySelectorAll("[data-pose]").forEach((el) => (el.onclick = () => { pose = el.dataset.pose; sfx.click(); syncStage(); }));

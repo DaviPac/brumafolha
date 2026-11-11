@@ -5,7 +5,8 @@ import { TILE, roll, rollDie } from "./util.js";
 import { reachable, gridPath } from "./path.js";
 import { MW } from "./world.js";
 import { FX, PAL } from "./fx.js";
-import { floater, log, toast, updateParty, updateInitiative, buildHotbar, tooltip, banner } from "./ui.js";
+import { floater, log, toast, updateParty, updateInitiative, buildHotbar, tooltip, banner, tipHTML } from "./ui.js";
+import { icon } from "./art/icons.js";
 import { sfx } from "./audio.js";
 
 // waits that stand still while the game is paused, so a turn never plays out behind the menu
@@ -80,6 +81,17 @@ function canUse(u, ab) {
   if (ab.kind === "potion" && G.potions <= 0) return false;
   if (ab.kind === "flurry" && !u.attackedThisTurn) return false;
   return true;
+}
+
+function whyNot(u, ab) {
+  if (ab.cost === "action" && !u.action) return "Você já usou a ação deste turno.";
+  if (ab.cost === "bonus" && !u.bonus) return "Você já usou a ação bônus deste turno.";
+  if (ab.per === "combat" && u.used[ab.key]) return "Já usado neste combate.";
+  if (ab.per === "rest" && u.restUsed[ab.key]) return "Só volta depois de um descanso.";
+  if (ab.slot && u.slots <= 0) return "Sem espaços de magia.";
+  if (ab.kind === "potion" && G.potions <= 0) return "Sem poções.";
+  if (ab.kind === "flurry" && !u.attackedThisTurn) return "Ataque primeiro neste turno.";
+  return "";
 }
 
 // ---------------------------------------------------------------- start / end
@@ -198,13 +210,15 @@ export function refreshCombatHotbar() {
   const entries = abilitiesOf(u).map((ab) => ({
     ...ab,
     off: !canUse(u, ab) || C.busy,
+    why: whyNot(u, ab),
+    dmg: ab.dmg ?? (ab.kind === "attack" || ab.kind === "cleave" ? u.dmg : ab.kind === "shoot" ? u.bow?.dmg : null),
     sel: C.ability === ab.key,
     count: ab.slot ? u.slots : ab.kind === "potion" ? G.potions : null,
     use: () => selectAbility(ab.key),
   }));
-  const pip = (on, c) => `<span class="pip ${on ? "on" : ""} ${c}"></span>`;
-  buildHotbar(entries, `<div class="econ"><div>${pip(u.action, "a")}Ação</div><div>${pip(u.bonus, "b")}Bônus</div><div>${pip(u.moveLeft > 0, "m")}Movimento ${u.moveLeft}</div></div><button id="endturn">Fim do turno</button>`);
-  document.querySelector("#endturn").onclick = (e) => { e.stopPropagation(); endTurn(); };
+  const pip = (on, ic, label) => `<div class="${on ? "on" : ""}">${icon(ic)} ${label}</div>`;
+  buildHotbar(entries, { who: u, sub: `PV ${u.hp}/${u.maxHp}${u.maxSlots ? ` · magias ${u.slots}/${u.maxSlots}` : ""}`,
+    econ: `<div class="econ">${pip(u.action, "action", "Ação")}${pip(u.bonus, "bonus", "Bônus")}${pip(u.moveLeft > 0, "move", `Mover ${u.moveLeft}`)}</div>`, end: "Fim do turno", onEnd: endTurn });
 }
 
 export function selectAbility(key) {
@@ -239,17 +253,20 @@ export function combatHover(tx, ty) {
       let note = "";
       if (!inRange && ab.kind === "attack") {
         const app = approachTile(u, target);
-        note = app ? `<br>vai até ele (${app.path.length} de movimento)` : "<br><span style='color:#ff8a7a'>longe demais</span>";
+        note = app ? `<br>vai até ele (${app.path.length} de movimento)` : '<br><span class="bad">longe demais</span>';
         if (app) C.preview = { path: app.path };
-      } else if (!inRange) note = "<br><span style='color:#ff8a7a'>fora de alcance</span>";
-      tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">${pct}%</span> de acerto · ${ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg} dano${u.marked === target ? " +1d6 (marca)" : ""}<br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}${note}`);
-    } else if (ab.kind === "missiles") tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">100%</span> · 3×(1d4+1)${d > ab.range ? "<br>fora de alcance" : ""}`);
-    else if (ab.kind === "mark") tooltip(`<b>${ab.name}</b> → ${target.name}<br>+1d6 nos seus ataques com arma${d > ab.range ? "<br>fora de alcance" : ""}`);
-    else if (friendly) tooltip(`<b>${ab.name}</b> → ${target.name}<br>PV ${target.hp}/${target.maxHp}${d > ab.range ? "<br>fora de alcance" : ""}`);
-    else tooltip(`<b>${ab.name}</b> → ${target.name}${d > ab.range ? "<br><span style='color:#ff8a7a'>fora de alcance</span>" : ""}`);
+      } else if (!inRange) note = '<br><span class="bad">fora de alcance</span>';
+      const dmg = ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg;
+      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows: [["Acerto", `<span class="pct">${pct}%</span>`], ["Dano", `${dmg}${u.marked === target ? " +1d6" : ""}`], ["Alvo", `PV ${target.hp}/${target.maxHp} · CA ${target.ac}`]], foot: note.replace(/^<br>/, "") || null }));
+    } else {
+      const far = d > ab.range ? `<span class="bad">fora de alcance</span>` : null;
+      const rows = ab.kind === "missiles" ? [["Acerto", `<span class="pct">100%</span>`], ["Dano", "3 × (1d4+1)"]] : ab.kind === "mark" ? [["Efeito", "+1d6 nos seus ataques"]] : [["Alvo", `PV ${target.hp}/${target.maxHp}`]];
+      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows, foot: far }));
+    }
     return;
   }
-  tooltip(target ? `<b>${target.name}</b><br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}` : null);
+  tooltip(target ? tipHTML({ icon: target.team === "enemy" ? "skull" : "hp", title: target.name, sub: target.team === "enemy" ? "hostil" : "aliado",
+    body: `<div class="hpbar"><i style="width:${(100 * target.hp) / target.maxHp}%"></i></div>`, rows: [["PV", `${target.hp}/${target.maxHp}`], ["CA", target.ac]] }) : null);
   if (C.ability) return;
   const [ux, uy] = tileOf(u);
   const reach = reachable(blockedFor(u), ux, uy, u.moveLeft);

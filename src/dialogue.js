@@ -6,21 +6,29 @@ import { rollDie } from "./util.js";
 import { updateQuest, log, updateParty } from "./ui.js";
 import { sfx } from "./audio.js";
 import { icon } from "./art/icons.js";
+import { makeD20 } from "./art/frames.js";
+import { key, focusDefault } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
 
+let d20Art = null;
 /** Show the big d20, roll it, resolve with { roll, total, ok }. After a failure the Lampejo (if the hero has it) can reroll. */
 export function skillCheck(skill, who, bonus, dc, lucky = false) {
   return new Promise((resolve) => {
     const box = $("#dice");
     box.classList.remove("hidden");
-    box.querySelector(".skill").textContent = `${skill} · ${who}`;
-    box.querySelector(".dc").textContent = `Classe de Dificuldade ${dc}  ·  bônus ${bonus >= 0 ? "+" : ""}${bonus}`;
-    const d = box.querySelector(".d20"), num = box.querySelector(".num"), res = box.querySelector(".result"), extra = box.querySelector(".extra");
+    box.querySelector(".skill").textContent = skill;
+    box.querySelector(".dc").innerHTML = `${who} rola contra a <b>CD ${dc}</b>`;
+    box.querySelector(".hint").innerHTML = "";
+    const d = box.querySelector(".d20"), num = box.querySelector(".num"), res = box.querySelector(".result"), extra = box.querySelector(".extra"), math = box.querySelector(".math");
+    d20Art ??= makeD20();
+    const cv = d.querySelector("canvas"), cx = cv.getContext("2d");
+    cx.clearRect(0, 0, 64, 64); cx.drawImage(d20Art, 0, 0);
+    const sign = (n) => (n >= 0 ? "+ " + n : "− " + -n);
     const spin = () => {
-      res.textContent = ""; res.className = "result"; extra.innerHTML = "";
+      res.textContent = ""; res.className = "result"; extra.innerHTML = ""; math.innerHTML = `d20 ${sign(bonus)}`;
       box.onclick = null;
-      d.classList.add("spin");
+      d.className = "d20 spin";
       let r = rollDie(20);
       if (r === 1 && lucky) r = rollDie(20); // halfling luck
       let n = 0;
@@ -30,19 +38,21 @@ export function skillCheck(skill, who, bonus, dc, lucky = false) {
         if (done) return;
         done = true;
         clearInterval(iv);
-        d.classList.remove("spin");
         num.textContent = r;
         const total = r + bonus, ok = r === 20 || (r !== 1 && total >= dc);
-        res.textContent = r === 20 ? "Sucesso crítico!" : r === 1 ? "Falha crítica!" : ok ? `Sucesso  (${total})` : `Falha  (${total})`;
+        d.className = "d20 " + (ok ? "ok" : "bad");
+        math.innerHTML = `<b>${r}</b> ${sign(bonus)} = <b>${total}</b> contra CD ${dc}`;
+        res.textContent = r === 20 ? "Sucesso crítico!" : r === 1 ? "Falha crítica!" : ok ? "Sucesso" : "Falha";
         res.className = "result " + (ok ? "ok" : "bad");
         ok ? sfx.success(r === 20) : sfx.fail();
         if (!ok && G.hooks.lampejo?.can()) {
           const b = document.createElement("button");
           b.className = "lampejo";
-          b.innerHTML = `${icon("leaf")} Lampejo de Velmoor: rolar de novo`;
+          b.innerHTML = `${icon("leaf")} Lampejo de Velmoor: rolar de novo ${key("L", "X")}`;
           b.onclick = (e) => { e.stopPropagation(); G.hooks.lampejo.use(); sfx.cast("arcane"); spin(); };
           extra.appendChild(b);
         }
+        box.querySelector(".hint").innerHTML = `${key("Espaço", "A")} continuar`;
         setTimeout(() => {
           box.onclick = () => { box.onclick = null; box.classList.add("hidden"); extra.innerHTML = ""; resolve({ roll: r, total, ok }); };
         }, 250);
@@ -51,6 +61,8 @@ export function skillCheck(skill, who, bonus, dc, lucky = false) {
     spin();
   });
 }
+/** The Lampejo button of an open d20, for the keyboard and the pad. */
+export function diceReroll() { document.querySelector("#dice:not(.hidden) .lampejo")?.click(); }
 
 let current = null;
 
@@ -117,10 +129,16 @@ function show(id) {
   node.options.filter((o) => !o.if || o.if()).forEach((o, i) => {
     const d = document.createElement("div");
     d.className = "opt" + (o.once && current.used.has(o.label) ? " used" : "");
+    d.tabIndex = 0;
+    if (i === 0) d.dataset.default = "";
     const skills = o.check ? [o.check.skill].flat() : null;
     const best = skills && bestAt(skills);
-    const tag = o.check ? `<span class="tag chk">[${skills.join(" ou ")} CD ${o.check.dc} · ${best.who.name} ${best.bonus >= 0 ? "+" : ""}${best.bonus}]</span> ` : o.tag ? `<span class="tag">[${o.tag}]</span> ` : "";
-    d.innerHTML = `${i + 1}. ${tag}${o.label}`;
+    let tag = o.tag ? `<span class="tag">[${o.tag}]</span> ` : "";
+    if (o.check) {
+      const pct = Math.max(5, Math.min(95, (21 - (o.check.dc - best.bonus)) * 5));
+      tag = `<span class="chk">${icon("d20")} ${skills.join(" ou ")} CD ${o.check.dc} <small>· ${best.who.name} ${best.bonus >= 0 ? "+" : ""}${best.bonus} · <span class="p">${pct}%</span></small></span> `;
+    }
+    d.innerHTML = `<span class="num">${i + 1}</span>${tag}${o.label}`;
     if (o.check) G.hooks.hint?.("check");
     d.onclick = async () => {
       if (!current || current.busy) return;
@@ -141,6 +159,8 @@ function show(id) {
     };
     opts.appendChild(d);
   });
+  // with keys or a pad the first answer is already under the cursor
+  if (!current.input) focusDefault(el, true);
 }
 
 function go(id) {

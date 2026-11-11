@@ -3,6 +3,7 @@
 import { G } from "./state.js";
 import { sfx } from "./audio.js";
 import { icon } from "./art/icons.js";
+import { key, focusDefault } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -45,7 +46,7 @@ function next() {
   if (!showing) { el.classList.add("hidden"); return; }
   G.hintsSeen.add(showing);
   const [title, html] = HINTS[showing];
-  el.innerHTML = `<div class="ht">${icon("bulb")} ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi</button><button class="off">Desligar dicas</button></div>`;
+  el.innerHTML = `<div class="ht">${icon("bulb")} ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi ${key("H", "Select")}</button><button class="off quiet">Desligar dicas</button></div>`;
   el.classList.remove("hidden");
   el.querySelector(".ok").onclick = () => { sfx.click(); next(); };
   el.querySelector(".off").onclick = () => { sfx.click(); setTutorial(false); };
@@ -64,6 +65,7 @@ export function askTutorial() {
   return new Promise((res) => {
     const el = $("#tutask");
     el.classList.remove("hidden");
+    focusDefault(el, true);
     const pick = (on) => { sfx.click(); el.classList.add("hidden"); setTutorial(on); res(on); };
     el.querySelector(".yes").onclick = () => pick(true);
     el.querySelector(".no").onclick = () => pick(false);
