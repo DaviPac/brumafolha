@@ -12,7 +12,7 @@ import { buildCharacter, portrait, SPECS, SW, SH } from "./art/chars.js";
 import { findPath, reachable } from "./path.js";
 import { FxLayer, FX, PAL } from "./fx.js";
 import * as UI from "./ui.js";
-import { openDialogue, dialogueKey } from "./dialogue.js";
+import { openDialogue, dialogueKey, markTalk } from "./dialogue.js";
 import { initAudio, playMusic, updateAmbience, sfx, settings as audioSet, toggleMute, setMuted, setVolume, previewSound, SOUND_GROUPS } from "./audio.js";
 import { openCreator } from "./creator.js";
 import { CLASSES, newBuild, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
@@ -22,7 +22,11 @@ import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
 import { playIntro, updateIntro, skipIntro } from "./intro.js";
-import { initTitle, titleLoaded, closeTitle, titleCancel } from "./title.js";
+import { initTitle, titleLoaded, closeTitle, titleCancel, titleSaves } from "./title.js";
+import { ids, baseline, encode } from "./save/codec.js";
+import { initGame, collect } from "./save/game.js";
+import { initSaves, tickSaves, requestSave, autoSave, bootLoad, openSaves, closeSaves, savesOpen, newestSave, loadSave, saveBlock } from "./save/saves.js";
+import { listSaves } from "./save/store.js";
 import { icon, installIcons } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
@@ -50,7 +54,10 @@ async function boot() {
   installFrames();
   await installFont();
   resize();
-  initTitle({ start: create, options: () => { setupMenu(false); setPaused(true); } });
+  // a load reloads the page: then the title and its opening are skipped, behind a black screen
+  const loading = hasPendingLoad();
+  if (loading) { UI.fade(1, 0); document.getElementById("title").classList.add("hidden"); }
+  else initTitle({ start: create, options: () => { setupMenu(false); setPaused(true); }, cont: continueGame, load: () => openSaves("load", () => document.getElementById("load").focus()) });
   document.getElementById("titleHelp").innerHTML = `
     <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
     <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
@@ -63,6 +70,8 @@ async function boot() {
   if (initLight(document.getElementById("gl"))) setRamps(collectRamps([GPAL, A.RAMP, I.IRAMP, SPECS, RULES, ARMORS]));
   spawnCompanions();
   S.init(E);
+  initGame(SAVE_ENGINE);
+  initSaves(SAVE_ENGINE);
   for (const id of ["vale", "sonho", "relicario"]) { buildMap(id); await nextFrame(); }
   loadMap("vale", 15, 38);
   resize();
@@ -70,7 +79,12 @@ async function boot() {
   console.log(`loaded in ${Math.round(performance.now() - t0)} ms`);
   G.clock = 17.9; // the menu's valley is at golden hour
   requestAnimationFrame(loop);
+  if (loading) {
+    if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); }
+    return;
+  }
   titleLoaded();
+  refreshTitleSaves();
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
   if (q.get("dev")) {
@@ -99,8 +113,12 @@ function companionFor(b) {
   return CLASSES[b.cls].role === "caster" ? { u: G.cast.kael, label: "Kael, guerreiro" } : { u: G.cast.lyra, label: "Lyra, maga élfica" };
 }
 function recruit(build) {
+  idScope = "hero";
   const hero = unit(specOf(build), { ...heroDef(build), tx: 15, ty: 38 });
+  idScope = null;
   hero.spec = specOf(build);
+  baseline(hero);
+  G.campaign ??= `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`; // one playthrough: its saves go together
   G.hooks.refreshJournal?.();
   G.build = build;
   G.hero = hero;
@@ -128,10 +146,19 @@ function buildMap(id) {
   if (W.outdoor) W.waterMask = waterMask(img);
   W.sparkles = id === "vale" ? waterSparkles(W) : W.outdoor ? TW.outdoorSparkles(W, T) : [];
   W.enemies = []; W.npcs = []; W.chests = []; W.groups = {};
+  W.builtFlags = encode(G.f, "flags"); // some maps are made from the story so far: a load builds them the same way
+  idScope = ids.scope(id);
   S.populate(W);
+  idScope = null;
   for (const o of W.objects) o.art = propArt(o);
   for (const c of W.chests) W.block[Math.floor((c.y - 1) / TILE) * MW + Math.floor(c.x / TILE)] = 1;
   W.critters = makeCritters(W);
+  // the save's view of this map: ids for its objects and groups, and how everything looks right now
+  W.objects.forEach((o, i) => ids.object(o, `${id}:o${i}`));
+  W.chests.forEach((c, i) => ids.object(c, `${id}:c${i}`));
+  for (const [name, g] of Object.entries(W.groups)) ids.group(`${id}:${name}`, g);
+  for (const e of [...W.enemies, ...W.npcs, ...Object.values(W.groups).flat(), ...W.objects, ...W.chests]) baseline(e);
+  W.block0 = W.block.slice();
   maps[id] = W;
   return W;
 }
@@ -312,9 +339,12 @@ function unit(spec, def) {
   };
   u.hp = u.maxHp ?? 1;
   u.slots = u.maxSlots ?? 0;
+  u.spec ??= spec; // the sprite is rebuilt from this when a save is loaded
   [u.x, u.y] = tileCenter(def.tx ?? 0, def.ty ?? 0);
+  ids.unit(u, idScope); // a stable id for the save: by map and order while a map is built, "dyn:n" when the story makes one
   return u;
 }
+let idScope = null;
 
 // the companions are built by the same rules as the hero, so they can change gear too
 const KAEL = { race: "humano", cls: "guerreiro", gender: "m", name: "Kael", base: { FOR: 15, DES: 12, CON: 14, INT: 9, SAB: 12, CAR: 11 },
@@ -325,7 +355,9 @@ const LYRA = { race: "elfo", cls: "mago", gender: "f", name: "Lyra", base: { FOR
   extraSkills: ["História", "Natureza", "Intuição"], extraAbilities: ["heal"] };
 function spawnCompanions() {
   const mk = (b, key, veteran) => {
+    idScope = key;
     const u = unit(specOf(b), { ...heroDef(b, key), tx: 14, ty: 39, ...veteran });
+    idScope = null;
     u.spec = specOf(b);
     u.hp = u.maxHp; u.slots = u.maxSlots ?? 0;
     return u;
@@ -336,6 +368,7 @@ function spawnCompanions() {
   regear(lyra);
   lyra.slots = lyra.maxSlots;
   G.cast = { kael, lyra };
+  baseline(kael); baseline(lyra);
 }
 
 /** Recompute a party member's numbers and sprite from their gear (after equipping, or a level-up). */
@@ -405,6 +438,101 @@ const E = {
   zone: () => { zoneNow = ""; },
 };
 
+// ---------------------------------------------------------------- saving: what the save modules need from here
+const SAVE_ENGINE = {
+  maps: () => maps,
+  buildMap, recruit,
+  /** A unit the story made after its map was built, made again to receive its saved fields. */
+  remakeUnit(id, spec, build) {
+    idScope = id;
+    const u = unit(spec ?? (build ? specOf(build) : "goblin"), {});
+    idScope = null;
+    return u;
+  },
+  refreshUnitArt(u) {
+    if (!u) return;
+    const spec = u.build ? specOf(u.build, u.equip) : u.spec;
+    if (!spec) return;
+    if (u.build) u.spec = spec;
+    u.ch = buildCharacter(SPECS[spec] ?? spec);
+    u.portrait = portrait(u.ch);
+  },
+  refreshObject(o) { o.art = propArt(o); },
+  /** Put a map on screen as the save left it: nobody is moved. */
+  showMap(id) {
+    const W = maps[id];
+    G.W = W;
+    G.enemies = W.enemies; G.npcs = W.npcs; G.chests = W.chests; G.groups = W.groups;
+    for (const e of G.fx.list) e.keep = false;
+    G.fx.list = [];
+    for (const o of W.objects) if (o.kind === "campfire" && !o.out) o.fxe = G.fx.spawn(FX.campfire, { x: o.x, y: o.y + 2, light: 0.55, ...(o.goblin ? { seed: 3 } : {}) }, { keep: true });
+    trail.length = 0;
+    const l = lead() ?? G.party[0];
+    if (l) { G.cam.x = l.x - G.vw / 2; G.cam.y = l.y - G.vh / 2; }
+    zoneNow = "";
+  },
+  unstick(u) { const [tx, ty] = tileOf(u); const [x, y] = freeAround(tx, ty, 1)[0]; [u.x, u.y] = tileCenter(x, y); },
+  afterLoad() {
+    setupMenu();
+    G.camFocus = null; G.focus = null; G.paused = false;
+    E.partyChanged();
+    refreshJournal();
+  },
+  thumbnail: () => new Promise((res, rej) => { thumbWaiters.push({ res, rej }); setTimeout(() => rej(new Error("sem quadro")), 1500); }),
+  placeName() {
+    const l = lead() ?? G.party[0], W = G.W;
+    return W.id === "vale" ? zoneAt(l.x, l.y) : W.zoneAt ? W.zoneAt(l.x, l.y) : W.zone ?? W.id;
+  },
+};
+const thumbWaiters = [];
+/** A small picture of the screen for the save list, taken right after a frame is drawn (the GPU canvas is only readable then). */
+function takeThumbnail() {
+  const waiting = thumbWaiters.splice(0);
+  try {
+    const src = lightAvailable() ? document.getElementById("gl") : canvas;
+    const [c, x] = makeCanvas(192, 108);
+    const k = Math.max(192 / src.width, 108 / src.height), w = src.width * k, h = src.height * k;
+    x.imageSmoothingEnabled = true;
+    x.drawImage(src, (192 - w) / 2, (108 - h) / 2, w, h);
+    const url = c.toDataURL("image/jpeg", 0.8);
+    for (const p of waiting) p.res(url);
+  } catch (e) { for (const p of waiting) p.rej(e); }
+}
+
+function hasPendingLoad() { try { return !!sessionStorage.getItem("brumafolha.load"); } catch { return false; } }
+/** A load that failed: back to the title, with the reason and (if there is one) the backup. */
+function loadFailed(msg, tryBackup) {
+  G.mode = "title";
+  G.party = [];
+  document.getElementById("title").classList.remove("hidden");
+  initTitle({ start: () => location.reload(), options: () => { setupMenu(false); setPaused(true); }, cont: continueGame, load: () => openSaves("load") });
+  titleLoaded();
+  refreshTitleSaves();
+  UI.fade(0, 300);
+  const box = document.createElement("div");
+  box.id = "loaderr";
+  box.className = "fr fr-panel";
+  box.innerHTML = `<p>${msg}</p><div class="row">${tryBackup ? '<button class="go" data-b>Tentar a cópia anterior</button>' : ""}<button data-ok>Fechar</button></div>`;
+  document.getElementById("title").appendChild(box);
+  box.querySelector("[data-b]")?.addEventListener("click", tryBackup);
+  box.querySelector("[data-ok]").onclick = () => box.remove();
+}
+async function continueGame() {
+  const m = await newestSave();
+  if (m) loadSave(m.id);
+}
+async function refreshTitleSaves() {
+  const list = await listSaves().catch(() => []);
+  titleSaves(list.length > 0);
+}
+/** F5 / F9 and the pause menu's buttons. */
+function quickSave() { requestSave("quick"); }
+async function quickLoad() {
+  const list = await listSaves().catch(() => []);
+  const m = list.find((x) => x.campanha === G.campaign && x.tipo === "quick") ?? list.find((x) => x.campanha === G.campaign);
+  if (m) loadSave(m.id); else UI.toast("Ainda não há save desta partida.", 2200);
+}
+
 // ---------------------------------------------------------------- hooks used by other modules
 G.hooks.focus = (u) => { G.focus = u; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
 G.hooks.afterDialogue = () => exploreHotbar();
@@ -435,18 +563,21 @@ G.hooks.combatEnd = (group) => {
   UI.updateQuest();
   exploreHotbar();
 };
-G.hooks.gameOver = () => {
+G.hooks.gameOver = async () => {
   playMusic(null, 0.6); sfx.defeat();
+  const last = (await listSaves().catch(() => [])).find((m) => m.campanha === G.campaign);
   const d = document.createElement("div");
   d.id = "gameover";
   d.className = "dim";
   d.innerHTML = `<div class="fr fr-panel" style="padding:6rem 16rem 10rem"><h1>O grupo caiu</h1><p>As brumas guardam mais um segredo.</p>
-    ${checkpoint ? '<button id="retry" class="go" data-default>Tentar a luta de novo</button> ' : ""}<button id="restart" class="quiet">Recomeçar do início</button></div>`;
+    ${checkpoint ? '<button id="retry" class="go" data-default>Tentar a luta de novo</button> ' : ""}${last ? `<button id="lastsave" class="${checkpoint ? "" : "go"}" ${checkpoint ? "" : "data-default"}>Carregar o último save</button> ` : ""}<button id="restart" class="quiet">Recomeçar do início</button></div>`;
   document.getElementById("ui").appendChild(d);
   d.querySelector("#restart").onclick = () => location.reload();
   d.querySelector("#retry")?.addEventListener("click", () => { d.remove(); retry(); });
+  d.querySelector("#lastsave")?.addEventListener("click", () => loadSave(last.id));
   focusDefault(d, true);
 };
+G.hooks.sceneEnd = () => autoSave();
 G.hooks.lampejo = {
   can: () => G.hero?.abilities.includes("lampejo") && !G.hero.restUsed.lampejo,
   use: () => { G.hero.restUsed.lampejo = true; if (G.combat) refreshCombatHotbar(); },
@@ -542,7 +673,7 @@ function talk(n) {
   const l = lead();
   if (!n.fixed) n.dir = Math.abs(l.x - n.x) > Math.abs(l.y - n.y) ? (l.x < n.x ? 1 : 2) : l.y < n.y ? 3 : 0;
   const t = n.talk();
-  if (t) openDialogue(n, t);
+  if (t) { openDialogue(n, t); markTalk(n); }
 }
 function openChest(c) {
   c.open = true;
@@ -648,6 +779,7 @@ Input.onAction = (a) => {
 };
 Input.onCancel = (layer) => {
   if (layer === "intro") { skipIntro(); return; }
+  if (layer === "saves") { closeSaves(); return; }
   if (layer === "title") { titleCancel(); return; }
   if (layer === "pause") setPaused(false);
   else if (layer === "journal") closeJournal();
@@ -658,6 +790,12 @@ canvas.addEventListener("mouseleave", () => { G.mouse.in = false; UI.tooltip(nul
 canvas.addEventListener("mousedown", (e) => { if (G.paused) return; setMouse(e); if (e.button === 0) onClick(); if (e.button === 2 && G.combat) { G.combat.ability = null; } });
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("keydown", (e) => {
+  if (e.key === "F5" || e.key === "F9") {
+    e.preventDefault(); // F5 would reload the page
+    if (!e.repeat && G.party.length && G.build && !savesOpen()) e.key === "F5" ? quickSave() : quickLoad();
+    return;
+  }
+  if (savesOpen()) { if (e.key === "Escape") closeSaves(); return; }
   if (G.mode === "create" || e.target?.tagName === "INPUT") return; // typing a name
   const k = e.key.toLowerCase();
   G.keys.add(k);
@@ -794,6 +932,10 @@ function setupMenu(corner = true) {
   document.getElementById("muteAll").onchange = (e) => syncMute(setMuted(e.target.checked));
   document.getElementById("tutOn").onchange = (e) => setTutorial(e.target.checked);
   document.getElementById("resume").onclick = () => setPaused(false);
+  const sv = document.getElementById("saveBtn"), ld = document.getElementById("loadBtn");
+  sv.classList.toggle("hidden", !corner); ld.classList.toggle("hidden", !corner);
+  sv.onclick = () => openSaves("save", () => { syncSaveBtn(); sv.focus(); });
+  ld.onclick = () => openSaves("load", () => ld.focus());
   const pOn = document.getElementById("perspOn"), tilt = document.getElementById("tilt"), tiltPct = document.querySelector("#tiltRow .pct");
   const showTilt = () => { tiltPct.textContent = Math.round(tilt.value * 100) + "%"; };
   pOn.checked = PV.on; tilt.value = PV.tilt; showTilt();
@@ -840,6 +982,7 @@ function setupMenu(corner = true) {
 function setPaused(p) {
   if (G.mode === "over" || G.mode === "end") p = false;
   G.paused = p;
+  if (p) syncSaveBtn();
   if (!p && G.mode === "title") setTimeout(() => document.getElementById("options").focus(), 0);
   if (p) setTimeout(() => focusDefault(document.getElementById("pause"), true), 0);
   G.keys.clear();
@@ -854,6 +997,13 @@ function moveCamera(dt, f) {
   const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = PV.on ? camClampTilted(f.y - 16 - G.vh / 2, G.W.h * TILE) : camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
   const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? (G.mode === "combat" ? 4 : 6)));
   G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
+}
+
+/** The pause menu's Save button says why it can't, when it can't. */
+function syncSaveBtn() {
+  const b = saveBlock(), sv = document.getElementById("saveBtn");
+  sv.title = b?.hard ?? (b?.wait ? `Vai salvar quando terminar ${b.wait}` : "Salvar o jogo (F5 faz um save rápido)");
+  sv.classList.toggle("off", !!b?.hard);
 }
 
 let zoneNow = "", zoneT = 0;
@@ -876,6 +1026,7 @@ function update(dt) {
     return;
   }
   if (!G.party.length) return;
+  tickSaves(dt);
   const l = lead();
   if (G.mode === "explore") {
     // keyboard walking
@@ -1576,6 +1727,7 @@ function loop(now) {
   if (!G.paused) update(dt);
   const b = performance.now();
   draw();
+  if (thumbWaiters.length) takeThumbnail();
   G.perf = { update: b - a, draw: performance.now() - b };
   if (meter) {
     mU += G.perf.update; mD += G.perf.draw;
@@ -1590,4 +1742,5 @@ function loop(now) {
 G.chestArt = [A.makeChest(false), A.makeChest(true)];
 G.hooks.refreshJournal = refreshJournal;
 window.G = G; // handy from the console
+window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]) }; // and for the save tests
 boot();

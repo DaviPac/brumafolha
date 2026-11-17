@@ -39,7 +39,7 @@
       <label class="vrow" id="tiltRow"><span>Inclinação da câmera</span><input type="range" id="tilt" min="0" max="1" step="0.05"><span class="pct"></span></label>
       <h3>Controles</h3>
       <ul class="keys" id="keys"></ul>
-      <div class="row"><button id="resume" class="go" data-default>Continuar</button></div>
+      <div class="row"><button id="saveBtn">Salvar</button><button id="loadBtn">Carregar</button><button id="resume" class="go" data-default>Continuar</button></div>
     </div>
   </div>
   <div id="dialogue" class="fr fr-panel hidden">
@@ -69,6 +69,7 @@
       <div class="row"><button class="yes go" data-default>Jogar com tutorial</button><button class="no quiet">Jogar sem tutorial</button></div>
     </div>
   </div>
+  <div id="saves" class="screen dim hidden"></div>
   <div id="intro" class="hidden"></div>
   <div id="creator" class="hidden"></div>
   <div id="title" class="screen">
@@ -80,8 +81,8 @@
       <div class="loading">Pintando o vale pixel a pixel...</div>
       <nav class="menu">
         <button id="start" class="go" data-default>Novo jogo</button>
-        <button id="continue" disabled title="Chega com o sistema de salvamento">Continuar</button>
-        <button id="load" disabled title="Chega com o sistema de salvamento">Carregar jogo</button>
+        <button id="continue" disabled title="Nenhum save ainda">Continuar</button>
+        <button id="load" disabled title="Nenhum save ainda">Carregar jogo</button>
         <button id="options">Opções</button>
         <button id="credits">Créditos</button>
       </nav>

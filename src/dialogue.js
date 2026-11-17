@@ -78,11 +78,11 @@ function bestAt(skills) {
 }
 
 /** Open a conversation. `npc` is whoever speaks first: { name, portrait }. Resolves `onClose` when it ends. */
-export function openDialogue(npc, tree, startId = "start", onClose = null) {
+export function openDialogue(npc, tree, startId = "start", onClose = null, used = null) {
   const prevMode = current ? current.prevMode : G.mode === "dialogue" ? "explore" : G.mode;
   G.mode = "dialogue";
   sfx.talk();
-  current = { npc, tree, used: current?.used ?? new Set(), prevMode, onClose };
+  current = { npc, tree, used: used ?? current?.used ?? new Set(), prevMode, onClose };
   $("#dialogue").classList.remove("hidden");
   show(startId);
 }
@@ -110,7 +110,26 @@ function typeText(el, text) {
   el.onclick = () => { clearInterval(el._iv); el.textContent = text; };
 }
 
+/**
+ * For the save: the conversation on screen, if it can be saved. Only a conversation with an NPC opened by talking to
+ * them (main.js marks it) can be: it is reopened on load by asking the NPC for its tree again. Conversations inside
+ * scenes can't, nor one in the middle of a d20.
+ */
+export function dialogueState() {
+  if (!current) return null;
+  return { npc: current.from ?? null, node: current.node, used: [...current.used], busy: !!current.busy, input: !!current.input };
+}
+export function markTalk(npc) { if (current) current.from = npc; }
+/** Reopen a saved conversation. Returns false if that node no longer exists. */
+export function resumeDialogue(npc, tree, node, used) {
+  if (!tree || !(node in tree)) return false;
+  openDialogue(npc, tree, node, null, new Set(used ?? []));
+  current.from = npc;
+  return true;
+}
+
 function show(id) {
+  current.node = id;
   const node = typeof current.tree[id] === "function" ? current.tree[id]() : current.tree[id];
   const el = $("#dialogue");
   setSpeaker(node.narr ? null : node.who ?? current.npc);

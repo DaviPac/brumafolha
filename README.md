@@ -23,14 +23,31 @@ começa no Ato I como se o prólogo tivesse terminado com essas flags (`&cls=mag
 ## Menu inicial
 
 O jogo abre num menu com o vale vivo ao fundo: a câmera passeia devagar sobre o Lago Espelhado ao entardecer.
-Opções: **Novo jogo**, **Continuar** e **Carregar jogo** (desligados até o salvamento existir, ver
-[docs/salvamento.md](docs/salvamento.md)), **Opções** (o mesmo painel do menu de pausa) e **Créditos**.
+Opções: **Novo jogo**, **Continuar** (o save mais recente), **Carregar jogo**, **Opções** (o mesmo painel do menu de
+pausa) e **Créditos**.
 
 Na **primeira vez** que o jogo é aberto, há uma abertura: uma folha cai no escuro, girando e mostrando ora o verde,
 ora o lado prateado de baixo (de onde vem o nome do vale), pousa onde fica o nome, e "Brumafolha" surge letra por
 letra. Nas próximas vezes, uma versão curta. Qualquer tecla ou clique pula. A abertura é feita com animações CSS e não
 com timers, porque toca enquanto o vale é pintado, e esse trabalho ocupa o navegador por um ou dois segundos.
 Código em [src/title.js](src/title.js).
+
+## Salvamento
+
+Salva-se explorando, no meio de uma conversa com um NPC e em combate (no turno de um personagem do grupo). Não se
+salva durante cenas. Se você pede no meio de uma ação (um ataque, o turno de um inimigo, um d20 rolando), o jogo
+salva assim que ela termina.
+
+- **Menu de pausa** (`Esc`): **Salvar** (novo save ou por cima de um antigo) e **Carregar**. **F5** faz um save
+  rápido, **F9** carrega o save rápido.
+- **Automáticos**: no primeiro turno de cada luta, ao fim de uma cena (no máximo um por minuto) e a cada 10 minutos
+  explorando. Ficam os 3 últimos de cada partida.
+- Os saves se agrupam por partida (um herói). Cada um mostra uma miniatura da tela, o lugar, a missão e o tempo de jogo.
+  Dá para **exportar** um save como arquivo e **importar** de volta, a única proteção contra o navegador limpar os
+  dados do site.
+- Por dentro: cada save tem uma soma SHA-256 e a cópia anterior; um save danificado carrega a cópia e avisa.
+  Carregar recarrega a página e reconstrói o jogo do zero a partir do save, então nada do jogo anterior vaza para o
+  carregado. Detalhes, decisões e o que falta em [docs/salvamento.md](docs/salvamento.md).
 
 ## O Prelúdio
 
@@ -248,7 +265,6 @@ Falta, ou ficou pela metade:
 - **Prólogo com a interface nova**: foram conferidos acampamento, corça, patrulha, criador e menus. O prólogo
   inteiro não foi rejogado do sonho ao barco, e o botão "Continuar: Ato I" da tela final foi testado só pelo
   atalho `?dev=ato1`.
-- **Sem jogo salvo**: fechar a aba perde o progresso.
 - **Gamepad**: não dá para digitar o nome do herói (use o botão de nome aleatório); sem remapeamento de teclas.
 - **Ato I**: faltam o Mosteiro do Véu Sereno (Hulda, a Madre), o Bosque de Lethiel, a Procissão Branca e a
   revelação de L. Murta e Silas ainda não podem ser recrutados. A aprovação dos companheiros é registrada mas

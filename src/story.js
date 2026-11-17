@@ -15,6 +15,7 @@ import { FX, PAL } from "./fx.js";
 import { openJournal, refreshJournal } from "./journal.js";
 import { refreshCombatHotbar } from "./combat.js";
 import * as A1 from "./act1.js";
+import { ids, nameFn, encode, decode, groupById, allUnits } from "./save/codec.js";
 
 let E;
 const F = G.f; // story flags
@@ -32,13 +33,54 @@ export function init(engine) {
   G.hooks.partyDown = () => { if (G.combat) G.combat.someoneDown = true; hint("down"); };
   G.hooks.itemRead = itemRead;
   G.hooks.journalClosed = () => { const f = afterJournal; afterJournal = null; f?.(); };
-  A1.init({ E, F, cast, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint, refreshJournal });
+  A1.init({ E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint, refreshJournal });
 }
 
 // ---------------------------------------------------------------- little tools
+// Timers and tweens of the story. A save must know about them: a cosmetic one (a hint, a banner) can be dropped; a
+// named one is saved with its time left and restarted on load (LATER / TWEENS below); any other one is story work
+// still under way, and a save waits for it to end. setTimeout is not used in the story for the same reason: soon().
 const tweens = [], timers = [];
-const tween = (sec, fn) => new Promise((res) => tweens.push({ t: 0, sec, fn, res }));
-const later = (sec, fn) => timers.push({ t: sec, fn });
+let soonN = 0;
+const tween = (sec, fn, name) => new Promise((res) => tweens.push({ t: 0, sec, fn, res, name }));
+const later = (sec, fn, kind) => timers.push({ t: sec, fn, kind });
+const soon = (fn, ms) => { soonN++; setTimeout(() => { soonN--; fn(); }, ms); };
+const LATER = {
+  greenFireOut: () => { if (G.W.id === "vale") { fireOut(); UI.toast("A fogueira verde se apagou. A névoa branca começa a escorrer pelos muros.", 4500); } else fireOut(); },
+  goblinFireOut: (o) => { o.out = true; if (o.fxe) { o.fxe.keep = false; o.fxe.fx.stop(); } },
+};
+const TWEENS = { campFogK: (k) => { F.campFogK = k; }, smokeK: (k) => { F.smokeK = k; } };
+
+/** For the save: is a scripted scene running? */
+export const inScene = () => sceneDepth > 0;
+/** For the save: story work still under way that a save must wait for (null when there is none). */
+export function storyBusy() {
+  if (soonN > 0) return "a história";
+  if (tweens.some((t) => !t.name)) return "uma animação";
+  if (timers.some((t) => !t.kind)) return "a história";
+  return null;
+}
+/** The story's own state, as data. */
+export function saveState() {
+  return encode({
+    esc: { R: esc.R, hold: esc.hold, stop: esc.stop, ending: !!esc.ending, fires: esc.fires.map((f) => ({ o: f.o, d: f.d, used: f.used })) },
+    timers: timers.filter((t) => t.kind && t.kind !== "cosmetic").map((t) => ({ kind: t.kind, t: t.t })),
+    tweens: tweens.filter((t) => t.name).map((t) => ({ name: t.name, t: t.t, sec: t.sec })),
+  }, "story");
+}
+/** Put the story's state back (after the units and objects are in place). */
+export function loadState(raw) {
+  const d = decode(raw ?? {});
+  if (d.esc) {
+    Object.assign(esc, { R: d.esc.R, hold: d.esc.hold, stop: d.esc.stop, ending: d.esc.ending, fires: (d.esc.fires ?? []).filter((f) => f.o) });
+    for (const f of esc.fires) if (f.used) f.o.out = true; // its 3 seconds of grace were not saved
+  }
+  for (const t of d.timers ?? []) if (LATER[t.kind]) timers.push({ t: t.t, fn: LATER[t.kind], kind: t.kind });
+  for (const t of d.tweens ?? []) if (TWEENS[t.name]) tweens.push({ t: t.t, sec: t.sec, fn: TWEENS[t.name], name: t.name, res: () => {} });
+  relicGroup = groupById("story:relic") ?? null;
+  // the story's named units: those made by a scene (allies, Sister Cendra) were not put in `cast` by a map
+  for (const u of allUnits().values()) if (u.key && !cast[u.key]) cast[u.key] = u;
+}
 let afterJournal = null;
 
 /** One question, many answers: resolves with the chosen option's value (or pass/fail for checks). */
@@ -72,6 +114,7 @@ async function scene(fn) {
   try { await fn(); } finally {
     sceneDepth--;
     if (!sceneDepth && G.mode === "cutscene") { G.mode = "explore"; G.camFocus = null; E.hotbar(); }
+    if (!sceneDepth) G.hooks.sceneEnd?.();
   }
 }
 const look = (tx, ty, speed = 3) => { G.camFocus = { x: tx * TILE + 16, y: ty * TILE + 16, speed }; };
@@ -238,7 +281,7 @@ export async function start() {
   await UI.fade(0, 2600);
   G.mode = "explore";
   hint("move");
-  later(9, () => hint("interact"));
+  later(9, () => hint("interact"), "cosmetic");
 }
 
 async function dreamWoman() {
@@ -306,7 +349,7 @@ async function campWake() {
   UI.updateQuest();
   UI.banner("O que dorme em Velmoor");
   hint("party"); hint("quest");
-  later(25, () => hint("pause"));
+  later(25, () => hint("pause"), "cosmetic");
 }
 
 function kaelOpening() {
@@ -391,7 +434,7 @@ export function onRest() {
       [G.mate, "Em Lethiel contam de uma estrela que caiu no lago e ficou com vergonha de voltar pro céu. Os peixes passaram a noite inteira contando histórias pra ela, até ela rir."],
       [G.mate, "Quando riu, subiu de novo. É por isso que os peixes não falam: gastaram todas as palavras naquela noite."],
     ]);
-    tween(5, (k) => { F.campFogK = k; });
+    tween(5, TWEENS.campFogK, "campFogK");
     await say(null, `Enquanto ${mateIs("kael") ? "ele" : "ela"} fala, a névoa em volta do acampamento recua, devagar, como um bicho que perdeu o interesse.`);
     remember("fire", mateIs("kael") ? "Kael, na fogueira, contando do velho Brás e da panela." : "Lyra, na fogueira, contando da estrela que caiu no lago.");
   });
@@ -490,7 +533,7 @@ async function lootTalk() {
 
 // ---------------------------------------------------------------- 6.4 the Mirror Lake and Maren
 function marenTree() {
-  const makePact = () => { F.goblin_pact = true; setTimeout(() => reward(150, "Pacto com o clã Dente-de-Musgo"), 400); };
+  const makePact = () => { F.goblin_pact = true; soon(() => reward(150, "Pacto com o clã Dente-de-Musgo"), 400); };
   if (F.maren_forgot) return { start: { text: "Ah! Viajantes de verdade, graças à Senhora das Marés.", options: [{ label: "...", to: "end" }] } };
   return {
     start: () => ({
@@ -501,12 +544,12 @@ function marenTree() {
         { if: () => !F.maren_met, label: "Estamos aqui por outra coisa: as ruínas.", do: () => { F.maren_met = F.maren_quest = true; }, to: "ruins" },
         { if: () => hasItem("chair"), label: "Trouxemos a cadeira do Otávio. E a sua rede.", do: () => {
           F.returned_heirloom = F.maren_met = F.maren_quest = true; takeItem("chair"); takeItem("net"); approve("kael", 1); approve("lyra", 1); G.potions++; giveItem(gearItem("weapon", "bestaLeve"));
-          setTimeout(() => { reward(100, "As coisas de Maren voltaram para casa"); remember("heirloom", "Maren chorando em silêncio, com a cadeira de Otávio nas mãos."); }, 300);
+          soon(() => { reward(100, "As coisas de Maren voltaram para casa"); remember("heirloom", "Maren chorando em silêncio, com a cadeira de Otávio nas mãos."); }, 300);
         }, to: "heirloom" },
         { if: () => F.heard_smoke && !F.maren_smoke, label: "Os goblins não estão roubando à toa. Eles queimam suas coisas.", do: () => { F.maren_smoke = true; }, to: "smoke" },
         { if: () => F.maren_met && F.paid_try == null, label: "Um trabalho desses merece pagamento adiantado.", check: { skill: "Persuasão", dc: 12 }, pass: () => { F.paid_try = true; G.potions += 2; UI.toast("+2 Poções de cura"); }, fail: () => { F.paid_try = false; }, passTo: "paid", failTo: "notpaid" },
         { if: () => F.maren_met && F.grandson == null, label: "Você está escondendo alguma coisa.", check: { skill: "Intuição", dc: 10 }, pass: () => { F.grandson = true; }, fail: () => { F.grandson = false; }, passTo: "secret", failTo: "nosecret" },
-        { if: () => F.maren_met && F.maren_history == null, label: "O que você sabe das ruínas?", check: { skill: "História", dc: 13 }, pass: () => { F.maren_history = true; setTimeout(() => reward(50, "Uma pista sobre Velmoor"), 300); }, fail: () => { F.maren_history = false; }, passTo: "history", failTo: "nohistory" },
+        { if: () => F.maren_met && F.maren_history == null, label: "O que você sabe das ruínas?", check: { skill: "História", dc: 13 }, pass: () => { F.maren_history = true; soon(() => reward(50, "Uma pista sobre Velmoor"), 300); }, fail: () => { F.maren_history = false; }, passTo: "history", failTo: "nohistory" },
         { if: () => F.maren_met && !F.maren_mist, label: "Essa névoa que desce do norte...", do: () => { F.maren_mist = true; }, to: "mist" },
         { if: () => F.pact_proposed && !F.goblin_pact && !F.pact_refused && F.returned_heirloom, label: "Os goblins só queriam fumaça. Coisas velhas, como a cadeira guardava o Otávio. Eles trocariam trabalho por elas.", tag: "Ela confia em vocês", do: makePact, to: "pactyes" },
         { if: () => F.pact_proposed && !F.goblin_pact && !F.pact_refused && !F.returned_heirloom, label: "Os goblins trocariam trabalho por coisas velhas.", check: { skill: "Persuasão", dc: 12 }, pass: makePact, fail: () => { F.pact_refused = true; }, passTo: "pactyes", failTo: "pactno" },
@@ -682,7 +725,7 @@ function ruinsFight(surprise) {
 function fireFlare() {
   const o = G.W.objects.find((x) => x.kind === "campfire" && x.goblin);
   G.fx.spawn(FX.bloom, { x: o.x, y: o.y, palette: PAL.ember });
-  for (let i = 0; i < 3; i++) setTimeout(() => G.fx.spawn(FX.hitSpark, { x: o.x + (i - 1) * 6, y: o.y - 16, palette: PAL.ember }), i * 140);
+  for (let i = 0; i < 3; i++) soon(() => G.fx.spawn(FX.hitSpark, { x: o.x + (i - 1) * 6, y: o.y - 16, palette: PAL.ember }), i * 140);
 }
 function fireOut() {
   const o = G.W.objects.find((x) => x.kind === "campfire" && x.goblin);
@@ -690,14 +733,14 @@ function fireOut() {
   o.out = true;
   if (o.fxe) { o.fxe.keep = false; o.fxe.fx.stop(); }
   G.fx.spawn(FX.poof, { x: o.x, y: o.y });
-  tween(20, (k) => { F.smokeK = k; });
+  tween(20, TWEENS.smokeK, "smokeK");
 }
 /** The clan walks out through the west breach and is gone. */
 function clanLeaves(all) {
   const who = [...(all ? G.groups.ruins : []), cast.elder, cast.kid1, cast.kid2, cast.murta].filter((u) => u && u.hp > 0 && !u.gone);
   who.forEach((u, i) => {
     u.passive = true;
-    setTimeout(() => E.walk(u, 12, 7 + (i % 2), 90).then(() => E.walk(u, 10, 8, 90)).then(() => { G.fx.spawn(FX.poof, { x: u.x, y: u.y }); u.gone = true; }), i * 220);
+    soon(() => E.walk(u, 12, 7 + (i % 2), 90).then(() => E.walk(u, 10, 8, 90)).then(() => { G.fx.spawn(FX.poof, { x: u.x, y: u.y }); u.gone = true; }), i * 220);
   });
   if (all) fireOut();
 }
@@ -746,7 +789,7 @@ function openTrapdoor() {
   const o = E.obj("trapdoor", E.map("vale"));
   o.hidden = false; o.open = true; E.refresh(o);
   G.fx.spawn(FX.poof, { x: o.x, y: o.y });
-  setTimeout(() => reward(50, "Uma porta sob as ruínas"), 400);
+  soon(() => reward(50, "Uma porta sob as ruínas"), 400);
 }
 function tomeHome() {
   const t = cast.tome;
@@ -755,7 +798,7 @@ function tomeHome() {
   if (!G.W.npcs.includes(t) && G.W.id === "vale") G.W.npcs.push(t);
   G.fx.spawn(FX.poof, { x: t.x, y: t.y });
   E.place(t, 37, 27, 0);
-  if (F.grandson) setTimeout(() => reward(50, "Tomé voltou para a avó"), 500);
+  if (F.grandson) soon(() => reward(50, "Tomé voltou para a avó"), 500);
 }
 function tomeCome() {
   const t = cast.tome;
@@ -988,6 +1031,7 @@ async function cendraScene() {
   } while (v === "silas" || v === "silasno");
   const foes = [cendra, ...(F.silas_doubt ? [] : [silas]), e1, e2];
   relicGroup = foes;
+  ids.group("story:relic", foes);
   W.groups.relic = foes;
   if (v === "deceive") { await say(null, "Cendra dá um passo à frente, as mãos estendidas. Perto demais."); for (const e of foes) { e.skip = 1; e.skipNote = "Surpreso!"; } }
   if (v === "deceiveno") await say(cendra, "Mentira tem cheiro, criança.");
@@ -1076,18 +1120,18 @@ export function onCombatEnd(group) {
   if (F.act1) return A1.onCombatEnd(group);
   if (group === W.groups.patrol) {
     G.groups.patrol.passive = true;
-    setTimeout(() => scene(() => say(null, "O último goblin, caído, ainda agarra a rede: \"Não... a fumaça... precisa...\"")), 900);
+    soon(() => scene(() => say(null, "O último goblin, caído, ainda agarra a rede: \"Não... a fumaça... precisa...\"")), 900);
   }
   if (group === W.groups.ruins) {
     F.clan = "fight"; F.smoke_out = true;
     if (cast.avo.hp <= 0) F.avo_dead = true;
     const trophies = [...(cast.gorza.hp <= 0 ? [gearItem("weapon", "machadoGorza")] : []), ...(F.avo_dead ? [gearItem("weapon", "cajadoOsso")] : [])];
     trophies.forEach(giveItem);
-    if (trophies.length) setTimeout(() => UI.toast(`Na bolsa: ${trophies.map((t) => t.name).join(", ")}`, 3200), 4200);
+    if (trophies.length) soon(() => UI.toast(`Na bolsa: ${trophies.map((t) => t.name).join(", ")}`, 3200), 4200);
     clanLeaves(false);
-    setTimeout(() => UI.banner("Ruínas libertadas"), 1500);
-    later(40, () => { if (G.W.id === "vale") { fireOut(); UI.toast("A fogueira verde se apagou. A névoa branca começa a escorrer pelos muros.", 4500); } else fireOut(); });
-    setTimeout(() => scene(async () => {
+    soon(() => UI.banner("Ruínas libertadas"), 1500);
+    later(40, LATER.greenFireOut, "greenFireOut");
+    soon(() => scene(async () => {
       await say(null, "As crianças e os velhos do clã fogem pela brecha oeste, direto para a névoa. Uma goblin pequena, de arco nas costas, para na brecha e olha para trás. Para você.");
       if (F.avo_dead) await say(null, "Ela vê a velha de capuz vermelho caída perto do fogo. Não grita. Só decora o seu rosto, e some.");
     }), 2600);
@@ -1126,10 +1170,10 @@ async function relicAftermath() {
       if (!W.npcs.includes(e)) W.npcs.push(e);
       W.enemies.splice(W.enemies.indexOf(e), 1);
     }
-    cast.fisher.talk = otavioTree;
+    cast.fisher.talk = nameFn("story:otavioTree", otavioTree);
     cast.fisher.label = "Esvaído pescador";
     cast.e1.label = "Esvaído";
-    cast.e1.talk = () => ({ start: { narr: true, text: "(O Esvaído embala nos braços alguma coisa que não está ali, devagar, para lá e para cá.)", options: [{ label: "...", to: "end" }] } });
+    cast.e1.talk = nameFn("story:e1Cradle", () => ({ start: { narr: true, text: "(O Esvaído embala nos braços alguma coisa que não está ali, devagar, para lá e para cá.)", options: [{ label: "...", to: "end" }] } }));
     await say(null, "Os Esvaídos caídos se levantam devagar, sem raiva nenhuma, e voltam ao último gesto que lembravam. Um deles embala um filho que não está lá. O outro, com roupas de pescador, estende as mãos como quem joga uma rede.");
     // the milestone: everyone leaves the Relicário at level 2 at least
     for (const p of G.party) if (p.level < 2) G.hooks.gainXp(p, p.nextXp - p.xp);
@@ -1156,7 +1200,7 @@ function otavioTree() {
 }
 function otavioFound() {
   F.otavio_found = true;
-  setTimeout(() => { remember("otavio", "Otávio, o marido de Maren, jogando uma rede que não existe."); reward(50, "Otávio"); }, 300);
+  soon(() => { remember("otavio", "Otávio, o marido de Maren, jogando uma rede que não existe."); reward(50, "Otávio"); }, 300);
 }
 
 async function stairsUse() {
@@ -1199,7 +1243,7 @@ async function escapeStart() {
       if (g.hp > 0) { g.gone = false; g.team = "npc"; g.passive = true; E.place(g, 20, 19, 2); }
     } else if (!F.smoke_out) {
       // the clan alive but not allied: Gorza burns everything they have, and they go
-      fireFlare(); setTimeout(fireFlare, 300); setTimeout(fireFlare, 700);
+      fireFlare(); soon(fireFlare, 300); soon(fireFlare, 700);
       clanLeaves(true);
     }
     // Maren's fate is already decided by what she has left to remember
@@ -1209,12 +1253,12 @@ async function escapeStart() {
     if (F.tome_home) E.place(cast.tome, 38, 28, 2);
     UI.updateQuest();
     await UI.fade(0, 700);
-    later(1.6, () => UI.banner("A Bruma sobe"));
+    later(1.6, () => UI.banner("A Bruma sobe"), "cosmetic");
     hint("escape");
   });
   if (F.smoke_out && F.clan !== "infiltrated") {
-    later(3, () => UI.floater(14 * TILE, 5 * TILE, "gritos na névoa", "info"));
-    later(5.5, () => UI.floater(14 * TILE, 5 * TILE, "...silêncio", "info"));
+    later(3, () => UI.floater(14 * TILE, 5 * TILE, "gritos na névoa", "info"), "cosmetic");
+    later(5.5, () => UI.floater(14 * TILE, 5 * TILE, "...silêncio", "info"), "cosmetic");
   }
 }
 
@@ -1226,7 +1270,7 @@ function updateEscape(dt) {
   for (const f of esc.fires) if (!f.used && esc.R >= f.d - 24) {
     f.used = true; esc.hold = 3;
     if (f === esc.fires[1]) UI.floater(f.o.x, f.o.y - 50, "Vai! Goblin segura!", "crit");
-    later(3, () => { f.o.out = true; f.o.fxe.keep = false; f.o.fxe.fx.stop(); });
+    later(3, () => LATER.goblinFireOut(f.o), "cosmetic"); // if a save drops it, the fire is put out on load (see loadState)
   }
   if (G.mode !== "explore") return;
   const l = lead();

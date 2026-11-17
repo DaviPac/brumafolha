@@ -1,7 +1,10 @@
-# Salvamento: plano
+# Salvamento
 
-> Estado: **plano**, nada implementado ainda. O menu inicial já tem os botões **Continuar** e **Carregar jogo**,
-> desligados, esperando por isto.
+> Estado: **implementado** (etapas 1 a 4 da seção 11), em `src/save/`. A seção 12, no fim, diz o que ficou diferente
+> do plano original e o que falta. As decisões da seção 10 já foram tomadas:
+> 1. **Carregar pode mudar o resultado do dado** (como no BG3). Não há gerador com semente.
+> 2. **Não se salva durante cenas.** O botão diz por quê; F5 também.
+> 3. **Saves automáticos** como na seção 7.
 
 ## 1. O que se quer
 
@@ -266,3 +269,46 @@ inicial, carrega o save mais recente de qualquer campanha.
 3. **Cenas e timers**: checkpoint de cena e timers nomeados. A partir daqui, salva-se em qualquer momento.
 4. **Conforto**: rápido e automático, miniaturas, campanhas, exportar e importar.
 5. **Testes** (correm junto de cada etapa, não no fim): ida e volta, roteiro automático, saves estragados, determinismo.
+
+## 12. Como ficou
+
+O que foi feito, arquivo por arquivo:
+
+- `src/save/codec.js`: ids estáveis, a fotografia de cada unidade e objeto logo depois que o mapa é construído, e o
+  diff contra ela. Funções viram nomes: as que estão na fotografia ganham o nome do lugar onde estavam
+  (`vau:3.talk`), então os diálogos de NPC não precisaram ser renomeados um a um; as poucas que a história atribui
+  depois (`otavioTree`, o embalar do Esvaído, o gesto dos Esvaídos do Ato I) foram nomeadas à mão com `nameFn`.
+- `src/save/game.js`: montar o save e aplicá-lo num jogo recém-carregado, e as invariantes.
+- `src/save/store.js`: IndexedDB, gravação atômica com SHA-256, cópia anterior, trava entre abas, limpeza de órfãos,
+  `localStorage` como reserva.
+- `src/save/schema.js`: validação e migrações.
+- `src/save/saves.js`: quando se pode salvar, o salvamento adiado, rápido e automático, as telas de Salvar e
+  Carregar, exportar e importar.
+- `story.js` / `act1.js`: `setTimeout` virou `soon()` (contado: um save espera); `later` e `tween` ganharam tipo
+  (cosmético, com nome, ou trabalho em andamento); `saveState`/`loadState` para a fuga, o grupo do Relicário e os
+  timers com nome.
+- `dialogue.js`: o nó atual, e reabrir uma conversa. `combat.js`: quando a luta está estável, e retomá-la.
+
+Diferenças em relação ao plano:
+
+- **Sem gerador com semente**, pela decisão 1.
+- **Sem checkpoint de cena**, pela decisão 2: salvar numa cena é recusado, e um save automático é feito quando a cena
+  termina (no máximo um por minuto).
+- **Mapas construídos a partir da história** (Vau-de-Cardo e a Travessia dependem das flags do prólogo): cada mapa
+  guarda as flags com que foi construído, e o carregamento o reconstrói com elas.
+- **"Tentar a luta de novo"** só existe na sessão em que a luta começou. Depois de carregar dentro de uma luta, a
+  tela de derrota oferece **Carregar o último save** (há sempre um automático do primeiro turno da luta).
+
+Testado (Chrome sem janela, roteiros em Playwright): salvar e carregar explorando no acampamento, no sonho e em
+Vau-de-Cardo (o estado depois de carregar é igual ao salvo, fora o relógio e o passo que os seguidores dão no
+primeiro quadro); no meio de uma conversa (volta no mesmo nó); em combate (volta no mesmo turno, com os mesmos PV,
+e a luta continua); o save automático no primeiro turno da luta; o bloqueio durante uma cena; a cópia principal
+adulterada (carrega a anterior e avisa); as duas cópias estragadas (recusa e o jogo segue); Continuar no menu.
+
+Falta, ou não foi testado:
+
+- Salvar durante a **fuga da Bruma** e no **Relicário** em luta (com aliados chegando no meio) não foram testados
+  de ponta a ponta, só pelas partes.
+- **Exportar e importar** não foram testados num navegador de verdade (o download não roda no navegador sem janela).
+- O teste que procura estado de módulo fora do registro (seção 9, item 5) não foi escrito.
+- Um save de uma versão mais nova do jogo é recusado; ainda não há nenhuma migração escrita (o formato é o 1).

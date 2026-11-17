@@ -197,6 +197,31 @@ async function nextTurn() {
   }
 }
 
+/**
+ * For the save: is the fight at a point it can be saved and picked up again? That is a party member's turn, waiting
+ * for an order: no attack, spell, walk or enemy turn under way.
+ */
+export function combatStable() {
+  const C = G.combat;
+  return !!(C && !C.busy && C.active && C.active.team === "party" && !C.active.ai && C.active.hp > 0 && !(G.hitstop > 0));
+}
+/** The fight as data (the units themselves are saved with everyone else). */
+export function combatState(encode) {
+  const C = G.combat;
+  const { preview, busy, ability, ...rest } = C;
+  return encode(rest, "combat");
+}
+/** Pick a saved fight up again, at the turn it was saved on. */
+export function resumeCombat(data) {
+  G.combat = { ...data, ability: null, preview: null, busy: false };
+  G.mode = "combat";
+  const u = G.combat.active;
+  banner("Combate");
+  updateInitiative(); updateParty();
+  G.hooks.focus?.(u);
+  refreshCombatHotbar();
+}
+
 export function endTurn() {
   const C = G.combat;
   if (!C || C.busy || C.active?.team !== "party") return;

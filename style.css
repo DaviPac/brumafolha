@@ -522,3 +522,33 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 #intro .ctl:hover, #intro .ctl:focus-within { opacity: 1; }
 #intro .ctl button { padding: 0 6rem 1rem; }
 #title.first .loading { animation: fadeIn 0.5s steps(4) 4.6s both; } /* the opening first; "still painting" only if it outlasts it */
+
+/* ---- saves (src/save/saves.js): the Save / Load screen, from the pause menu and the title */
+#saves { z-index: 52; } /* above the pause menu it opens from */
+#saves .box { width: min(560rem, 96vw); max-height: 92vh; display: flex; flex-direction: column; gap: 6rem; padding: 6rem 12rem 10rem; }
+#saves h1 { color: var(--gold); font-size: 26rem; line-height: 30rem; text-align: center; }
+#saves .warn { color: var(--check); line-height: 15rem; }
+#saves .top { display: flex; align-items: center; gap: 8rem; flex-wrap: wrap; }
+#saves .why { color: var(--muted); }
+#saves .imp .btnlike { display: inline-block; cursor: pointer; color: var(--gold); font-weight: 700; padding: 1rem 8rem 2rem; border: 4rem solid transparent; border-image: var(--f-btn) 4 fill / 4rem; }
+#saves .imp .btnlike:hover { border-image: var(--f-btnHi) 4 fill / 4rem; }
+#saves .list { overflow-y: auto; min-height: 60rem; display: flex; flex-direction: column; gap: 8rem; padding-right: 4rem; }
+#saves .empty { text-align: center; padding: 16rem 0; }
+#saves .camp h3 { color: var(--gold); margin-bottom: 3rem; }
+#saves .camp h3 span { color: var(--muted); font-weight: 400; }
+#saves .srow { display: flex; gap: 8rem; align-items: center; padding: 3rem 4rem; background: rgba(255, 255, 255, 0.03); box-shadow: inset 0 -1rem 0 rgba(255, 255, 255, 0.06); }
+#saves .srow:hover { background: rgba(255, 255, 255, 0.07); }
+#saves .mini { flex: none; width: 96rem; height: 54rem; background: #0b0a10; box-shadow: 0 0 0 1rem #3a3048; }
+#saves .mini img { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
+#saves .info { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 14rem; }
+#saves .info b { color: var(--text); }
+#saves .tipo { color: var(--teal); }
+#saves .muted, .muted { color: var(--muted); }
+#saves .bad { color: var(--bad); }
+#saves .acts { flex: none; display: flex; gap: 3rem; align-items: center; }
+#saves .acts button { padding: 0 6rem 1rem; }
+#saves .acts .ask { color: var(--check); margin-right: 3rem; }
+#saves .row { display: flex; justify-content: center; }
+#saveBtn.off { opacity: 0.55; }
+#loaderr { position: absolute; left: 50%; bottom: 60rem; transform: translateX(-50%); max-width: 420rem; padding: 6rem 12rem 8rem; text-align: center; color: #e8dcc6; line-height: 16rem; }
+#loaderr .row { display: flex; gap: 6rem; justify-content: center; margin-top: 6rem; }

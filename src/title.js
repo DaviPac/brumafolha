@@ -21,6 +21,8 @@ export function initTitle(on) {
   logo.innerHTML = [...NAME].map((c, i) => `<span style="--i:${i}">${c}</span>`).join("");
   $("#start").onclick = on.start;
   $("#options").onclick = on.options;
+  $("#continue").onclick = on.cont;
+  $("#load").onclick = on.load;
   $("#credits").onclick = () => showCredits(true);
   $(".credits .back", root).onclick = () => showCredits(false);
   let first = true;
@@ -37,6 +39,11 @@ export function initTitle(on) {
   at(len, maybeReveal);
 }
 
+/** main.js: are there saves? Continuar and Carregar come on. */
+export function titleSaves(any) {
+  for (const id of ["continue", "load"]) { const b = $("#" + id); b.disabled = !any; b.title = any ? "" : "Nenhum save ainda"; }
+}
+
 /** main.js: the world is built and drawn. The valley shows once the opening gets there. */
 export function titleLoaded() {
   loaded = true;
@@ -47,7 +54,8 @@ export function titleLoaded() {
 
 /** The title is gone for good (a new game started, or a development shortcut). */
 export function closeTitle() {
-  finish();
+  root ??= $("#title"); // a load skips the title altogether: it was never set up
+  if (root.classList.contains("first") || root.classList.contains("short")) finish();
   root.classList.add("hidden");
 }
 

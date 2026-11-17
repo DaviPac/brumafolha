@@ -13,12 +13,14 @@ import { gword } from "./rules.js";
 import { gearItem } from "./items.js";
 import { VAU, TRAV } from "./maps1.js";
 import { focusDefault } from "./input.js";
+import { nameFn } from "./save/codec.js";
 
-let K, E, F, cast, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint;
+let K, E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint;
 export function init(kit) {
   K = kit;
-  ({ E, F, cast, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint } = kit);
+  ({ E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint } = kit);
 }
+const GESTURE = nameFn("act1:gesture", () => ({ start: { narr: true, text: "(Olhos brancos. As mãos repetem um gesto que já foi um ofício.)", options: [{ label: "...", to: "end" }] } }));
 const near = (u, tx, ty, r) => dist(u.x, u.y, tx * TILE + 16, ty * TILE + 26) < r * TILE;
 const tileNow = (u) => [Math.floor(u.x / TILE), Math.floor((u.y - 1) / TILE)];
 const night = () => G.clock >= 19.5 || G.clock < 6;
@@ -155,7 +157,7 @@ export async function begin() {
   });
   UI.banner("Vau-de-Cardo");
   UI.updateQuest();
-  if (G.tutorial) later(4, () => hint("light"));
+  if (G.tutorial) later(4, () => hint("light"), "cosmetic");
 }
 
 // ---------------------------------------------------------------- quests
@@ -582,7 +584,7 @@ async function procession() {
     } else if (v === "free") {
       F.proc = "freed";
       D.passive = true; E.walk(D, 12, 3, 60).then(() => { D.gone = true; });
-      for (const e of P) if (e !== D) { e.team = "npc"; e.gesture = true; G.W.npcs.push(e); G.W.enemies.splice(G.W.enemies.indexOf(e), 1); e.talk = () => ({ start: { narr: true, text: "(Olhos brancos. As mãos repetem um gesto que já foi um ofício.)", options: [{ label: "...", to: "end" }] } }); }
+      for (const e of P) if (e !== D) { e.team = "npc"; e.gesture = true; G.W.npcs.push(e); G.W.enemies.splice(G.W.enemies.indexOf(e), 1); e.talk = GESTURE; }
       await lines([[D, "(Ela pensa por um bom tempo.) A Madre diz que ninguém é levado, só acompanhado. Se eu os deixo aqui, eu só os acompanhei até a metade. (ela apaga uma lanterna que já estava apagada) Que fiquem. Eles não vão saber a diferença. Vocês vão."], [null, "Ela vai embora sozinha. Os três ficam parados na estrada, sem fila para seguir."]]);
       reward(150, "A procissão perdida");
     } else if (v === "smoke") {
@@ -775,7 +777,7 @@ export function onCombatEnd(group) {
   for (const p of G.party) p.forgetWard = p.build ? !!p.wfx?.forgetWard : false;
   if (group === W.groups.procissao) {
     group.passive = true;
-    setTimeout(() => scene(async () => {
+    soon(() => scene(async () => {
       await say(null, F.proc === "smoke" ? "A monja cai sentada na estrada, de mãos vazias. Os três de olhos brancos ficam de pé em volta do resto da fumaça, sem atacar, respirando fundo, como gente que sente cheiro de casa." : "A estrada fica em silêncio. Os de olhos brancos caem sem um som, e sem raiva nenhuma. Um deles ainda mexe as mãos.");
       if (mateIs("lyra")) await say(G.mate, "Eles não se defenderam. Você reparou? Só ela.");
       UI.updateQuest();
@@ -783,13 +785,13 @@ export function onCombatEnd(group) {
   }
   if (group === W.groups.murta) {
     group.passive = true;
-    setTimeout(() => scene(() => say(null, "Murta não cai: recua para dentro dos juncos, mancando, com o capuz vermelho apertado contra o peito. Ela olha para você uma última vez. Não é mais a sua cara que ela decora. É o seu caminho.")), 1200);
+    soon(() => scene(() => say(null, "Murta não cai: recua para dentro dos juncos, mancando, com o capuz vermelho apertado contra o peito. Ela olha para você uma última vez. Não é mais a sua cara que ela decora. É o seu caminho.")), 1200);
   }
   if (group === W.groups.cacadores) {
     group.passive = true;
     F.hunters = "won";
     const allies = G.party.filter((p) => p.ai);
-    setTimeout(() => scene(async () => {
+    soon(() => scene(async () => {
       if (allies.length) {
         await say(allies[0], "Humano briga bem. Goblin volta pro rio. Peixe não se pesca sozinho.");
         G.party = G.party.filter((p) => !p.ai);
