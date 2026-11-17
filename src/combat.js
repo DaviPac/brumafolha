@@ -8,6 +8,7 @@ import { FX, PAL } from "./fx.js";
 import { floater, log, toast, updateParty, updateInitiative, buildHotbar, tooltip, banner, tipHTML } from "./ui.js";
 import { icon } from "./art/icons.js";
 import { sfx } from "./audio.js";
+import { isTouch } from "./input.js";
 
 // waits that stand still while the game is paused, so a turn never plays out behind the menu
 const sleep = (ms) => new Promise((r) => {
@@ -282,11 +283,11 @@ export function combatHover(tx, ty) {
         if (app) C.preview = { path: app.path };
       } else if (!inRange) note = '<br><span class="bad">fora de alcance</span>';
       const dmg = ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg;
-      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows: [["Acerto", `<span class="pct">${pct}%</span>`], ["Dano", `${dmg}${u.marked === target ? " +1d6" : ""}`], ["Alvo", `PV ${target.hp}/${target.maxHp} · CA ${target.ac}`]], foot: note.replace(/^<br>/, "") || null }));
+      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows: [["Acerto", `<span class="pct">${pct}%</span>`], ["Dano", `${dmg}${u.marked === target ? " +1d6" : ""}`], ["Alvo", `PV ${target.hp}/${target.maxHp} · CA ${target.ac}`]], foot: tapNote(note.replace(/^<br>/, "") || null, !note.includes("bad")) }));
     } else {
       const far = d > ab.range ? `<span class="bad">fora de alcance</span>` : null;
       const rows = ab.kind === "missiles" ? [["Acerto", `<span class="pct">100%</span>`], ["Dano", "3 × (1d4+1)"]] : ab.kind === "mark" ? [["Efeito", "+1d6 nos seus ataques"]] : [["Alvo", `PV ${target.hp}/${target.maxHp}`]];
-      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows, foot: far }));
+      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows, foot: tapNote(far, !far) }));
     }
     return;
   }
@@ -295,7 +296,16 @@ export function combatHover(tx, ty) {
   if (C.ability) return;
   const [ux, uy] = tileOf(u);
   const reach = reachable(blockedFor(u), ux, uy, u.moveLeft);
-  if (reach.has(ty * MW + tx) && !(tx === ux && ty === uy)) C.preview = { path: gridPath(blockedFor(u), ux, uy, tx, ty) };
+  if (reach.has(ty * MW + tx) && !(tx === ux && ty === uy)) {
+    C.preview = { path: gridPath(blockedFor(u), ux, uy, tx, ty) };
+    // no hover on a touch screen: say what the second tap will do
+    if (isTouch() && !target) tooltip(tipHTML({ icon: "boot", title: "Andar até aqui", sub: `${C.preview.path.length} de ${u.moveLeft} de movimento`, foot: tapNote(null, true) }));
+  }
+}
+/** On a touch screen the first tap only shows: the tooltip says that a second one confirms. */
+function tapNote(foot, can) {
+  if (!isTouch() || !can) return foot;
+  return (foot ? foot + "<br>" : "") + '<span class="tapok">Toque de novo para confirmar</span>';
 }
 
 function approachTile(u, target) {

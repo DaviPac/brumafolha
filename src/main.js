@@ -30,7 +30,7 @@ import { listSaves } from "./save/store.js";
 import { icon, installIcons } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
-import { Input, pollInput, key, focusDefault, activeLayer } from "./input.js";
+import { Input, pollInput, key, focusDefault, activeLayer, isTouch } from "./input.js";
 import { diceReroll } from "./dialogue.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
@@ -61,7 +61,9 @@ async function boot() {
   document.getElementById("titleHelp").innerHTML = `
     <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
     <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
-    <li>${key("I", "Select")} Bolsa · ${key("J", "Y")} Diário · ${key("Esc", "Start")} opções</li>`;
+    <li>${key("I", "Select")} Bolsa · ${key("J", "Y")} Diário · ${key("Esc", "Start")} opções</li>
+    <li class="touch-only"><b>Toque</b> no chão para andar e nas coisas para usar · segure e arraste para andar sem parar</li>
+    <li class="touch-only">Combate: <b>toque</b> uma vez para ver, de novo para confirmar · <b>arraste</b> para olhar o campo</li>`;
   for (const el of document.querySelectorAll("[data-icon]")) el.innerHTML = icon(el.dataset.icon);
   for (let v = 0; v < 6; v++) grassArt.push(A.makeTallGrass(v));
   mist = makeMist();
@@ -539,6 +541,8 @@ async function quickLoad() {
   if (m) loadSave(m.id); else UI.toast("Ainda não há save desta partida.", 2200);
 }
 
+Input.onDevice = () => { fillControls(); if (G.mode === "explore") exploreHotbar(); else if (G.combat) refreshCombatHotbar(); };
+
 // ---------------------------------------------------------------- hooks used by other modules
 G.hooks.focus = (u) => { G.focus = u; freeCam = false; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
 /** Something happens in combat (a projectile flies, a blow lands, someone walks): the camera follows it. */
@@ -852,6 +856,69 @@ canvas.addEventListener("mousedown", (e) => {
   if ((e.button === 2 || e.button === 1) && G.combat) { e.preventDefault(); startDrag(e); }
 });
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// ---------------------------------------------------------------- touch
+// A tap is a click, except in combat: the first tap shows (the path, the chance to hit) and a second tap on the same
+// tile confirms, so a finger never attacks or walks by accident. Dragging looks around the field in combat; outside
+// it, holding a finger down walks the leader toward it.
+let touch = null, armed = null;
+const touchPt = (t) => ({ clientX: t.clientX, clientY: t.clientY, button: -1 });
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault(); // no made-up mouse events, no page scroll or zoom
+  if (G.paused || e.touches.length > 1) { touch = null; drag = null; return; }
+  const t = e.touches[0];
+  touch = { x: t.clientX, y: t.clientY, fx: t.clientX, fy: t.clientY, t0: performance.now(), moved: false, held: false };
+  if (G.combat) startDrag(touchPt(t));
+}, { passive: false });
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  if (!touch || e.touches.length > 1) return;
+  const t = e.touches[0];
+  touch.fx = t.clientX; touch.fy = t.clientY;
+  if (!touch.moved && Math.hypot(t.clientX - touch.x, t.clientY - touch.y) < 12) return;
+  touch.moved = true;
+  if (G.combat && drag) {
+    drag.moved = true;
+    const g = groundRel(t.clientX, t.clientY);
+    if (g) panTo(drag.ax - g[0], drag.ay - g[1]);
+  }
+}, { passive: false });
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  const tc = touch;
+  touch = null; drag = null;
+  if (!tc || tc.moved || tc.held || G.paused) return;
+  setMouse({ clientX: tc.x, clientY: tc.y });
+  UI.releaseTip();
+  if (G.mode === "combat") {
+    const C = G.combat, k = `${C?.ability},${C?.active?.name}`;
+    // the second tap confirms the tile the first one showed: on it, or near where the finger was (the camera may
+    // still be easing, so the same spot on the glass can be over the next tile by now)
+    const again = armed && armed.k === k && performance.now() - armed.t < 6000
+      && ((armed.tx === G.mouse.tx && armed.ty === G.mouse.ty) || Math.hypot(tc.x - armed.x, tc.y - armed.y) < 26);
+    if (C && !C.busy && again) {
+      G.mouse.tx = armed.tx; G.mouse.ty = armed.ty; armed = null;
+      G.mouse.in = false; UI.tooltip(null);
+      onClick();
+    } else armed = { k, tx: G.mouse.tx, ty: G.mouse.ty, x: tc.x, y: tc.y, t: performance.now() };
+    return;
+  }
+  armed = null;
+  onClick();
+  G.mouse.in = false; UI.tooltip(null);
+}, { passive: false });
+canvas.addEventListener("touchcancel", () => { touch = null; drag = null; });
+/** Explore: a finger held down steers the leader toward it, like a stick. */
+function touchSteer() {
+  if (!touch || G.mode !== "explore" || (!touch.moved && performance.now() - touch.t0 < 300)) return null;
+  touch.held = true;
+  const g = groundRel(touch.fx, touch.fy), l = lead();
+  if (!g) return null;
+  const dx = G.cam.x + g[0] - l.x, dy = G.cam.y + g[1] - (l.y - 8), d = Math.hypot(dx, dy);
+  return d < 10 ? null : [dx / d, dy / d];
+}
+// the "use" bubble over something nearby is a button on a touch screen
+document.getElementById("prompt").onclick = () => { if (G.mode === "explore" && !G.paused) nearestInteractable()?.act(); };
 addEventListener("keydown", (e) => {
   if (e.key === "F5" || e.key === "F9") {
     e.preventDefault(); // F5 would reload the page
@@ -892,9 +959,12 @@ addEventListener("keydown", (e) => {
 });
 addEventListener("keyup", (e) => G.keys.delete(e.key.toLowerCase()));
 addEventListener("resize", resize);
+// the party portraits and the log sit above the action bar, however tall it wraps on a narrow screen
+new ResizeObserver(() => document.documentElement.style.setProperty("--hbh", document.getElementById("hotbar").offsetHeight + "px")).observe(document.getElementById("hotbar"));
 
 function resize() {
-  const s = innerHeight >= 1000 ? 3 : innerHeight >= 520 ? 2 : 1;
+  // the world's pixel size follows the screen's short side, so a phone shows the same field upright and sideways
+  const short = Math.min(innerWidth, innerHeight), s = short >= 1000 ? 3 : short >= 520 ? 2 : 1;
   // the interface has its own pixel size: 2 screen pixels per UI pixel at 1080p
   const u = +new URLSearchParams(location.search).get("u") || (innerHeight >= 1500 ? 3 : innerHeight >= 950 && innerWidth >= 1500 ? 2 : innerHeight >= 640 && innerWidth >= 1000 ? 1.5 : 1);
   document.documentElement.style.setProperty("--u", u);
@@ -908,6 +978,8 @@ function resize() {
   canvas.style.width = G.vw * s + "px"; canvas.style.height = G.vh * s + "px";
   screen.imageSmoothingEnabled = false;
   G.fx?.resize(G.vw, G.vh);
+  document.body.classList.toggle("portrait", innerHeight > innerWidth * 1.1);
+  document.body.classList.toggle("short", innerHeight / u < 480);
 }
 
 // ---------------------------------------------------------------- update
@@ -1036,7 +1108,32 @@ function setupMenu(corner = true) {
     if (r) r.oninput = () => { setLight({ intensity: +r.value }); lo.querySelector(".pct").textContent = Math.round(r.value * 100) + "%"; };
   };
   drawLight();
-  document.getElementById("keys").innerHTML = [
+  fillControls();
+  const fs = document.getElementById("fullscreen");
+  fs.classList.toggle("hidden", !document.fullscreenEnabled && !document.documentElement.webkitRequestFullscreen);
+  fs.onclick = toggleFullscreen;
+}
+/** Phones lose a third of the screen to the browser's bars: the game can take all of it. */
+function toggleFullscreen() {
+  const d = document, el = d.documentElement;
+  if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen ?? d.webkitExitFullscreen).call(d);
+  else (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el, { navigationUI: "hide" })?.catch?.(() => {});
+}
+addEventListener("fullscreenchange", () => { document.getElementById("fullscreen").textContent = document.fullscreenElement ? "Sair da tela cheia" : "Tela cheia"; });
+/** The pause menu's list of controls: keys and buttons, or gestures on a touch screen. */
+function fillControls() {
+  const el = document.getElementById("keys");
+  if (!el) return;
+  if (isTouch()) {
+    el.innerHTML = [
+      ["Toque no chão", "andar"], ["Segure e arraste", "andar sem parar"], ["Toque numa pessoa ou objeto", "conversar, usar"],
+      ["Toque no balão sobre algo", "usar o que está perto"], ["Toque num retrato", "trocar de personagem"],
+      ["Combate: toque 1×", "ver o caminho, a chance de acerto"], ["Combate: toque 2×", "confirmar"],
+      ["Combate: arraste", "mover a câmera"], ["Barra de baixo", "ações; tocar mostra o que fazem"],
+    ].map(([k, t]) => `<li><b>${k}</b></li><li>${t}</li>`).join("");
+    return;
+  }
+  el.innerHTML = [
     [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
     [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
     [key("Espaço", "Y"), "encerrar o turno"],
@@ -1101,12 +1198,13 @@ function update(dt) {
     if (G.keys.has("a") || G.keys.has("arrowleft")) mx--;
     if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
     if (!mx && !my) { mx = Input.axis.x; my = Input.axis.y; }
+    if (!mx && !my) { const st = touchSteer(); if (st) [mx, my] = st; }
     if (mx || my) {
       l.path = []; pending = null;
       const k = Math.min(88, G.speedCap ?? 88) * dt / Math.max(1, Math.hypot(mx, my));
       if (canStand(l.x + mx * k, l.y)) l.x += mx * k;
       if (canStand(l.x, l.y + my * k)) l.y += my * k;
-      l.dir = mx ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
+      l.dir = Math.abs(mx) >= Math.abs(my) ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
       l.moving = true;
     } else stepAlongPath(l, dt);
     if (pending && !l.path.length) { if (dist(pending.x, pending.y, l.x, l.y) < (pending.reach ?? 56) + 8) pending.act(); pending = null; }
@@ -1153,7 +1251,7 @@ function update(dt) {
   if (cursor.on && G.mode === "combat") { [G.mouse.x, G.mouse.y] = UI.worldToScreen(cursor.tx * TILE + 16, cursor.ty * TILE + 12); G.mouse.in = true; }
   else if (cursor.on) cursor.on = false;
   // what the leader could use right now, with the key that does it
-  if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${key("E", "A")} ${it.name}`); } else UI.prompt(null);
+  if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${isTouch() ? icon("hand", "sm") : key("E", "A")} ${it.name}`); } else UI.prompt(null);
   // mouse in world
   mouseWorld();
   if (G.mode === "combat" && G.mouse.in) combatHover(G.mouse.tx, G.mouse.ty);

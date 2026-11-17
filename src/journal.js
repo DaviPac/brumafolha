@@ -33,7 +33,7 @@ export const toggleJournal = (t) => (open && (t === tab || !t) ? closeJournal() 
 
 function render() {
   const el = $("#journal");
-  el.innerHTML = `<div class="box fr fr-panel"><nav><span class="hintkeys">${key("Q", "LB")}</span>${TABS.map(([k, i, l]) => `<button data-t="${k}" class="${k === tab ? "on" : ""}" ${k === tab ? "data-default" : ""}>${icon(i)} ${l}</button>`).join("")}<span class="hintkeys">${key("E", "RB")}</span><button class="x" title="Fechar (Esc)">${icon("close")}</button></nav><div class="page"></div></div>`;
+  el.innerHTML = `<div class="box fr fr-panel"><nav><span class="hintkeys">${key("Q", "LB")}</span>${TABS.map(([k, i, l]) => `<button data-t="${k}" class="${k === tab ? "on" : ""}" ${k === tab ? "data-default" : ""}>${icon(i)} <span class="lbl">${l}</span></button>`).join("")}<span class="hintkeys">${key("E", "RB")}</span><button class="x" title="Fechar (Esc)">${icon("close")}</button></nav><div class="page"></div></div>`;
   el.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => { tab = b.dataset.t; reading = null; sfx.click(); render(); }));
   el.querySelector(".x").onclick = closeJournal;
   const page = el.querySelector(".page");

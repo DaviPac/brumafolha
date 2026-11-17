@@ -13,6 +13,7 @@ export const Input = {
   look: { x: 0, y: 0 },
   onAction: null, // (name) => void, when no menu took it
   onCancel: null, // (layerId) => void
+  onDevice: null, // (device) => void, when the player switches between keyboard/mouse, pad and touch
 };
 
 // top-most first
@@ -30,8 +31,19 @@ function setDevice(d) {
   if (Input.device === d) return;
   Input.device = d;
   document.body.classList.toggle("dev-pad", d === "pad");
-  document.body.classList.toggle("dev-kbm", d !== "pad");
+  document.body.classList.toggle("dev-kbm", d === "kbm");
+  document.body.classList.toggle("dev-touch", d === "touch");
+  Input.onDevice?.(d);
 }
+/** A phone or tablet: no key caps, taps instead of clicks, bigger targets. */
+export const isTouch = () => Input.device === "touch";
+// a touch screen starts in touch mode; the first touch switches to it, a real mouse or key switches back.
+// A tap also sends made-up mouse events right after it: those don't count as the mouse.
+let lastTouch = -1e9;
+addEventListener("touchstart", () => { lastTouch = performance.now(); setDevice("touch"); }, { capture: true, passive: true });
+const fakeMouse = () => performance.now() - lastTouch < 1200;
+const hasMouse = () => matchMedia("(any-pointer: fine)").matches;
+if (matchMedia("(pointer: coarse)").matches && !hasMouse()) queueMicrotask(() => setDevice("touch"));
 function navMode(on) { document.body.classList.toggle("nav-keys", on); }
 
 /** Put the focus on a layer's default control (or its first), if the focus isn't already inside it. */
@@ -124,7 +136,13 @@ addEventListener("keydown", (e) => {
   e.preventDefault();
   act(name);
 }, true);
-addEventListener("mousemove", () => { if (document.body.classList.contains("nav-keys")) navMode(false); setDevice("kbm"); });
+addEventListener("mousemove", (e) => {
+  // browsers also send mouse moves when the page changes under a still pointer, or right after a tap: only a real
+  // mouse moving counts, and only on a device that has one
+  if (fakeMouse() || !hasMouse() || e.sourceCapabilities?.firesTouchEvents || (!e.movementX && !e.movementY)) return;
+  if (document.body.classList.contains("nav-keys")) navMode(false);
+  setDevice("kbm");
+});
 
 // ---------------------------------------------------------------- gamepad
 const BTN = { 0: "confirm", 1: "cancel", 2: "x", 3: "y", 4: "lb", 5: "rb", 8: "select", 9: "start", 12: "up", 13: "down", 14: "left", 15: "right" };

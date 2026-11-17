@@ -97,7 +97,8 @@ input[type="text"], input:not([type]) { background: #120e18; border: 1rem solid 
 body.mode-dialogue #quest, body.mode-combat #quest .q.side { display: none; }
 
 /* ---- party portraits (left) */
-#party { position: absolute; left: 8rem; bottom: 8rem; display: flex; flex-direction: column; gap: 4rem; }
+#party { position: absolute; left: 8rem; bottom: 8rem; display: flex; flex-direction: column; gap: 4rem; pointer-events: none !important; }
+#party .pcard { pointer-events: auto; }
 .pcard { display: flex; align-items: flex-end; gap: 4rem; cursor: pointer; }
 .pcard .pf { position: relative; width: 60rem; height: 56rem; border: 4rem solid transparent; border-image: var(--f-port) 4 fill / 4rem; background: linear-gradient(#3a2e48, #1a1522) padding-box; }
 .pcard .pf canvas { display: block; width: 52rem; height: 48rem; }
@@ -552,3 +553,86 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 #saveBtn.off { opacity: 0.55; }
 #loaderr { position: absolute; left: 50%; bottom: 60rem; transform: translateX(-50%); max-width: 420rem; padding: 6rem 12rem 8rem; text-align: center; color: #e8dcc6; line-height: 16rem; }
 #loaderr .row { display: flex; gap: 6rem; justify-content: center; margin-top: 6rem; }
+
+/* ---- phones and tablets: touch, and the screen held upright (body.portrait) or sideways (body.short).
+   --hbh is the action bar's height (main.js), so what sits above it moves when it wraps. */
+#game { touch-action: none; }
+body { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+input[type="text"], input:not([type]) { -webkit-user-select: text; user-select: text; }
+#ui { inset: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
+body.dev-touch .kbm, body.dev-touch .pad, body.dev-touch .hintkeys { display: none; }
+.touch-only { display: none; }
+body.dev-touch .touch-only { display: revert; }
+body.dev-touch #title .help li:not(.touch-only) { display: none; }
+#tooltip .tapok { color: var(--teal); }
+#fullscreen { width: 100%; margin: 3rem 0; }
+
+/* targets a finger can hit */
+body.dev-touch #corner { gap: 4rem; }
+body.dev-touch #corner button { width: 32rem; height: 32rem; }
+body.dev-touch .slot { width: 36rem; height: 36rem; }
+body.dev-touch #prompt { pointer-events: auto !important; cursor: pointer; padding: 3rem 8rem 4rem; background: #18121ef0; box-shadow: 0 0 0 1rem var(--gold), 0 0 0 2rem var(--ink); }
+body.dev-touch #prompt .ico { margin-right: 2rem; }
+body.dev-touch .opt { padding-top: 4rem; padding-bottom: 5rem; }
+body.dev-touch #hint { top: 46rem; }
+body.dev-touch #journal nav .x { padding: 3rem 8rem; }
+body.dev-touch #pause .chk { margin: 6rem 0; }
+body.dev-touch #pause .chk input { width: 15rem; height: 15rem; }
+body.dev-touch input[type="range"] { height: 24rem; }
+body.dev-touch input[type="range"]::-webkit-slider-thumb { width: 12rem; height: 20rem; margin-top: -8rem; }
+
+/* the screen held upright */
+body.portrait #title .logo { font-size: 39rem; line-height: 44rem; letter-spacing: 2rem; }
+body.portrait #title .help { padding: 0 8rem; }
+body.portrait #quest { width: 160rem; }
+body.portrait.mode-combat #quest { display: none; }
+body.portrait #initiative { top: 46rem; max-width: calc(100% - 12rem); padding-top: 8rem; }
+body.portrait #initiative .round { margin-right: 1rem; }
+body.portrait .ini canvas { width: 20rem; height: 18rem; }
+body.portrait .ini.now canvas { width: 30rem; height: 27rem; }
+body.portrait #hotbar { left: 4rem; right: 4rem; bottom: 4rem; transform: none; flex-wrap: wrap; justify-content: center; gap: 4rem 8rem; }
+body.portrait #hotbar .who { display: none; }
+body.portrait #hotbar .slots { flex-wrap: wrap; justify-content: center; gap: 4rem; }
+body.portrait.mode-combat #hotbar .slots { flex-basis: 100%; }
+body.portrait #hotbar .econ:not(.gold) { flex-direction: row; gap: 8rem; border-left: 0; padding-left: 0; }
+body.portrait #party { flex-direction: row; align-items: flex-end; left: 6rem; max-width: calc(100% - 12rem); bottom: calc(var(--hbh, 0px) + 8rem); flex-wrap: wrap; }
+body.portrait .pcard { flex-direction: column; align-items: stretch; gap: 0; width: 54rem; }
+body.portrait .pcard .pf { width: 54rem; height: 50rem; }
+body.portrait .pcard .pf canvas { width: 46rem; height: 42rem; }
+body.portrait .pcard .info { width: auto; padding: 0; }
+body.portrait .pcard .nm { overflow: hidden; text-overflow: clip; }
+body.portrait .pcard .cls, body.portrait .pcard .ac, body.portrait .pcard .bar.xp { display: none; }
+body.portrait #dialogue { bottom: 4rem; gap: 5rem; padding: 4rem 5rem 6rem; max-height: calc(100% - 50rem); overflow-y: auto; }
+body.portrait #dialogue .portrait canvas { width: 52rem; height: 48rem; }
+body.portrait #journal .box { height: min(560rem, 100%); }
+body.portrait #journal nav { gap: 2rem; }
+body.portrait #journal nav button { padding: 2rem 5rem 3rem; }
+body.portrait #journal nav button:not(.on) { flex: none; }
+body.portrait #journal nav button:not(.on) .lbl { display: none; }
+body.portrait #journal nav .ico { --s: 1; }
+body.portrait #saves .srow { flex-wrap: wrap; }
+body.portrait #saves .acts { width: 100%; justify-content: flex-end; }
+body.portrait #dice .dcard { min-width: 0; max-width: 96vw; white-space: normal; text-align: center; padding: 6rem 10rem 8rem; }
+body.portrait #intro .ctl { top: 12vh; }
+body.portrait #cine h1 { font-size: 52rem; line-height: 58rem; letter-spacing: 3rem; }
+body.portrait #endscreen dl { grid-template-columns: 1fr; gap: 1rem; }
+
+/* sideways on a phone: little height */
+body.short #title .logo { font-size: 46rem; line-height: 50rem; }
+body.short #title h2 { margin-bottom: 8rem; }
+body.short #title .menu { gap: 2rem; }
+body.short #title .help { bottom: 4rem; line-height: 16rem; }
+body.short #party { bottom: calc(var(--hbh, 0px) + 10rem); gap: 3rem; }
+body.short .pcard .pf { width: 46rem; height: 43rem; }
+body.short .pcard .pf canvas { width: 38rem; height: 35rem; }
+body.short .pcard .info { width: 92rem; }
+body.short .pcard .cls, body.short .pcard .bar.xp { display: none; }
+body.short #log { bottom: calc(var(--hbh, 0px) + 10rem); max-height: 64rem; width: 210rem; }
+body.short #hotbar { bottom: 3rem; }
+body.short #dialogue { bottom: 3rem; max-height: calc(100% - 10rem); overflow-y: auto; }
+body.short #dialogue .portrait canvas { width: 52rem; height: 48rem; }
+body.short #journal .box { height: 100%; }
+body.short #pause .box, body.short #saves .box { max-height: 100%; }
+body.short #dice .d20 { width: 96rem; height: 96rem; margin: 0; }
+body.short #creator { padding: 3rem 8rem; gap: 3rem; }
+body.short #creator header p { display: none; }
