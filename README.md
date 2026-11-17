@@ -159,11 +159,21 @@ segundo.
 - **Fontes**: fogueiras, lanternas e janelas, Lumes e a marca do herói, magias e faíscas do pixelfx.
 - **Ambiente** por área e por hora: o vale amanhece, as ruínas são um degrau mais escuras, o Relicário é frio,
   o fim do prólogo é ao pôr do sol, Vau-de-Cardo começa de noite. O relógio é movido pela história.
-- **Sombras**: cada luz projeta um quadrilátero atrás de props e personagens, só sobre o chão.
+- **Sombras com a forma dos objetos**: enquanto um prop, um personagem ou um baú é pintado, os quads que o formam
+  são anotados; a passada de sombra desenha esses mesmos quads deitados no chão, a partir dos pés, esticados para
+  longe da luz. A silhueta é a do próprio sprite (copa e tronco da árvore, a tenda, o caixote, o personagem com a
+  pose do quadro). Cada lâmpada ou fogueira projeta para longe de si (mais longa quanto mais longe a pessoa está);
+  as sombras clareiam um pouco em direção ao topo. Em 3D os pontos da sombra são projetados no plano do chão.
+- **Sol**: de dia, ao ar livre, o sol projeta as mesmas silhuetas pela hora do relógio: de manhã para oeste e
+  compridas, ao meio-dia curtas para o norte, à tarde para leste. O chão na sombra desce um degrau da rampa, com
+  borda em dither, puxando para o azul do céu. Sem sol à noite, em interiores, no sonho e quando a história fixa o céu.
+- **Bloom** (opção à parte, desligado por padrão): o que a luz empurra além do mais claro da arte e toda a luz dos
+  efeitos (fogo, magias) espalham um halo. É reduzido a 1/4 e 1/8, borrado nas duas direções e somado de volta em
+  faixas com o mesmo dither Bayer, nunca um degradê liso. A névoa e o céu ficam de fora.
 - **Paleta**: a luz não mistura com branco nem preto. Uma tabela 3D, montada com todas as rampas da arte, diz
   qual é "um degrau acima" e "um degrau abaixo" de cada cor; a luz chega em degraus inteiros, e a borda entre
   dois degraus usa o mesmo dither Bayer 4×4 da arte, alinhado aos pixels do mundo.
-- **Opções** (menu de pausa): desligada / baixa (sem sombras) / alta, e intensidade. **Desligada**, nenhuma luz ou
+- **Opções** (menu de pausa): desligada / baixa (sem sombras) / alta, intensidade e bloom. **Desligada**, nenhuma luz ou
   sombra é calculada e o jogo aparece como antes. Sem WebGL2 o jogo cai no desenho 2D antigo, sem luz.
 
 ## Criação de personagem

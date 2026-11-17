@@ -971,10 +971,13 @@ function setupMenu(corner = true) {
     lo.innerHTML = lightAvailable()
       ? `<div class="seg">${modes.map(([k, l]) => `<button data-lm="${k}" class="${lightSettings.mode === k ? "on" : ""}">${l}</button>`).join("")}</div>
         <label class="vrow ${lightSettings.mode === "off" ? "off" : ""}"><span>Intensidade</span><input type="range" min="0.4" max="1.4" step="0.1" value="${lightSettings.intensity}"><span class="pct">${Math.round(lightSettings.intensity * 100)}%</span></label>
-        <p class="muted">${lightSettings.mode === "off" ? "Sem luz dinâmica: o jogo como era." : lightSettings.mode === "low" ? "Luzes e hora do dia, sem sombras." : "Luzes, hora do dia e sombras dos objetos."}</p>`
+        <p class="muted">${lightSettings.mode === "off" ? "Sem luz dinâmica: o jogo como era." : lightSettings.mode === "low" ? "Luzes e hora do dia, sem sombras." : "Luzes, hora do dia e sombras com a forma dos objetos, que seguem o sol e as lâmpadas."}</p>
+        <label class="chk"><input type="checkbox" id="bloomOn" ${lightSettings.bloom ? "checked" : ""}> Bloom: brilho em volta do fogo, das magias e do que é muito claro</label>`
       : `<p class="muted">Este navegador não tem WebGL2: a luz dinâmica fica desligada.</p>`;
     lo.querySelectorAll("[data-lm]").forEach((b) => (b.onclick = () => { setLight({ mode: b.dataset.lm }); sfx.click(); drawLight(); lo.querySelector(`[data-lm="${b.dataset.lm}"]`)?.focus(); }));
-    const r = lo.querySelector("input");
+    const bl = lo.querySelector("#bloomOn");
+    if (bl) bl.onchange = () => { setLight({ bloom: bl.checked }); sfx.click(); };
+    const r = lo.querySelector("input[type=range]");
     if (r) r.oninput = () => { setLight({ intensity: +r.value }); lo.querySelector(".pct").textContent = Math.round(r.value * 100) + "%"; };
   };
   drawLight();
@@ -1550,7 +1553,13 @@ function draw() {
   sec("chão");
 
   if (gpu) paintOn(LY[1].x);
-  for (const it of items) { const p = it.u ?? it.c ?? it.g ?? it.o; anchored(p.x, p.y, () => drawItem(it, cx, cy)); }
+  // with shadows on, each thing that stands notes what it draws, so its shadow can have its shape
+  const rec = lit && lightSettings.mode === "high";
+  for (const it of items) {
+    const p = it.u ?? it.c ?? it.g ?? it.o;
+    if (rec && castsShadow(it)) anchored(p.x, p.y, () => { ctx.cast(p.x - cx, p.y - cy); drawItem(it, cx, cy); ctx.cast(null); });
+    else anchored(p.x, p.y, () => drawItem(it, cx, cy));
+  }
   sec("sprites");
   // the people in the boat sit with the sprites when the light is on, so the lamps reach them
   const boat = PV.on && W.objects.find((o) => o.id === "boat");
@@ -1612,7 +1621,8 @@ function draw() {
     renderLight({
       ss, cam: PV.on ? [0, 0] : [cx, cy], add: !PV.on && G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null,
       amb: lit ? ambientNow(ruinK) : { level: 0, tint: [1, 1, 1], tintK: 0, gain: 0 }, // unlit: every colour as painted
-      lights: lit ? gatherLights(cx, cy) : [], occluders: lit ? gatherOccluders(items, cx, cy) : [],
+      lights: lit ? gatherLights(cx, cy) : [], sun: lit ? sunNow(ruinK) : null,
+      proj: PV.on ? (fx, fy) => { const p = project(fx, fy); return p && [p.x, p.y]; } : null,
     });
     base = ctx = screen;
   }
@@ -1652,7 +1662,7 @@ function onView(x, y, up = 0) {
 }
 function gatherLights(cx, cy) {
   const out = [];
-  const add = (wx, wy, up, r, c, i, shadows) => { const p = onView(wx - cx, wy - cy, up); if (p) out.push({ x: p[0], y: p[1], r: r * p[2], c, i, shadows }); };
+  const add = (wx, wy, up, r, c, i, shadows) => { const p = onView(wx - cx, wy - cy, up); if (p) out.push({ x: p[0], y: p[1], r: r * p[2], c, i, shadows, fx: wx - cx, fy: wy - cy, fh: up, fr: r }); };
   const glow = (e, g) => add(e.x, e.y, g.h ?? 16, g.r * 2.6, (g.c ?? [150, 190, 255]).map((v) => v / 255), Math.min(1, (g.a ?? 0.35) * 2.4), g.r > 30);
   for (const o of G.W.objects) {
     if (o.hidden) continue;
@@ -1665,15 +1675,30 @@ function gatherLights(cx, cy) {
   for (const L of G.fx.lights()) add(L.x, L.y, 0, L.r, L.c, L.i, L.shadows);
   return out;
 }
-function gatherOccluders(items, cx, cy) {
-  const out = [];
-  const add = (e, w, h) => { const p = onView(e.x - cx, e.y - cy); if (p) out.push({ x: p[0], y: p[1], w: w * p[2], h: h * p[2] }); };
-  for (const it of items) {
-    if (it.o) { const a = it.o.art; if (a?.shadow && !it.o.clip && it.o.kind !== "campfire") add(it.o, a.shadow * 0.75, Math.min(110, a.c.height * 0.7)); }
-    else if (it.u) { if (!it.u.float && !it.u.ghost && !(it.u.hp <= 0 && it.u.team === "party")) add(it.u, it.u.small ? 4 : 5, it.u.small ? 20 : 28); }
-    else if (it.c) add(it.c, 9, 14);
-  }
-  return out;
+/** Whether something standing casts a shadow: props with a footprint, people on their feet, chests. Not grass. */
+function castsShadow(it) {
+  if (it.o) return !!it.o.art?.shadow && !it.o.clip && it.o.kind !== "campfire";
+  if (it.u) return !it.u.float && !it.u.ghost && !(it.u.hp <= 0 && it.u.team === "party");
+  return !!it.c;
+}
+/**
+ * The sun at this hour, as the light renderer wants it: which way shadows fall on the ground and how long they are
+ * per pixel of height. It rises in the east (shadows to the west), passes to the south at noon (short shadows to the
+ * north, up the screen) and sets in the west. Nothing indoors, in the dream, at night, or when the story sets the sky.
+ */
+function sunNow(ruinK) {
+  if (G.ambient || G.W.amb) return null;
+  const h = ((G.clock % 24) + 24) % 24, a = ((h - 6) / 12) * Math.PI; // 0 at sunrise, π at sunset
+  const up = Math.sin(a);
+  if (up <= 0.02) return null;
+  const elev = up * 1.0; // radians: about 57° at noon
+  let ux = -Math.cos(a), uy = -Math.sin(a) * 0.75 - 0.25 * (1 - up); // a little north even at dawn: the sun stays south
+  const n = Math.hypot(ux, uy); ux /= n; uy /= n;
+  return {
+    ux, uy,
+    len: Math.min(2.6, Math.max(0.45, 1 / Math.tan(elev))),
+    k: Math.min(1, up / 0.25) * (1 - 0.75 * ruinK),
+  };
 }
 
 function drawCritters(cx, cy, ruinK) {
