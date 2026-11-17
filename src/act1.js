@@ -14,12 +14,16 @@ import { gearItem } from "./items.js";
 import { VAU, TRAV } from "./maps1.js";
 import { focusDefault } from "./input.js";
 import { nameFn } from "./save/codec.js";
+import * as CH2 from "./act1ch2.js";
 
 let K, E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint;
 export function init(kit) {
   K = kit;
   ({ E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint } = kit);
+  CH2.init(kit);
 }
+/** Chapter two answers for its own maps (act1ch2.js). */
+const inCh2 = () => CH2.MAPS.has(G.W?.id);
 const GESTURE = nameFn("act1:gesture", () => ({ start: { narr: true, text: "(Olhos brancos. As mãos repetem um gesto que já foi um ofício.)", options: [{ label: "...", to: "end" }] } }));
 const near = (u, tx, ty, r) => dist(u.x, u.y, tx * TILE + 16, ty * TILE + 26) < r * TILE;
 const tileNow = (u) => [Math.floor(u.x / TILE), Math.floor((u.y - 1) / TILE)];
@@ -60,6 +64,7 @@ const NIX = { race: "tiferino", cls: "ladino", gender: "f", name: "Nix", base: {
 
 export function populate(W) {
   specs();
+  if (CH2.MAPS.has(W.id)) return CH2.populate(W);
   const npc = (spec, def) => { const u = E.unit(spec, { team: "npc", maxHp: 8, ac: 10, ...def }); W.npcs.push(u); if (def.key) cast[def.key] = u; return u; };
   const foe = (spec, def) => { const u = E.unit(spec, { team: "enemy", passive: true, move: 5, dex: 1, ...def }); W.enemies.push(u); if (def.key) cast[def.key] = u; return u; };
   if (W.id === "vau") {
@@ -169,14 +174,15 @@ export function quests({ all } = {}) {
   if (F.rested1) o.push(["Saia pelo portão leste, rumo à Travessia do Cardo", !!F.trav_entered]);
   if (F.trav_entered) o.push(["Atravesse o vau e ache a mensageira de L.", !!F.hunters]);
   if (F.hunters) o.push(["Solte a mensageira", !!F.ch1_done]);
-  if (F.ch1_done) o.push(["Continua: o Mosteiro do Véu Sereno", false]);
+
   const notes = [];
   if (F.poster_seen) notes.push("A Coroa oferece duzentas peças por um portador de marca prateada. O cartaz é assinado por V. Moss, o Mestre-Coletor.");
   if (F.rosalva_lembradora) notes.push("Rosalva é uma dos Lembradores. \"A gente escreve tudo. Um dia alguém vai precisar ler.\"");
   if (F.eco_trade) notes.push(F.eco_trade === "refused" ? "A Arquivista ofereceu um poder em troca de uma lembrança. Você recusou. Ela pareceu triste." : "Você entregou uma lembrança à Arquivista. Há uma linha riscada no Diário, e você não sabe mais o que ela dizia.");
   if (F.monastery_hint) notes.push("As procissões da Ordem saem do Mosteiro do Véu Sereno. Os nomes de quem \"descansa\" ficam num registro, lá.");
   if (F.otavio_found && F.monastery_hint) notes.push("O nome de Otávio deve estar nesse registro. Seria a prova de que a Ordem leva gente para a névoa.");
-  out.push({ title: F.ch1_done ? "A Página em Branco" : "O Sabiá Cego", objs: trim(o), desc: "O contrato mandava levar o que dormia em Velmoor à taverna do Sabiá Cego, em Vau-de-Cardo. Quem assinou \"L.\" não apareceu.", notes });
+  if (F.ch1_done) out.push(...CH2.quests({ all }));
+  else out.push({ title: "O Sabiá Cego", objs: trim(o), desc: "O contrato mandava levar o que dormia em Velmoor à taverna do Sabiá Cego, em Vau-de-Cardo. Quem assinou \"L.\" não apareceu.", notes });
   if (F.q_iara) out.push({ title: "O tributo de Iara", side: true, objs: trim([["Resolva a cobrança do Coletor no acampamento", !!F.iara]]),
     desc: "Um Coletor da Coroa cobra o Tributo de uma refugiada que não tem como pagar em ouro.", notes: F.iara === "forgot" ? ["Iara pagou com o rosto do filho. Ela continua cuidando dele, com muita educação."] : [] });
   if (F.q_nix) out.push({ title: "A Lume do comandante", side: true, objs: trim([["Abra o cofre atrás da guarnição", !!F.lume_got], ...(F.lume_got ? [["Decida o que fazer com a Lume", !!F.lume_done]] : [])]),
@@ -184,8 +190,22 @@ export function quests({ all } = {}) {
   if (!all) return out.filter((q, i) => i === 0 || q.objs.some(([, d]) => !d));
   return out;
 }
-
-// ---------------------------------------------------------------- the tavern
+/** Development (?dev=ato1c2): Travessia, chapter one done, straight on to chapter two. */
+export function devChapter2() {
+  F.act1 = true;
+  Object.assign(F, { rosalva_met: true, note: true, rested1: true, trav_entered: true, gate_passed: true, monastery_hint: true, ch1_done: true });
+  F.hunters ??= "talked"; F.proc ??= "passed"; F.eco_trade ??= "refused";
+  E.buildMap("vau"); E.buildMap("travessia");
+  for (const e of E.map("travessia").groups.cacadores) { e.gone = true; e.hp = 0; }
+  for (const u of [G.hero, G.mate]) { u.hidden = false; while (u.level < 3) G.hooks.gainXp(u, u.nextXp - u.xp); u.hp = u.maxHp; u.slots = u.maxSlots ?? 0; }
+  G.party = [G.hero, G.mate]; G.followers = []; G.leader = 0;
+  if (F.nix_joined) { const N = cast.nix, W = E.map("vau"); N.team = "party"; N.talk = null; N.label = null; W.npcs.splice(W.npcs.indexOf(N), 1); while (N.level < 3) G.hooks.gainXp(N, N.nextXp - N.xp); N.hp = N.maxHp; G.party.push(N); }
+  giveItem(ITEMS.seal); G.gold += 100;
+  G.clock = 10; G.clockTarget = 10;
+  E.loadMap("travessia", 46, 15, 2);
+  E.partyChanged();
+  CH2.begin();
+}
 function rosalvaTree() {
   const R = cast.rosalva, first = !F.rosalva_met;
   F.rosalva_met = true;
@@ -242,6 +262,7 @@ async function nightRest(where) {
   });
 }
 export function onRest() {
+  if (inCh2()) return CH2.onRest();
   if (G.W.id !== "vau") return;
   if (F.tome_alive && F.maren_aboard && !F.maren_lucid && !F.tome_asked) { tomeAsks().then(() => nightRest("fire")); return; }
   if (night()) nightRest("fire");
@@ -764,16 +785,18 @@ function chapterEnd() {
   const el = document.getElementById("endscreen");
   el.innerHTML = `<div class="box fr fr-panel"><h1>Fim do capítulo</h1><h2>Ato I · A Marca de Cardo</h2>
     <h3>O que a fronteira vai lembrar</h3><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>
-    <p class="muted" style="margin-top:8rem">Nível ${G.hero.level} · ${G.gold} peças de ouro · Continua no Mosteiro do Véu Sereno.</p>
-    <div class="row"><button class="go" data-default id="keepPlaying">Continuar explorando</button></div></div>`;
+    <p class="muted" style="margin-top:8rem">Nível ${G.hero.level} · ${G.gold} peças de ouro · O caminho para o Mosteiro do Véu Sereno sai da estrada, a leste, pelo sul do bosque.</p>
+    <div class="row"><button class="go" data-default id="toMonastery">Seguir para o Mosteiro</button><button id="keepPlaying">Continuar explorando</button></div></div>`;
   el.classList.remove("hidden");
   G.paused = true;
   el.querySelector("#keepPlaying").onclick = () => { el.classList.add("hidden"); G.paused = false; };
+  el.querySelector("#toMonastery").onclick = () => { el.classList.add("hidden"); G.paused = false; CH2.begin(); };
   focusDefault(el, true);
 }
 
 export function onCombatEnd(group) {
   const W = G.W;
+  if (inCh2()) return CH2.onCombatEnd(group);
   for (const p of G.party) p.forgetWard = p.build ? !!p.wfx?.forgetWard : false;
   if (group === W.groups.procissao) {
     group.passive = true;
@@ -815,8 +838,10 @@ export function interactables() {
     at(...VAU.well, "Poço", () => say(null, "No fundo, uma lua pequena e um balde. Alguém riscou nomes na pedra da borda, um por cima do outro: os de quem chegou do norte e quis deixar escrito que chegou."), { h: 30 });
     at(9, 4, "Placa: O Sabiá Cego", () => say(null, "Um sabiá de madeira com uma venda no olho. Embaixo, em letra miúda: \"Aqui ninguém viu nada. Mas todo mundo anotou.\""), { h: 44 });
   }
+  if (inCh2()) return CH2.interactables();
   if (W.id === "travessia") {
     at(...TRAV.shrine, "Santuário de Nhara", shrine, { h: 34 });
+    if (F.ch1_done) at(47, 15, "Trilha pelo sul do bosque (Mosteiro)", () => CH2.begin(), { reach: 70, h: 30 });
     const s = E.obj("satchel");
     if (!s.hidden && !F.satchel) out.push({ x: s.x, y: s.y, name: "Bolsa da mensageira", r: 14, act: satchel });
   }
@@ -847,6 +872,7 @@ async function satchel() {
 export function update(dt) {
   const W = G.W, l = lead();
   if (!l || G.mode !== "explore") return;
+  if (inCh2()) return CH2.update(dt);
   const [tx, ty] = tileNow(l);
   if (W.id === "vau") {
     if (tx >= 41 && ty >= 11 && ty <= 14) gateScene();
@@ -861,11 +887,13 @@ export function update(dt) {
       else if (cast.murta1 && F.clan === "scared" && !F.toll && !F.goblin_pact) murtaToll();
     }
     if (!F.hunters && tx >= 35) hunters();
+    if (F.ch1_done && tx >= 48) CH2.begin(); // the way south of the woods, to the Monastery
   }
 }
 
 // ---------------------------------------------------------------- the Bruma, at the edge of the road
-export const hasFog = () => G.W.id === "travessia";
+export const hasFog = () => (inCh2() ? CH2.hasFog() : G.W.id === "travessia");
 export function fogAt(x, y) {
+  if (inCh2()) return CH2.fogAt(x, y);
   return G.W.id === "travessia" ? clamp((4.5 * TILE - y) / (3.5 * TILE)) * 0.85 : 0;
 }

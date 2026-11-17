@@ -151,7 +151,7 @@ const ITEMS = {
 
 // ---------------------------------------------------------------- the cast, map by map
 export function populate(W) {
-  if (W.id === "vau" || W.id === "travessia") return A1.populate(W);
+  if (["vau", "travessia", "bosque", "mosteiro", "claustro"].includes(W.id)) return A1.populate(W);
   const npc = (spec, def) => { const u = E.unit(spec, { team: "npc", maxHp: 6, ac: 10, ...def }); W.npcs.push(u); if (def.key) cast[def.key] = u; return u; };
   if (W.id === "vale") {
     const gob = (tx, ty, group, n, spec = "goblin", key) => {
@@ -254,7 +254,7 @@ export function devJump(where, flags) {
   if (where === "camp") E.loadMap("vale", 15, 38, 3);
   E.partyChanged();
   G.mode = "explore";
-  if (where === "ato1") {
+  if (where === "ato1" || where === "ato1c2") {
     // straight to Vau-de-Cardo, as if the prologue had ended with these flags (?dev=ato1&f=goblin_pact,maren_aboard,...)
     F.echo ??= "accepted"; F.escape = F.escape_done = true;
     if (F.echo === "accepted") G.hero.abilities.push("lampejo");
@@ -263,7 +263,8 @@ export function devJump(where, flags) {
     giveItem(ITEMS.letter);
     if (!F.returned_heirloom && F.maren_aboard) giveItem(ITEMS.chair);
     G.gold += 40;
-    A1.begin();
+    if (where === "ato1c2") A1.devChapter2(); // chapter one done: from the Travessia, south to the Monastery
+    else A1.begin();
   }
 }
 

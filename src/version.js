@@ -5,10 +5,19 @@
 // moment (see src/update.js). Players see the notes of what changed the first time they open the new version.
 // No DOM here: the service worker imports it too.
 
-export const VERSION = "0.8.0";
+export const VERSION = "0.9.0";
 
 /** Newest first. { version, date: "AAAA-MM-DD", title, items: [html] } */
 export const NOTES = [
+  {
+    version: "0.9.0", date: "2026-11-17", title: "Ato I, capítulo 2: O Véu Sereno",
+    items: [
+      "O <b>capítulo 2</b>: pelo sul do bosque até o <b>Mosteiro do Véu Sereno</b>, com o pátio, o jardim do chá de bruma, a cozinha, o dormitório dos órfãos, a capela e a ala que não se mostra a visitantes.",
+      "A <b>Madre Odília</b> conversa com você, gentil e quase convincente. <b>Hulda Ferrobarba</b>, a última sacerdotisa de Ormun, entra no grupo. O <b>Velho Sabiá</b> está lá.",
+      "Uma escolha sobre o Mosteiro, uma missão secundária (o passarinho de Pipa) e inimigos novos: as mariposas da Bruma e os irmãos do Véu.",
+      "Quem já terminou o capítulo 1 segue de onde parou: a saída para o Mosteiro fica no fim da estrada do Cardo, a leste. Os saves da versão anterior continuam valendo.",
+    ],
+  },
   {
     version: "0.8.0", date: "2026-11-17", title: "Atualizações automáticas",
     items: [

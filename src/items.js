@@ -25,6 +25,8 @@ export const WEAPONS = {
   maca: { name: "Maça", type: "maca", dice: "1d6", cat: "simples", props: [], sprite: "mace", desc: "Uma bola de ferro num cabo." },
   marteloGuerra: { name: "Martelo de guerra", type: "maca", dice: "1d8", cat: "marcial", props: [], sprite: "hammer", desc: "Achata elmos." },
   malho: { name: "Malho", type: "maca", dice: "2d6", cat: "marcial", props: ["pesada", "duas"], sprite: "hammer", wlen: 3, desc: "Um martelo de ferreiro que decidiu ir à guerra." },
+  marteloOrmun: { name: "Martelo de Ormun", type: "maca", dice: "1d8", cat: "simples", props: [], sprite: "hammer", rare: true,
+    fx: { healBonus: 2 }, desc: "Cabeça de pedra cinzenta, cabo de ferro, uma runa de juramento gravada em cada face. +2 nas curas de quem o empunha." },
   lanca: { name: "Lança", type: "lanca", dice: "1d6", cat: "simples", props: [], sprite: "spear", desc: "Haste de freixo, ponta de ferro." },
   lancaGoblin: { name: "Lança goblin", type: "lanca", dice: "1d6", cat: "simples", props: [], sprite: "spear", fx: { dmgBonus: 1 }, desc: "Ponta de osso afiada até brilhar. +1 de dano." },
   alabarda: { name: "Alabarda", type: "lanca", dice: "1d10", cat: "marcial", props: ["pesada", "duas", "alcance"], sprite: "spear", wlen: 3, desc: "Ataca inimigos a 2 casas de distância." },
