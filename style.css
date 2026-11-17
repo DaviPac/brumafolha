@@ -202,7 +202,8 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 @keyframes rise { 0% { opacity: 0; margin-top: 4rem; } 10% { opacity: 1; margin-top: -4rem; } 70% { opacity: 1; } 100% { opacity: 0; margin-top: -26rem; } }
 
 /* ---- dialogue */
-#dialogue { position: absolute; left: 50%; bottom: 8rem; transform: translateX(-50%); width: min(600rem, 96vw); display: flex; gap: 8rem; padding: 4rem 6rem 6rem; animation: slideup 0.16s steps(4); }
+/* above the black of a fade (#fade 40, #cine 41): conversations in the dark, like the Echo's offer at night, must show; under the d20 (46) */
+#dialogue { z-index: 42; position: absolute; left: 50%; bottom: 8rem; transform: translateX(-50%); width: min(600rem, 96vw); display: flex; gap: 8rem; padding: 4rem 6rem 6rem; animation: slideup 0.16s steps(4); }
 @keyframes slideup { from { transform: translate(-50%, 12rem); opacity: 0; } }
 #dialogue .portrait { flex: none; align-self: flex-start; border: 4rem solid transparent; border-image: var(--f-portHi) 4 fill / 4rem; background: linear-gradient(#3a4a58, #1a1522) padding-box; margin-top: 2rem; }
 #dialogue .portrait canvas { display: block; width: 78rem; height: 72rem; }

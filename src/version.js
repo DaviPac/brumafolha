@@ -16,6 +16,7 @@ export const NOTES = [
       "A <b>Madre Odília</b> conversa com você, gentil e quase convincente. <b>Hulda Ferrobarba</b>, a última sacerdotisa de Ormun, entra no grupo. O <b>Velho Sabiá</b> está lá.",
       "Uma escolha sobre o Mosteiro, uma missão secundária (o passarinho de Pipa) e inimigos novos: as mariposas da Bruma e os irmãos do Véu.",
       "Quem já terminou o capítulo 1 segue de onde parou: a saída para o Mosteiro fica no fim da estrada do Cardo, a leste. Os saves da versão anterior continuam valendo.",
+      "Corrigido: no primeiro descanso em Vau-de-Cardo a tela ficava preta. A conversa com a Arquivista acontecia no escuro, escondida atrás dele; agora ela aparece.",
     ],
   },
   {
