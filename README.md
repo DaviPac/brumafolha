@@ -41,6 +41,22 @@ o *Compartilhar → Adicionar à Tela de Início* do Safari), abre em tela cheia
 - No celular há controles por toque (tocar, segurar e arrastar; no combate, um toque mostra e o segundo confirma) e
   a interface se arruma em retrato e em paisagem.
 
+## Carregamento
+
+Do primeiro instante até o jogo estar pronto, uma tela de carregamento com um **d20 rolando**: um icosaedro de
+verdade girado em 3D e desenhado pixel a pixel no prata do d20 dos testes, com números aparecendo na face da frente,
+uma frase para cada etapa ("Pintando o vale pixel a pixel...", "Sonhando com Velmoor...") e uma barra de progresso.
+Ela é um script comum que roda antes do código do jogo ([src/loading.js](src/loading.js)), então não há tela preta
+no começo, e o dado gira só com CSS de deslocamento, que continua liso mesmo com o navegador ocupado.
+
+- **Pintar o chão do vale** era quase todo o carregamento (cerca de 4 milhões de pixels com ruído). Agora ele é
+  pintado em faixas, em paralelo, em *Web Workers* (um por núcleo), e sai idêntico pixel a pixel ao de antes.
+- **Da segunda visita em diante**, o chão pronto é guardado no navegador e só desembrulhado. A chave é uma soma do
+  próprio código que pinta o chão: se ele mudar, a imagem guardada é ignorada e refeita.
+- Medido num navegador sem janela e lento (4 núcleos): de 12,5 s para 7 s na primeira visita e 1,5 s nas seguintes.
+- **Carregar um save** usa a mesma tela: ela entra na hora, o save é conferido por baixo, a página recarrega atrás
+  dela e ela sai quando o jogo está de volta. "Novo jogo" escurece o menu antes do prelúdio, em vez de cortar.
+
 ## Tela de início
 
 Antes do menu, uma noite no vale feita só com efeitos do [pixelfx](https://github.com/patch-gg/pixelfx): aurora,

@@ -671,3 +671,22 @@ body.short #creator header p { display: none; }
 #press.ready .go-start:focus { outline: none; }
 #press.ready .sub { display: block; color: var(--muted); text-shadow: 1rem 1rem 0 var(--ink); }
 @keyframes pressBlink { 0%, 70% { opacity: 1; } 71%, 100% { opacity: 0.55; } }
+
+/* ---- the loading screen (src/loading.js): on screen from the first frame; the die rolls by transform alone, so it
+   keeps moving while the game is being built */
+#loading { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: radial-gradient(ellipse 60% 55% at 50% 45%, #1b1828, #07060b 75%); transition: opacity 0.6s steps(6); }
+#loading.out { opacity: 0; pointer-events: none; }
+#loading.hidden { display: none; }
+#loading .stage { position: relative; width: 120px; height: 146px; }
+#loading .hop { position: absolute; left: 0; top: 0; animation: d20hop 0.55s cubic-bezier(0.3, 0, 0.7, 1) infinite alternate; }
+#loading .win { width: 120px; height: 120px; overflow: hidden; }
+#loading .strip { display: block; width: 1920px; height: 120px; image-rendering: pixelated; animation: d20roll 1.1s steps(16) infinite; }
+#loading .shadow { position: absolute; left: 30px; bottom: 6px; width: 60px; height: 8px; border-radius: 50%; background: rgba(0, 0, 0, 0.55);
+  animation: d20shadow 0.55s cubic-bezier(0.3, 0, 0.7, 1) infinite alternate; }
+@keyframes d20roll { to { transform: translateX(-1920px); } }
+@keyframes d20hop { from { transform: translateY(14px); } to { transform: translateY(-6px); } }
+@keyframes d20shadow { from { transform: scaleX(1.1); opacity: 0.9; } to { transform: scaleX(0.75); opacity: 0.5; } }
+#loading .label { color: #b8ac96; font: 13rem/15rem Bruma, ui-monospace, monospace; text-shadow: 1rem 1rem 0 #18121e; min-height: 15rem; }
+#loading .bar { width: 180px; height: 4px; background: #2a2436; box-shadow: 0 0 0 2px #18121e; }
+#loading .bar i { display: block; height: 100%; background: #a8c4e8; transform-origin: left; transform: scaleX(0.02); transition: transform 0.35s steps(6); }

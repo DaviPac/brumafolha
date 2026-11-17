@@ -5,7 +5,8 @@ import { buildWorld, MW, MH, zoneAt, T, waterField } from "./world.js";
 import { buildDream, buildRelic } from "./maps.js";
 import { buildVau, buildTravessia } from "./maps1.js";
 import * as TW from "./art/town.js";
-import { paintGround, waterSparkles, PAL as GPAL } from "./art/ground.js";
+import { paintGround, paintBaseParallel, waterSparkles, PAL as GPAL } from "./art/ground.js";
+import { groundKey, loadGround, saveGround } from "./art/groundcache.js";
 import * as A from "./art/props.js";
 import * as I from "./art/interiors.js";
 import { buildCharacter, portrait, SPECS, SW, SH } from "./art/chars.js";
@@ -48,19 +49,29 @@ const shadows = new Map();
 const grassArt = [];
 const maps = {};
 
-const nextFrame = () => new Promise((r) => setTimeout(r, 16));
+/** Let the browser paint (the loading screen's words and bar) before the next heavy step. Not only rAF: a tab in the
+ * background gets none, and the boot must not stop there. */
+const nextFrame = () => new Promise((r) => { let done = false; const go = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(() => setTimeout(go, 0)); setTimeout(go, 60); });
+/** One step of the boot, on the loading screen: what is being made, and how far along (0–1). */
+let stepT = performance.now(), stepName = "início";
+const loadStep = async (text, k) => {
+  const now = performance.now();
+  console.debug(`[boot] ${stepName}: ${Math.round(now - stepT)} ms`); // what each step costs (Console, "verbose")
+  stepT = now; stepName = text ?? `etapa ${k}`;
+  window.Loading?.step(text, k); await nextFrame();
+};
 
 // ---------------------------------------------------------------- boot
 async function boot() {
   const t0 = performance.now();
+  // a load reloads the page: then the title is skipped (the loading screen says it is a load)
+  const loading = hasPendingLoad(), dev = new URLSearchParams(location.search).get("dev");
+  if (loading) document.getElementById("title").classList.add("hidden");
   installIcons();
   installFrames();
   await installFont();
   resize();
-  // a load reloads the page: then the title and its opening are skipped, behind a black screen
-  const loading = hasPendingLoad(), dev = new URLSearchParams(location.search).get("dev");
-  if (loading) { UI.fade(1, 0); document.getElementById("title").classList.add("hidden"); }
-  else if (!dev) showPress(startMenu); // "click to start", over a pixelfx night, while the valley is painted
+  await loadStep(null, 0.08);
   document.getElementById("titleHelp").innerHTML = `
     <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
     <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
@@ -72,12 +83,31 @@ async function boot() {
   mist = makeMist();
   fgLeft = silhouette(11); fgRight = silhouette(29);
   G.fx = new FxLayer();
+  await loadStep(loading ? null : "Misturando a luz...", 0.15);
   if (initLight(document.getElementById("gl"))) setRamps(collectRamps([GPAL, A.RAMP, I.IRAMP, SPECS, RULES, ARMORS]));
+  await loadStep(loading ? null : "Chamando os companheiros...", 0.25);
   spawnCompanions();
   S.init(E);
   initGame(SAVE_ENGINE);
   initSaves(SAVE_ENGINE);
-  for (const id of ["vale", "sonho", "relicario"]) { buildMap(id); await nextFrame(); }
+  // the valley's ground is most of the loading: painted in parallel, off the page, while the bar follows it
+  // (and kept between visits: after the first one it is only unpacked, see groundcache.js)
+  const gkey = await groundKey();
+  valeCached = gkey && (await loadGround(gkey, MW * TILE, MH * TILE));
+  if (!valeCached) {
+    await loadStep(loading ? null : "Pintando o vale pixel a pixel...", 0.3);
+    valeBase = await paintBaseParallel((k) => window.Loading?.step(null, 0.3 + k * 0.45));
+  } else await loadStep(loading ? null : "Desenrolando o mapa do vale...", 0.6);
+  const MAPS = [["vale", null, 0.76], ["sonho", "Sonhando com Velmoor...", 0.84], ["relicario", "Descendo ao Relicário...", 0.9]];
+  for (const [id, text, k] of MAPS) {
+    await loadStep(loading ? null : text, k);
+    buildMap(id);
+  }
+  valeBase = null;
+  // a first visit keeps the valley's ground for the next ones, a little after the menu is up (it takes a moment)
+  if (!valeCached && gkey) setTimeout(() => saveGround(gkey, maps.vale.ground), 5000);
+  valeCached = null;
+  await loadStep(null, 0.92);
   loadMap("vale", 15, 38);
   resize();
 
@@ -96,10 +126,13 @@ async function boot() {
       if (audioState().state === "running") for (const ev of EVENTS) removeEventListener(ev, wake, true);
     };
     for (const ev of EVENTS) addEventListener(ev, wake, true);
-    if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); showNewNotes(); }
+    if (await bootLoad(loadFailed)) { closeTitle(); await window.Loading?.hide(); showNewNotes(); }
+    else window.Loading?.hide();
     return;
   }
-  if (!dev) pressReady();
+  // the start screen comes in under the loading screen, already asking for the click, and the loading screen fades off it
+  if (!dev) { showPress(startMenu); pressReady(); }
+  window.Loading?.hide();
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
   if (q.get("dev")) {
@@ -128,6 +161,9 @@ function startMenu() {
 async function create() {
   if (G.mode !== "title") return;
   initAudio();
+  G.mode = "intro"; // no second click while the menu fades
+  playMusic(null, 1.2);
+  await UI.fade(1, 700); // the menu fades to black, then the prelude starts in the dark
   closeTitle();
   G.clock = 9;
   await playIntro(E); // Lyra tells the valley's story before the hero exists
@@ -160,13 +196,15 @@ function begin() {
 }
 
 // ---------------------------------------------------------------- the maps
+let valeBase = null; // the valley ground's per-pixel pass, when workers painted it ahead (boot)
+let valeCached = null; // or the whole ground, kept from an earlier visit
 function buildMap(id) {
   if (maps[id]) return maps[id];
   const W = { vale: buildWorld, sonho: buildDream, relicario: buildRelic, vau: buildVau, travessia: buildTravessia }[id]();
   if (id === "vale") W.outdoor = true;
   const g = document.createElement("canvas");
   g.width = W.w * TILE; g.height = W.h * TILE;
-  const img = id === "vale" ? paintGround(W) : W.outdoor ? TW.paintOutdoor(W, T) : I.paintInterior(W, T);
+  const img = id === "vale" ? valeCached ?? paintGround(W, valeBase ?? undefined) : W.outdoor ? TW.paintOutdoor(W, T) : I.paintInterior(W, T);
   g.getContext("2d").putImageData(img, 0, 0);
   W.ground = g;
   if (W.outdoor) W.waterMask = waterMask(img);

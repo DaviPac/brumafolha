@@ -127,13 +127,18 @@ async function doSave({ kind, id, name, quiet, onDone }) {
  * from it (see bootLoad). Nothing of the game on screen survives into the loaded one.
  */
 export async function loadSave(id, { backup = false } = {}) {
+  // the loading screen comes in at once, while the save is read and checked underneath; it is still there when the
+  // page comes back, so the reload happens behind one screen
+  const shown = window.Loading ? window.Loading.show("Lembrando onde você parou...") : UI.fade(1, 250);
   try {
     const r = await readSave(id, { preferBackup: backup });
     validate(migrate(r.data));
     sessionStorage.setItem(LOAD_KEY, JSON.stringify({ id, backup: backup || r.fromBackup }));
-    UI.fade(1, 250);
-    setTimeout(() => location.reload(), 260);
+    await shown;
+    location.reload();
   } catch (e) {
+    await shown;
+    if (window.Loading) window.Loading.hide(); else UI.fade(0, 250);
     UI.toast(e.message, 4200);
   }
 }

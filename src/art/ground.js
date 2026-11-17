@@ -12,20 +12,26 @@ export const PAL = {
   bank: ramp("#1f3d22", "#2a4d26"),
 };
 
-export function paintGround(W) {
-  const w = MW * TILE, h = MH * TILE;
-  const img = new ImageData(w, h), d = img.data;
-  const lushAt = new Float32Array(w * h), wfAt = new Float32Array(w * h);
+/**
+ * The per-pixel pass, for rows y0..y1: each pixel depends on its position only, so bands of rows can be painted
+ * apart, in parallel, by workers (ground-worker.js). Returns the band's RGBA pixels and, for the pass that follows,
+ * the water field and the lushness at each pixel. `progress(k)` is told how far along it is now and then.
+ */
+export function paintBase(y0, y1, progress) {
+  const w = MW * TILE, rows = y1 - y0;
+  const d = new Uint8ClampedArray(w * rows * 4), lushAt = new Float32Array(w * rows), wfAt = new Float32Array(w * rows);
   // lushness is smooth: sample it every 4 px and interpolate
-  const LS = 4, lw = w / LS + 1, lushGrid = new Float32Array(lw * (h / LS + 1));
-  for (let gy = 0; gy <= h / LS; gy++) for (let gx = 0; gx < lw; gx++) lushGrid[gy * lw + gx] = lushField(gx * LS, gy * LS);
+  const LS = 4, lw = w / LS + 1, g0 = Math.floor(y0 / LS), g1 = Math.floor((y1 - 1) / LS) + 1;
+  const lushGrid = new Float32Array(lw * (g1 - g0 + 1));
+  for (let gy = g0; gy <= g1; gy++) for (let gx = 0; gx < lw; gx++) lushGrid[(gy - g0) * lw + gx] = lushField(gx * LS, gy * LS);
   const lushOf = (x, y) => {
-    const gx = x / LS, gy = y / LS, xi = gx | 0, yi = gy | 0, u = gx - xi, v = gy - yi, k = yi * lw + xi;
+    const gx = x / LS, gy = y / LS, xi = gx | 0, yi = gy | 0, u = gx - xi, v = gy - yi, k = (yi - g0) * lw + xi;
     return (lushGrid[k] * (1 - u) + lushGrid[k + 1] * u) * (1 - v) + (lushGrid[k + lw] * (1 - u) + lushGrid[k + lw + 1] * u) * v;
   };
-  for (let y = 0; y < h; y++)
+  for (let y = y0; y < y1; y++) {
+    if (progress && (y - y0) % 32 === 0) progress((y - y0) / rows);
     for (let x = 0; x < w; x++) {
-      const i = y * w + x;
+      const i = (y - y0) * w + x;
       const wf = (wfAt[i] = waterField(x, y));
       let c;
       if (wf < 0) {
@@ -51,6 +57,15 @@ export function paintGround(W) {
       const j = i * 4;
       d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
     }
+  }
+  return { d, wfAt, lushAt };
+}
+
+/** The ground of the valley. `base`: the per-pixel pass already done (by workers, see paintBaseParallel); without
+ * it, it is done here, which is the slow part of loading. */
+export function paintGround(W, base = paintBase(0, MH * TILE)) {
+  const w = MW * TILE, h = MH * TILE;
+  const img = new ImageData(base.d, w, h), d = img.data, { wfAt, lushAt } = base;
 
   const set = (x, y, c) => {
     x |= 0; y |= 0;
@@ -185,4 +200,37 @@ export function waterSparkles(W) {
     out.push({ x, y, len: R.int(2, 6), ph: R.range(0, 1), sp: R.range(0.25, 0.6), edge: wf > -0.08 });
   }
   return out;
+}
+
+/**
+ * The per-pixel pass of the valley's ground, in bands, one worker per core: several times faster than on the page,
+ * and the page stays free meanwhile (the loading screen keeps moving). Resolves with what paintGround takes as `base`,
+ * or null if workers can't be used here (then paintGround does it itself). `progress(k)`: 0..1, as the bands advance.
+ */
+export async function paintBaseParallel(progress) {
+  const h = MH * TILE, w = MW * TILE;
+  let n = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+  const bands = Array.from({ length: n }, (_, i) => [Math.round((h * i) / n), Math.round((h * (i + 1)) / n)]);
+  const done = new Float32Array(n);
+  const workers = [];
+  try {
+    const parts = await Promise.all(bands.map(([y0, y1], i) => new Promise((res, rej) => {
+      const wk = new Worker(new URL("./ground-worker.js", import.meta.url), { type: "module" });
+      workers.push(wk);
+      wk.onmessage = (e) => {
+        if (e.data.progress != null) { done[i] = e.data.progress; progress?.(done.reduce((a, b) => a + b, 0) / n); return; }
+        res(e.data);
+      };
+      wk.onerror = (e) => rej(e.error ?? new Error(e.message || "worker"));
+      wk.postMessage({ y0, y1 });
+    })));
+    const d = new Uint8ClampedArray(w * h * 4), wfAt = new Float32Array(w * h), lushAt = new Float32Array(w * h);
+    parts.forEach((p, i) => { const y0 = bands[i][0]; d.set(p.d, y0 * w * 4); wfAt.set(p.wfAt, y0 * w); lushAt.set(p.lushAt, y0 * w); });
+    return { d, wfAt, lushAt };
+  } catch (e) {
+    console.warn("[ground] sem workers, pintando na página", e);
+    return null;
+  } finally {
+    for (const wk of workers) wk.terminate();
+  }
 }
