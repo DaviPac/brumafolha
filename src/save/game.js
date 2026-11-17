@@ -125,6 +125,10 @@ export function restore(save) {
     else if (k === "hintsSeen") G.hintsSeen = v instanceof Set ? v : new Set();
     else G[k] = v;
   }
+  // Saves written before the codec kept undefined apart from null carry musicOverride: null, which the game reads as
+  // "silence" and loaded games stayed mute. The story sets null only in the prologue's last cutscene, where saving is
+  // not allowed, so a saved null is always that old mistake: back to "the place's own music".
+  if (G.musicOverride === null) G.musicOverride = undefined;
   // 8. pictures, from the data (sprites, portraits, props)
   for (const id of Object.keys(save.units)) M.refreshUnitArt(C.unitById(id));
   for (const id of Object.keys(save.objects)) { const o = C.objById(id); if (o) M.refreshObject(o); }

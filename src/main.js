@@ -88,9 +88,14 @@ async function boot() {
     // a load reloads the page, and the browser only lets sound start after a click or a key: the new page has had
     // neither yet. Try now (it works if the browser still counts the click that asked for the load), and on the first one.
     initAudio();
-    const wake = () => { initAudio(); removeEventListener("pointerdown", wake, true); removeEventListener("keydown", wake, true); };
-    addEventListener("pointerdown", wake, true);
-    addEventListener("keydown", wake, true);
+    // keep trying on every click, key and tap until the browser really lets the sound run (not just the first one:
+    // Escape, for one, doesn't count as permission)
+    const EVENTS = ["pointerdown", "pointerup", "keydown", "touchend", "click"];
+    const wake = () => {
+      initAudio();
+      if (audioState().state === "running") for (const ev of EVENTS) removeEventListener(ev, wake, true);
+    };
+    for (const ev of EVENTS) addEventListener(ev, wake, true);
     if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); showNewNotes(); }
     return;
   }
