@@ -2,7 +2,15 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0a10">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Brumafolha">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Brumafolha</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -36,6 +44,7 @@
       <h3>Jogo</h3>
       <label class="chk"><input type="checkbox" id="tutOn"> Dicas do tutorial</label>
       <label class="chk"><input type="checkbox" id="perspOn"> Perspectiva 3D</label>
+      <button id="fullscreen" class="hidden">Tela cheia</button>
       <label class="vrow" id="tiltRow"><span>Inclinação da câmera</span><input type="range" id="tilt" min="0" max="1" step="0.05"><span class="pct"></span></label>
       <h3>Controles</h3>
       <ul class="keys" id="keys"></ul>
@@ -85,12 +94,18 @@
         <button id="load" disabled title="Nenhum save ainda">Carregar jogo</button>
         <button id="options">Opções</button>
         <button id="credits">Créditos</button>
+        <button id="install" class="hidden">Instalar o jogo</button>
       </nav>
       <div class="credits fr fr-panel hidden">
         <h3>Brumafolha</h3>
         <p>Toda a arte, a fonte, a música e os sons são feitos por código, no próprio navegador. Nenhum arquivo de imagem ou de som.</p>
         <p>Efeitos de combate: <b>pixelfx</b>, de patch-gg (licença MIT).</p>
         <p>História, regras e código: o projeto Brumafolha.</p>
+        <button class="back go">Voltar</button>
+      </div>
+      <div class="installios fr fr-panel hidden">
+        <h3>Instalar no iPhone / iPad</h3>
+        <p>No Safari, toque em <b>Compartilhar</b> (o quadrado com a seta para cima) e depois em <b>Adicionar à Tela de Início</b>. O jogo abre em tela cheia e funciona sem internet.</p>
         <button class="back go">Voltar</button>
       </div>
     </div>

@@ -2,6 +2,8 @@
 # Usage: python3 tools/serve.py [port]   (default 5173)
 import http.server, sys
 
+http.server.SimpleHTTPRequestHandler.extensions_map[".webmanifest"] = "application/manifest+json"
+
 class NoCache(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")

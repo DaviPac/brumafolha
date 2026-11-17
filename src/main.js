@@ -30,7 +30,7 @@ import { listSaves } from "./save/store.js";
 import { icon, installIcons } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
-import { Input, pollInput, key, focusDefault, activeLayer } from "./input.js";
+import { Input, pollInput, key, focusDefault, activeLayer, isTouch } from "./input.js";
 import { diceReroll } from "./dialogue.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
@@ -61,7 +61,9 @@ async function boot() {
   document.getElementById("titleHelp").innerHTML = `
     <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
     <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
-    <li>${key("I", "Select")} Bolsa · ${key("J", "Y")} Diário · ${key("Esc", "Start")} opções</li>`;
+    <li>${key("I", "Select")} Bolsa · ${key("J", "Y")} Diário · ${key("Esc", "Start")} opções</li>
+    <li class="touch-only"><b>Toque</b> no chão para andar e nas coisas para usar · segure e arraste para andar sem parar</li>
+    <li class="touch-only">Combate: <b>toque</b> uma vez para ver, de novo para confirmar · <b>arraste</b> para olhar o campo</li>`;
   for (const el of document.querySelectorAll("[data-icon]")) el.innerHTML = icon(el.dataset.icon);
   for (let v = 0; v < 6; v++) grassArt.push(A.makeTallGrass(v));
   mist = makeMist();
@@ -548,8 +550,12 @@ async function quickLoad() {
   if (m) loadSave(m.id); else UI.toast("Ainda não há save desta partida.", 2200);
 }
 
+Input.onDevice = () => { fillControls(); if (G.mode === "explore") exploreHotbar(); else if (G.combat) refreshCombatHotbar(); };
+
 // ---------------------------------------------------------------- hooks used by other modules
-G.hooks.focus = (u) => { G.focus = u; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
+G.hooks.focus = (u) => { G.focus = u; freeCam = false; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
+/** Something happens in combat (a projectile flies, a blow lands, someone walks): the camera follows it. */
+G.hooks.watch = (o) => { G.focus = o; freeCam = false; };
 G.hooks.afterDialogue = () => exploreHotbar();
 G.hooks.hint = hint;
 G.hooks.gainXp = (p, xp) => {
@@ -740,11 +746,14 @@ function setMouse(e) {
   G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true; cursor.on = false;
   mouseWorld();
 }
+/** The ground point under a screen point (client px), relative to the camera's corner; null above the horizon in 3D. */
+function groundRel(sx, sy) {
+  const mx = sx / G.scale, my = sy / G.scale;
+  return PV.on ? unproject(mx, my) : [mx, my];
+}
 /** The ground point under the mouse (through the tilted camera in 3D), and its tile. */
 function mouseWorld() {
-  const mx = G.mouse.x / G.scale, my = G.mouse.y / G.scale;
-  let fx = mx, fy = my;
-  if (PV.on) [fx, fy] = unproject(mx, my) ?? [-1e5, -1e5];
+  const [fx, fy] = groundRel(G.mouse.x, G.mouse.y) ?? [-1e5, -1e5];
   G.mouse.wx = G.cam.x + fx; G.mouse.wy = G.cam.y + fy;
   G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
   if (cursor.on && G.mode === "combat") { G.mouse.tx = cursor.tx; G.mouse.ty = cursor.ty; return; } // the keyboard/pad cursor names its tile itself
@@ -770,6 +779,53 @@ function cursorMove(dx, dy) {
   const nx = cursor.tx + dx, ny = cursor.ty + dy;
   if (nx >= 0 && ny >= 0 && nx < G.W.w && ny < G.W.h) { cursor.tx = nx; cursor.ty = ny; }
   G.focus = { x: cursor.tx * TILE + 16, y: cursor.ty * TILE + 26 };
+  freeCam = false;
+}
+
+// ---------------------------------------------------------------- free camera in combat
+// The player can look around the field: drag with the right (or middle) mouse button, Shift + WASD/arrows, or the
+// right stick. Any action (a walk, an attack, a spell, a new turn) takes the camera back and follows it; C recenters.
+let freeCam = false, drag = null;
+/** Put the camera's corner at (x, y), kept on the map, and stop it following anyone. */
+function panTo(x, y) {
+  freeCam = true;
+  G.cam.x = camClamp(x, G.W.w * TILE, G.vw);
+  G.cam.y = PV.on ? camClampTilted(y, G.W.h * TILE) : camClamp(y, G.W.h * TILE, G.vh);
+}
+function startDrag(e) {
+  const g = groundRel(e.clientX, e.clientY);
+  if (!g) return;
+  drag = { sx: e.clientX, sy: e.clientY, ax: G.cam.x + g[0], ay: G.cam.y + g[1], btn: e.button, moved: false };
+}
+addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  if (!G.combat || G.paused) { drag = null; return; }
+  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+  drag.moved = true;
+  canvas.style.cursor = "grabbing";
+  // keep the ground point that was grabbed under the mouse
+  const g = groundRel(e.clientX, e.clientY);
+  if (g) panTo(drag.ax - g[0], drag.ay - g[1]);
+});
+addEventListener("mouseup", (e) => {
+  if (!drag || e.button !== drag.btn) return;
+  // a right click that didn't drag still cancels the chosen action
+  if (!drag.moved && drag.btn === 2 && G.combat) { G.combat.ability = null; refreshCombatHotbar(); }
+  if (drag.moved) canvas.style.cursor = "";
+  drag = null;
+});
+/** Shift + WASD/arrows and the right stick pan the camera, every frame. */
+function panCamera(dt) {
+  let mx = Input.look.x, my = Input.look.y;
+  if (G.keys.has("shift")) {
+    if (G.keys.has("w") || G.keys.has("arrowup")) my--;
+    if (G.keys.has("s") || G.keys.has("arrowdown")) my++;
+    if (G.keys.has("a") || G.keys.has("arrowleft")) mx--;
+    if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
+  }
+  if (!mx && !my) return;
+  const k = 340 * dt / Math.max(1, Math.hypot(mx, my));
+  panTo(G.cam.x + mx * k, G.cam.y + my * k * (PV.on ? 1.6 : 1));
 }
 /** Buttons that reach the game because no menu is open (see input.js). */
 Input.onAction = (a) => {
@@ -802,8 +858,76 @@ Input.onCancel = (layer) => {
 };
 canvas.addEventListener("mousemove", setMouse);
 canvas.addEventListener("mouseleave", () => { G.mouse.in = false; UI.tooltip(null); });
-canvas.addEventListener("mousedown", (e) => { if (G.paused) return; setMouse(e); if (e.button === 0) onClick(); if (e.button === 2 && G.combat) { G.combat.ability = null; } });
+canvas.addEventListener("mousedown", (e) => {
+  if (G.paused) return;
+  setMouse(e);
+  if (e.button === 0) onClick();
+  if ((e.button === 2 || e.button === 1) && G.combat) { e.preventDefault(); startDrag(e); }
+});
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// ---------------------------------------------------------------- touch
+// A tap is a click, except in combat: the first tap shows (the path, the chance to hit) and a second tap on the same
+// tile confirms, so a finger never attacks or walks by accident. Dragging looks around the field in combat; outside
+// it, holding a finger down walks the leader toward it.
+let touch = null, armed = null;
+const touchPt = (t) => ({ clientX: t.clientX, clientY: t.clientY, button: -1 });
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault(); // no made-up mouse events, no page scroll or zoom
+  if (G.paused || e.touches.length > 1) { touch = null; drag = null; return; }
+  const t = e.touches[0];
+  touch = { x: t.clientX, y: t.clientY, fx: t.clientX, fy: t.clientY, t0: performance.now(), moved: false, held: false };
+  if (G.combat) startDrag(touchPt(t));
+}, { passive: false });
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  if (!touch || e.touches.length > 1) return;
+  const t = e.touches[0];
+  touch.fx = t.clientX; touch.fy = t.clientY;
+  if (!touch.moved && Math.hypot(t.clientX - touch.x, t.clientY - touch.y) < 12) return;
+  touch.moved = true;
+  if (G.combat && drag) {
+    drag.moved = true;
+    const g = groundRel(t.clientX, t.clientY);
+    if (g) panTo(drag.ax - g[0], drag.ay - g[1]);
+  }
+}, { passive: false });
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  const tc = touch;
+  touch = null; drag = null;
+  if (!tc || tc.moved || tc.held || G.paused) return;
+  setMouse({ clientX: tc.x, clientY: tc.y });
+  UI.releaseTip();
+  if (G.mode === "combat") {
+    const C = G.combat, k = `${C?.ability},${C?.active?.name}`;
+    // the second tap confirms the tile the first one showed: on it, or near where the finger was (the camera may
+    // still be easing, so the same spot on the glass can be over the next tile by now)
+    const again = armed && armed.k === k && performance.now() - armed.t < 6000
+      && ((armed.tx === G.mouse.tx && armed.ty === G.mouse.ty) || Math.hypot(tc.x - armed.x, tc.y - armed.y) < 26);
+    if (C && !C.busy && again) {
+      G.mouse.tx = armed.tx; G.mouse.ty = armed.ty; armed = null;
+      G.mouse.in = false; UI.tooltip(null);
+      onClick();
+    } else armed = { k, tx: G.mouse.tx, ty: G.mouse.ty, x: tc.x, y: tc.y, t: performance.now() };
+    return;
+  }
+  armed = null;
+  onClick();
+  G.mouse.in = false; UI.tooltip(null);
+}, { passive: false });
+canvas.addEventListener("touchcancel", () => { touch = null; drag = null; });
+/** Explore: a finger held down steers the leader toward it, like a stick. */
+function touchSteer() {
+  if (!touch || G.mode !== "explore" || (!touch.moved && performance.now() - touch.t0 < 300)) return null;
+  touch.held = true;
+  const g = groundRel(touch.fx, touch.fy), l = lead();
+  if (!g) return null;
+  const dx = G.cam.x + g[0] - l.x, dy = G.cam.y + g[1] - (l.y - 8), d = Math.hypot(dx, dy);
+  return d < 10 ? null : [dx / d, dy / d];
+}
+// the "use" bubble over something nearby is a button on a touch screen
+document.getElementById("prompt").onclick = () => { if (G.mode === "explore" && !G.paused) nearestInteractable()?.act(); };
 addEventListener("keydown", (e) => {
   if (e.key === "F5" || e.key === "F9") {
     e.preventDefault(); // F5 would reload the page
@@ -831,7 +955,8 @@ addEventListener("keydown", (e) => {
   else if (G.mode === "combat") {
     if (k === " ") { e.preventDefault(); endTurn(); }
     const mv = { w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] }[k];
-    if (mv) { e.preventDefault(); document.body.classList.add("nav-keys"); cursorMove(...mv); }
+    if (mv) { e.preventDefault(); if (!e.shiftKey) { document.body.classList.add("nav-keys"); cursorMove(...mv); } }
+    if (k === "c") freeCam = false;
     if (k === "tab") { e.preventDefault(); UI.hotbarMove(e.shiftKey ? -1 : 1); }
     if (k === "f") UI.hotbarUse();
     if (/^[1-9]$/.test(k)) UI.hotbarUse(+k - 1);
@@ -843,9 +968,12 @@ addEventListener("keydown", (e) => {
 });
 addEventListener("keyup", (e) => G.keys.delete(e.key.toLowerCase()));
 addEventListener("resize", resize);
+// the party portraits and the log sit above the action bar, however tall it wraps on a narrow screen
+new ResizeObserver(() => document.documentElement.style.setProperty("--hbh", document.getElementById("hotbar").offsetHeight + "px")).observe(document.getElementById("hotbar"));
 
 function resize() {
-  const s = innerHeight >= 1000 ? 3 : innerHeight >= 520 ? 2 : 1;
+  // the world's pixel size follows the screen's short side, so a phone shows the same field upright and sideways
+  const short = Math.min(innerWidth, innerHeight), s = short >= 1000 ? 3 : short >= 520 ? 2 : 1;
   // the interface has its own pixel size: 2 screen pixels per UI pixel at 1080p
   const u = +new URLSearchParams(location.search).get("u") || (innerHeight >= 1500 ? 3 : innerHeight >= 950 && innerWidth >= 1500 ? 2 : innerHeight >= 640 && innerWidth >= 1000 ? 1.5 : 1);
   document.documentElement.style.setProperty("--u", u);
@@ -859,6 +987,8 @@ function resize() {
   canvas.style.width = G.vw * s + "px"; canvas.style.height = G.vh * s + "px";
   screen.imageSmoothingEnabled = false;
   G.fx?.resize(G.vw, G.vh);
+  document.body.classList.toggle("portrait", innerHeight > innerWidth * 1.1);
+  document.body.classList.toggle("short", innerHeight / u < 480);
 }
 
 // ---------------------------------------------------------------- update
@@ -987,10 +1117,36 @@ function setupMenu(corner = true) {
     if (r) r.oninput = () => { setLight({ intensity: +r.value }); lo.querySelector(".pct").textContent = Math.round(r.value * 100) + "%"; };
   };
   drawLight();
-  document.getElementById("keys").innerHTML = [
+  fillControls();
+  const fs = document.getElementById("fullscreen");
+  fs.classList.toggle("hidden", !document.fullscreenEnabled && !document.documentElement.webkitRequestFullscreen);
+  fs.onclick = toggleFullscreen;
+}
+/** Phones lose a third of the screen to the browser's bars: the game can take all of it. */
+function toggleFullscreen() {
+  const d = document, el = d.documentElement;
+  if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen ?? d.webkitExitFullscreen).call(d);
+  else (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el, { navigationUI: "hide" })?.catch?.(() => {});
+}
+addEventListener("fullscreenchange", () => { document.getElementById("fullscreen").textContent = document.fullscreenElement ? "Sair da tela cheia" : "Tela cheia"; });
+/** The pause menu's list of controls: keys and buttons, or gestures on a touch screen. */
+function fillControls() {
+  const el = document.getElementById("keys");
+  if (!el) return;
+  if (isTouch()) {
+    el.innerHTML = [
+      ["Toque no chão", "andar"], ["Segure e arraste", "andar sem parar"], ["Toque numa pessoa ou objeto", "conversar, usar"],
+      ["Toque no balão sobre algo", "usar o que está perto"], ["Toque num retrato", "trocar de personagem"],
+      ["Combate: toque 1×", "ver o caminho, a chance de acerto"], ["Combate: toque 2×", "confirmar"],
+      ["Combate: arraste", "mover a câmera"], ["Barra de baixo", "ações; tocar mostra o que fazem"],
+    ].map(([k, t]) => `<li><b>${k}</b></li><li>${t}</li>`).join("");
+    return;
+  }
+  el.innerHTML = [
     [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
     [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
-    [key("Espaço", "Y"), "encerrar o turno"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
+    [key("Espaço", "Y"), "encerrar o turno"],
+    [key("Botão direito + arrastar", "RS") + key("Shift+WASD", ""), "mover a câmera no combate"], [key("C", ""), "recentralizar a câmera"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
     [key("Q E", "LB RB"), "trocar de aba nos menus"], [key("M", ""), "som"], [key("V", ""), "perspectiva 3D"], [key("Esc P", "Start"), "este menu"],
   ].map(([k, t]) => `<li>${k}</li><li>${t}</li>`).join("");
 }
@@ -1010,7 +1166,7 @@ function setPaused(p) {
 function moveCamera(dt, f) {
   if (!f) return;
   const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = PV.on ? camClampTilted(f.y - 16 - G.vh / 2, G.W.h * TILE) : camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
-  const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? (G.mode === "combat" ? 4 : 6)));
+  const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? f.camSpeed ?? (G.mode === "combat" ? 4 : 6)));
   G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
 }
 
@@ -1052,12 +1208,13 @@ function update(dt) {
     if (G.keys.has("a") || G.keys.has("arrowleft")) mx--;
     if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
     if (!mx && !my) { mx = Input.axis.x; my = Input.axis.y; }
+    if (!mx && !my) { const st = touchSteer(); if (st) [mx, my] = st; }
     if (mx || my) {
       l.path = []; pending = null;
       const k = Math.min(88, G.speedCap ?? 88) * dt / Math.max(1, Math.hypot(mx, my));
       if (canStand(l.x + mx * k, l.y)) l.x += mx * k;
       if (canStand(l.x, l.y + my * k)) l.y += my * k;
-      l.dir = mx ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
+      l.dir = Math.abs(mx) >= Math.abs(my) ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
       l.moving = true;
     } else stepAlongPath(l, dt);
     if (pending && !l.path.length) { if (dist(pending.x, pending.y, l.x, l.y) < (pending.reach ?? 56) + 8) pending.act(); pending = null; }
@@ -1094,15 +1251,17 @@ function update(dt) {
   }
   S.update(dt);
   updateAudio(dt);
-  // camera
-  moveCamera(dt, G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l));
+  // camera: in combat the player may look around freely until the next action
+  if (G.mode !== "combat") { freeCam = false; drag = null; }
+  else if (!G.camFocus) panCamera(dt);
+  if (!(freeCam && G.mode === "combat" && !G.camFocus)) moveCamera(dt, G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l));
   if (G.shake > 0) G.shake -= dt;
   if (clickMark) { clickMark.t -= dt; if (clickMark.t <= 0) clickMark = null; }
   // the keyboard/pad cursor moves the "mouse" during combat
   if (cursor.on && G.mode === "combat") { [G.mouse.x, G.mouse.y] = UI.worldToScreen(cursor.tx * TILE + 16, cursor.ty * TILE + 12); G.mouse.in = true; }
   else if (cursor.on) cursor.on = false;
   // what the leader could use right now, with the key that does it
-  if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${key("E", "A")} ${it.name}`); } else UI.prompt(null);
+  if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${isTouch() ? icon("hand", "sm") : key("E", "A")} ${it.name}`); } else UI.prompt(null);
   // mouse in world
   mouseWorld();
   if (G.mode === "combat" && G.mouse.in) combatHover(G.mouse.tx, G.mouse.ty);
@@ -1757,6 +1916,21 @@ function loop(now) {
 
 G.chestArt = [A.makeChest(false), A.makeChest(true)];
 G.hooks.refreshJournal = refreshJournal;
+// ---------------------------------------------------------------- the app (PWA): installable, plays offline (sw.js)
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  addEventListener("load", async () => {
+    try {
+      await navigator.serviceWorker.register("sw.js", { type: "module" });
+      // everything this page loaded (modules, styles) goes to the cache, so the next visit works without network
+      const reg = await navigator.serviceWorker.ready;
+      const urls = [location.href, ...performance.getEntriesByType("resource").map((r) => r.name)];
+      reg.active?.postMessage({ type: "precache", urls });
+    } catch (err) {
+      console.warn("Sem service worker: o jogo funciona, mas não offline.", err);
+    }
+  });
+}
+
 window.G = G; // handy from the console
 window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]), audio: audioState }; // and for the save tests
 boot();

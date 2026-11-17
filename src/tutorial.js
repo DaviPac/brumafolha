@@ -3,7 +3,7 @@
 import { G } from "./state.js";
 import { sfx } from "./audio.js";
 import { icon } from "./art/icons.js";
-import { key, focusDefault } from "./input.js";
+import { key, focusDefault, isTouch } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -34,6 +34,19 @@ const HINTS = {
 const queue = [];
 let showing = null;
 
+// the same hints for a touch screen, where they would talk about keys and a mouse
+const TOUCH = {
+  move: ["Andar", "<b>Toque</b> no chão para andar. Segure o dedo e arraste para andar sem parar."],
+  interact: ["Interagir", "<b>Toque</b> em pessoas e objetos para usá-los. Perto de algo, aparece um balão: tocar nele também usa."],
+  party: ["O grupo", "<b>Toque num retrato</b> embaixo para trocar quem você controla. Os outros seguem o líder."],
+  turn: ["Seu turno", "A área clara é até onde você anda. <b>Toque</b> num quadrado ou num inimigo para ver o caminho e a chance de acerto; <b>toque de novo</b> para confirmar. Arraste para olhar o campo."],
+  actions: ["Ação e Ação Bônus", "Cada turno tem <b>1 Ação</b> (ataque, magia) e <b>1 Ação Bônus</b> (poção, fôlego...), além do movimento. Toque numa ação na barra de baixo e depois no alvo; <b>Fim do turno</b> passa a vez."],
+  quest: ["Objetivos", `Os objetivos ficam no canto superior direito. O <b>Diário</b> (${icon("book", "sm")}) guarda as missões e as lembranças.`],
+  gear: ["Equipamento", `Armas, armaduras e escudos vão para a Bolsa. Abra a aba ${icon("sword", "sm")} <b>Equipamento</b> para vestir cada membro do grupo; a prévia mostra a CA e o ataque antes de trocar.`],
+  bag: ["A Bolsa", `${icon("bag", "sm")} abre a Bolsa. Itens com ${icon("scroll", "sm")} podem ser lidos: toque neles.`],
+  memory: ["Lembranças", `O <b>Diário de Lembranças</b> (${icon("book", "sm")}, aba Lembranças) guarda o que o herói viveu e quem ele é.`],
+};
+
 /** Show a hint the first time it's asked for (only with the tutorial on). */
 export function hint(id) {
   if (!G.tutorial || !HINTS[id] || G.hintsSeen.has(id) || queue.includes(id) || showing === id) return;
@@ -46,7 +59,7 @@ function next() {
   showing = queue.shift() ?? null;
   if (!showing) { el.classList.add("hidden"); return; }
   G.hintsSeen.add(showing);
-  const [title, html] = HINTS[showing];
+  const [title, html] = (isTouch() && TOUCH[showing]) || HINTS[showing];
   el.innerHTML = `<div class="ht">${icon("bulb")} ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi ${key("H", "Select")}</button><button class="off quiet">Desligar dicas</button></div>`;
   el.classList.remove("hidden");
   el.querySelector(".ok").onclick = () => { sfx.click(); next(); };

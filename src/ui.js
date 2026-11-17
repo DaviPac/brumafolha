@@ -5,7 +5,7 @@ import { makeCanvas } from "./util.js";
 import { sfx } from "./audio.js";
 import { worldToView } from "./persp.js";
 import { icon } from "./art/icons.js";
-import { key } from "./input.js";
+import { key, isTouch } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -53,7 +53,7 @@ export function banner(text) {
 }
 
 // ---------- tooltips
-let tipHold = 0;
+let tipHold = 0, tipOff = 0;
 /**
  * Show a tooltip (or hide it with null). `at` is where: nothing = by the mouse, an element = above it,
  * or { x, y } in screen pixels.
@@ -61,6 +61,7 @@ let tipHold = 0;
 export function tooltip(html, at = null) {
   const t = $("#tooltip");
   if (!at && performance.now() < tipHold) return; // a tooltip the keyboard asked for stays a moment
+  clearTimeout(tipOff);
   if (!html) { t.style.display = "none"; return; }
   if (t._html !== html) { t.innerHTML = html; t._html = html; }
   t.style.display = "block";
@@ -68,10 +69,16 @@ export function tooltip(html, at = null) {
   let x, y;
   if (at instanceof Element) { const r = at.getBoundingClientRect(); x = r.left + r.width / 2 - w / 2; y = r.top - h - m * 1.5; }
   else if (at) { x = at.x - w / 2; y = at.y - h - m * 3; }
+  else if (isTouch()) { x = G.mouse.x - w / 2; y = G.mouse.y - h - 44; if (y < m) y = G.mouse.y + 40; } // above the finger, not under it
   else { x = G.mouse.x + 18; y = G.mouse.y + 14; }
   t.style.left = Math.max(m, Math.min(innerWidth - w - m, x)) + "px";
   t.style.top = Math.max(m, Math.min(innerHeight - h - m, y)) + "px";
+  // a finger never "leaves" a button: a tooltip it opened goes away by itself
+  if (isTouch() && at instanceof Element) tipOff = setTimeout(() => { t.style.display = "none"; }, 2600);
 }
+
+/** A tap on the field: whatever tooltip a button opened gives way to what the tap shows. */
+export function releaseTip() { tipHold = 0; }
 
 /** A rich tooltip: { icon, title, sub, tags: [[text, cls]], rows: [[label, value]], body, foot }. */
 export function tipHTML(o) {
@@ -92,7 +99,7 @@ function slotTip(e, i) {
   if (e.cost && e.range != null) rows.push(["Alcance", e.range <= 0 ? "você" : e.range === 1 ? "corpo a corpo" : `${e.range} casas`]);
   if (e.dmg) rows.push(["Dano", e.dmg]);
   if (e.heal) rows.push(["Cura", e.heal]);
-  return tipHTML({ icon: e.icon, title: e.name, tags, rows, body: e.desc, foot: e.off && e.why ? `<span class="bad">${e.why}</span>` : `${key(String(i + 1), "X")} usar` });
+  return tipHTML({ icon: e.icon, title: e.name, tags, rows, body: e.desc, foot: e.off && e.why ? `<span class="bad">${e.why}</span>` : isTouch() ? (e.range > 0 ? "Agora toque no alvo" : null) : `${key(String(i + 1), "X")} usar` });
 }
 
 // ---------- party portraits
@@ -183,7 +190,12 @@ export function buildHotbar(entries, opts = {}) {
     s.innerHTML = `${icon(e.icon)}<span class="k">${i + 1}</span>${e.count != null ? `<span class="n">${e.count}</span>` : ""}${e.cost ? `<span class="cost ${e.cost}"></span>` : ""}`;
     s.onmousemove = () => tooltip(slotTip(e, i), s);
     s.onmouseleave = () => tooltip(null);
-    s.onclick = (ev) => { ev.stopPropagation(); bar.cur = i; if (!e.off) { sfx.click(); e.use(); } };
+    s.onclick = (ev) => {
+      ev.stopPropagation(); bar.cur = i;
+      // a touch screen has no hover: a tap also says what the action does (or why it can't be used now)
+      if (isTouch()) { const el = [...document.querySelectorAll("#hotbar .slot")][i]; if (el) { tooltip(slotTip(e, i), el); tipHold = performance.now() + 2500; } }
+      if (!e.off) { sfx.click(); e.use(); }
+    };
     slots.appendChild(s);
   });
   hb.appendChild(slots);

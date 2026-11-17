@@ -9,8 +9,11 @@ export const Input = {
   axis: { x: 0, y: 0 },
   /** Right stick, for scrolling long pages. */
   scroll: 0,
+  /** Right stick as a direction, each axis −1..1 (pans the camera in combat). */
+  look: { x: 0, y: 0 },
   onAction: null, // (name) => void, when no menu took it
   onCancel: null, // (layerId) => void
+  onDevice: null, // (device) => void, when the player switches between keyboard/mouse, pad and touch
 };
 
 // top-most first
@@ -28,8 +31,19 @@ function setDevice(d) {
   if (Input.device === d) return;
   Input.device = d;
   document.body.classList.toggle("dev-pad", d === "pad");
-  document.body.classList.toggle("dev-kbm", d !== "pad");
+  document.body.classList.toggle("dev-kbm", d === "kbm");
+  document.body.classList.toggle("dev-touch", d === "touch");
+  Input.onDevice?.(d);
 }
+/** A phone or tablet: no key caps, taps instead of clicks, bigger targets. */
+export const isTouch = () => Input.device === "touch";
+// a touch screen starts in touch mode; the first touch switches to it, a real mouse or key switches back.
+// A tap also sends made-up mouse events right after it: those don't count as the mouse.
+let lastTouch = -1e9;
+addEventListener("touchstart", () => { lastTouch = performance.now(); setDevice("touch"); }, { capture: true, passive: true });
+const fakeMouse = () => performance.now() - lastTouch < 1200;
+const hasMouse = () => matchMedia("(any-pointer: fine)").matches;
+if (matchMedia("(pointer: coarse)").matches && !hasMouse()) queueMicrotask(() => setDevice("touch"));
 function navMode(on) { document.body.classList.toggle("nav-keys", on); }
 
 /** Put the focus on a layer's default control (or its first), if the focus isn't already inside it. */
@@ -122,7 +136,13 @@ addEventListener("keydown", (e) => {
   e.preventDefault();
   act(name);
 }, true);
-addEventListener("mousemove", () => { if (document.body.classList.contains("nav-keys")) navMode(false); setDevice("kbm"); });
+addEventListener("mousemove", (e) => {
+  // browsers also send mouse moves when the page changes under a still pointer, or right after a tap: only a real
+  // mouse moving counts, and only on a device that has one
+  if (fakeMouse() || !hasMouse() || e.sourceCapabilities?.firesTouchEvents || (!e.movementX && !e.movementY)) return;
+  if (document.body.classList.contains("nav-keys")) navMode(false);
+  setDevice("kbm");
+});
 
 // ---------------------------------------------------------------- gamepad
 const BTN = { 0: "confirm", 1: "cancel", 2: "x", 3: "y", 4: "lb", 5: "rb", 8: "select", 9: "start", 12: "up", 13: "down", 14: "left", 15: "right" };
@@ -136,7 +156,7 @@ function fire(name, down, now, repeats) {
 /** Call every frame. */
 export function pollInput(now = performance.now()) {
   const pad = [...(navigator.getGamepads?.() ?? [])].find((p) => p && p.connected);
-  if (!pad) { Input.axis.x = Input.axis.y = 0; Input.scroll = 0; return; }
+  if (!pad) { Input.axis.x = Input.axis.y = 0; Input.scroll = 0; Input.look.x = Input.look.y = 0; return; }
   const dz = (v) => (Math.abs(v) < 0.25 ? 0 : v);
   const sx = dz(pad.axes[0] ?? 0), sy = dz(pad.axes[1] ?? 0);
   const b = (i) => !!pad.buttons[i]?.pressed;
@@ -148,6 +168,7 @@ export function pollInput(now = performance.now()) {
   Input.axis.x = sx || (b(15) ? 1 : 0) - (b(14) ? 1 : 0);
   Input.axis.y = sy || (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
   Input.scroll = dz(pad.axes[3] ?? 0);
+  Input.look.x = dz(pad.axes[2] ?? 0); Input.look.y = Input.scroll;
   if (Input.scroll) {
     const layer = activeLayer(), sc = layer && [...layer.querySelectorAll(".page, .pane, .box, .sheet")].find((el) => el.scrollHeight > el.clientHeight + 2);
     if (sc) sc.scrollTop += Input.scroll * 14;
