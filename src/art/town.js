@@ -21,6 +21,8 @@ export const TRAMP = {
   canvas: ramp("#8a7a5a", "#b0a07a", "#d0c29a", "#e8dcb8"),
 };
 
+const WHITEWASH = ramp("#8e8a80", "#b4b0a4", "#d4d2c8", "#ecebe4", "#fbfaf6"); // the Monastery's lime: whiter than the town's plaster
+
 // ---------------------------------------------------------------- the ground of an outdoor tile map
 /** Paint W (tile kinds K: GRASS, PATH, WATER, DOCK, COBBLE) to ImageData. Borders between kinds wander like the valley's. */
 export function paintOutdoor(W, K) {
@@ -124,7 +126,7 @@ export function outdoorSparkles(W, K) {
  */
 export function makeHouse(w, seed, opts = {}) {
   const R = new Rng(seed), W = w * TILE, roofH = opts.tall ? 46 : 36, wallH = opts.tall ? 36 : 28, H = roofH + wallH + 4;
-  const pb = new PixBuf(W, H), RF = TRAMP[opts.roof ?? "clay"], PL = TRAMP.plaster, TB = TRAMP.timber;
+  const pb = new PixBuf(W, H), RF = TRAMP[opts.roof ?? "clay"], PL = opts.white ? WHITEWASH : TRAMP.plaster, TB = TRAMP.timber;
   const thatch = opts.roof === "thatch";
   // the roof: courses of tiles running down to the eave, the ridge catching the light
   for (let y = 0; y < roofH; y++) {

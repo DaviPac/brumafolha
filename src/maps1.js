@@ -4,7 +4,7 @@
 import { TILE, hash2, Rng } from "./util.js";
 import { MW, MH, T } from "./world.js";
 
-function openWorld(id, w, h) {
+export function openWorld(id, w, h) {
   const tiles = new Uint8Array(MW * MH).fill(T.WALL), block = new Uint8Array(MW * MH).fill(1), reserve = new Uint8Array(MW * MH);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { tiles[y * MW + x] = T.GRASS; block[y * MW + x] = 0; }
   const W = { id, w, h, tiles, block, objects: [], grass: [], outdoor: true };

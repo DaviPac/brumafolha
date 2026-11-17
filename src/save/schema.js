@@ -3,7 +3,7 @@
 // format is brought up to date, step by step; one from a newer game is refused.
 import { FORMAT } from "./game.js";
 
-const MAPS = ["vale", "sonho", "relicario", "vau", "travessia"];
+const MAPS = ["vale", "sonho", "relicario", "vau", "travessia", "bosque", "mosteiro", "claustro"];
 const MODES = ["explore", "dialogue", "combat"];
 
 /** One function per old format, turning a save of format n into format n + 1. */

@@ -5,7 +5,7 @@ import { TILE, hash2 } from "./util.js";
 import { MW, MH, T } from "./world.js";
 import { IRAMP } from "./art/interiors.js";
 
-function gridWorld(id, rows, legend) {
+export function gridWorld(id, rows, legend) {
   const h = rows.length, w = rows[0].length;
   const tiles = new Uint8Array(MW * MH).fill(T.WALL), block = new Uint8Array(MW * MH).fill(1);
   const marks = {};

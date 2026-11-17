@@ -4,7 +4,9 @@ import { TILE, makeCanvas, hash2, Rng, dist, clamp, vnoise } from "./util.js";
 import { buildWorld, MW, MH, zoneAt, T, waterField } from "./world.js";
 import { buildDream, buildRelic } from "./maps.js";
 import { buildVau, buildTravessia } from "./maps1.js";
+import { buildBosque, buildMosteiro, buildClaustro } from "./maps2.js";
 import * as TW from "./art/town.js";
+import * as AB from "./art/abbey.js";
 import { paintGround, paintBaseParallel, waterSparkles, PAL as GPAL } from "./art/ground.js";
 import { groundKey, loadGround, saveGround } from "./art/groundcache.js";
 import * as A from "./art/props.js";
@@ -200,7 +202,7 @@ let valeBase = null; // the valley ground's per-pixel pass, when workers painted
 let valeCached = null; // or the whole ground, kept from an earlier visit
 function buildMap(id) {
   if (maps[id]) return maps[id];
-  const W = { vale: buildWorld, sonho: buildDream, relicario: buildRelic, vau: buildVau, travessia: buildTravessia }[id]();
+  const W = { vale: buildWorld, sonho: buildDream, relicario: buildRelic, vau: buildVau, travessia: buildTravessia, bosque: buildBosque, mosteiro: buildMosteiro, claustro: buildClaustro }[id]();
   if (id === "vale") W.outdoor = true;
   const g = document.createElement("canvas");
   g.width = W.w * TILE; g.height = W.h * TILE;
@@ -302,6 +304,12 @@ function propArt(o) {
     case "cart": return key(`cart${o.wrecked ? 1 : 0}`);
     case "board": return key(`board${o.wanted === false ? 0 : 1}`);
     case "strongbox": return key(`strongbox${o.open ? 1 : 0}`);
+    case "awall": return key(`awall${o.seed % 12}`);
+    case "herbbed": return key(`herbbed${o.seed}-${o.mist ? 1 : 0}`);
+    case "cot": return key(`cot${o.who ?? 0}`);
+    case "bars": return key(`bars${o.open ? 1 : 0}`);
+    case "ribbons": return key(`ribbons${o.seed}`);
+    case "mgate": return key(`mgate${o.open ? 1 : 0}`);
     default: return key(o.kind);
   }
 }
@@ -349,6 +357,20 @@ function makeArt(o) {
     case "shrine": return TW.makeShrine();
     case "strongbox": return TW.makeStrongbox(!!o.open);
     case "satchel": return TW.makeSatchel();
+    case "awall": return AB.makeAbbeyWall(o.seed % 12);
+    case "belltower": return AB.makeBellTower();
+    case "herbbed": return AB.makeHerbBed(o.seed, !!o.mist);
+    case "bench": return AB.makeBench();
+    case "cot": return AB.makeCot(o.who ?? 0);
+    case "altar": return AB.makeAltar();
+    case "hearth": return AB.makeHearth();
+    case "bars": return AB.makeBars(!!o.open);
+    case "lectern": return AB.makeLectern();
+    case "ribbons": return AB.makeRibbons(o.seed);
+    case "mgate": return AB.makeGate(!!o.open);
+    case "veilbanner": return AB.makeVeilBanner();
+    case "teapot": return AB.makeTeapot();
+    case "doorway": return AB.makeDoorway();
   }
 }
 const shadowOf = (r) => { r = Math.round(r); if (!shadows.has(r)) shadows.set(r, A.makeShadow(r)); return shadows.get(r); };

@@ -1,6 +1,7 @@
 // Characters, built from parts at the pixel level: 4 facings, a 4-frame walk, an attack and a cast pose.
 // Seen from high up and in front (3/4 top-down), big heads, lit from the top left, outlined dark.
 import { PixBuf, ramp, rampAt, clamp, makeCanvas } from "../util.js";
+import { buildCreature } from "./creatures.js";
 
 export const SW = 26, SH = 36; // sprite cell; feet at (13, 34)
 const INK = [22, 16, 28];
@@ -9,6 +10,7 @@ const GOLD = ramp("#6a4410", "#c48a1c", "#f4d050");
 const WOOD = ramp("#3a2014", "#6a4026", "#9a6236");
 const HORN = ramp("#2a1e22", "#5a4044", "#8a7068", "#c8b4a0");
 const BOWWOOD = ramp("#4a2a14", "#7a4a22", "#b07a3a");
+const VEIL = ramp("#8e95a8", "#b4bac8", "#d4d8e2", "#eceef4", "#fbfcfe");
 
 export const SPECS = {
   hero: {
@@ -428,6 +430,21 @@ function drawSprite(S, dir, frame, pose) {
     if (!hood) for (let i = 2; i < w - 4; i += 2) pb.set(x + i, hy + 1, H[H.length - 1]);
   };
 
+  // the Order's brothers of the Veil: a sheer white cloth over the face, from the brow down past the chin, the eyes
+  // only two darker smudges behind it
+  const veil = () => {
+    if (!S.veil || back) return;
+    const w = side ? 11 : hw, x0 = cx - Math.floor(w / 2), ey = hy + Math.floor(hh * 0.58), V = VEIL;
+    for (let y = hy + 3; y <= hy + hh + 3; y++) for (let i = 0; i < w; i++) {
+      const x = x0 + i, low = y > hy + hh - 1;
+      if (side && (dir === 2 ? i < 4 : i > w - 5)) continue; // the far side of the head stays hair and hood
+      if (low && (i === 0 || i === w - 1 || (y === hy + hh + 3 && (i + y) % 2))) continue;
+      let v = 0.8 - (dir === 1 ? -1 : 1) * (i - w / 2) * 0.03 - (y - hy) * 0.012 + ((i + y) % 5 === 0 ? -0.1 : 0);
+      if (y === ey || y === ey + 1) { const eyeAt = side ? [cx + (dir === 2 ? 3 : -3)] : [cx - 3, cx + 2]; if (eyeAt.includes(x)) v = 0.25; }
+      pb.set(x, y, rampAt(V, clamp(v), x, y));
+    }
+  };
+
   const beard = () => {
     const H = S.hair;
     if (!H || !S.beard || back) return;
@@ -698,6 +715,7 @@ function drawSprite(S, dir, frame, pose) {
   hair();
   if (!back) shield(); // over long hair: it's strapped to the arm, in front
   beard();
+  veil();
   horns();
   if (two && side) twoHanded("front"); // held up in front of the face
   else if (!two && !sheathMode) weapon(false);
@@ -707,6 +725,7 @@ function drawSprite(S, dir, frame, pose) {
 
 /** dirs: 0 down, 1 left, 2 right, 3 up. frames: walk0..3, idle, attack, cast. */
 export function buildCharacter(spec) {
+  if (spec.creature) return buildCreature(spec); // not people: the Bruma moths
   const ch = buildSheet(spec);
   // the same character with the weapon put away, for walking around out of combat
   if (spec.weapon && spec.weapon !== "none" && spec.weapon !== "staff") ch.sheathed = buildSheet({ ...spec, sheathed: true });
