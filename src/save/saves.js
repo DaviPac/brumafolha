@@ -112,7 +112,7 @@ async function doSave({ kind, id, name, quiet, onDone }) {
     };
     await writeSave(meta, data);
     if (!quiet) { UI.toast(kind === "quick" ? "Save rápido feito." : "Jogo salvo.", 1800); sfx.quest?.(); }
-    onDone?.(true);
+    onDone?.(true, id);
   } catch (e) {
     UI.toast(e.message, 4200);
     onDone?.(false);

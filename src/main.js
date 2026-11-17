@@ -31,6 +31,8 @@ import { icon, installIcons } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
 import { Input, pollInput, key, focusDefault, activeLayer, isTouch } from "./input.js";
+import { initUpdates, tickUpdate, showNewNotes, openNotes, closeNotes, newsOpen } from "./update.js";
+import { VERSION } from "./version.js";
 import { diceReroll } from "./dialogue.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
@@ -88,11 +90,12 @@ async function boot() {
     const wake = () => { initAudio(); removeEventListener("pointerdown", wake, true); removeEventListener("keydown", wake, true); };
     addEventListener("pointerdown", wake, true);
     addEventListener("keydown", wake, true);
-    if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); }
+    if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); showNewNotes(); }
     return;
   }
   titleLoaded();
   refreshTitleSaves();
+  showNewNotes();
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
   if (q.get("dev")) {
@@ -840,6 +843,7 @@ Input.onAction = (a) => {
   }
 };
 Input.onCancel = (layer) => {
+  if (layer === "news") { closeNotes(); return; }
   if (layer === "intro") { skipIntro(); return; }
   if (layer === "saves") { closeSaves(); return; }
   if (layer === "title") { titleCancel(); return; }
@@ -925,6 +929,7 @@ addEventListener("keydown", (e) => {
     if (!e.repeat && G.party.length && G.build && !savesOpen()) e.key === "F5" ? quickSave() : quickLoad();
     return;
   }
+  if (newsOpen()) { if (e.key === "Escape") closeNotes(); return; }
   if (savesOpen()) { if (e.key === "Escape") closeSaves(); return; }
   if (G.mode === "create" || e.target?.tagName === "INPUT") return; // typing a name
   const k = e.key.toLowerCase();
@@ -1109,6 +1114,8 @@ function setupMenu(corner = true) {
   };
   drawLight();
   fillControls();
+  document.getElementById("newsBtn").onclick = () => openNotes();
+  document.getElementById("pauseVer").textContent = `Brumafolha v${VERSION}`;
   const fs = document.getElementById("fullscreen");
   fs.classList.toggle("hidden", !document.fullscreenEnabled && !document.documentElement.webkitRequestFullscreen);
   fs.onclick = toggleFullscreen;
@@ -1880,6 +1887,7 @@ if (new URLSearchParams(location.search).has("fps")) toggleMeter();
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop); // schedule first: an error in one frame must not freeze the game
+  tickUpdate();
   // on a 120/144/165 Hz screen, paint every second or third refresh: the art moves in whole pixels and gains nothing
   // from more, and the time goes back to the browser (music, input, the interface)
   if (now - last < 9.5) return;
@@ -1906,20 +1914,14 @@ function loop(now) {
 
 G.chestArt = [A.makeChest(false), A.makeChest(true)];
 G.hooks.refreshJournal = refreshJournal;
-// ---------------------------------------------------------------- the app (PWA): installable, plays offline (sw.js)
-if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  addEventListener("load", async () => {
-    try {
-      await navigator.serviceWorker.register("sw.js", { type: "module" });
-      // everything this page loaded (modules, styles) goes to the cache, so the next visit works without network
-      const reg = await navigator.serviceWorker.ready;
-      const urls = [location.href, ...performance.getEntriesByType("resource").map((r) => r.name)];
-      reg.active?.postMessage({ type: "precache", urls });
-    } catch (err) {
-      console.warn("Sem service worker: o jogo funciona, mas não offline.", err);
-    }
-  });
-}
+// ---------------------------------------------------------------- the app (PWA): offline, and updates by itself (src/update.js)
+initUpdates({
+  // a moment the game can be saved and picked up again without anyone noticing: exploring, nothing open or going on
+  safe: () => G.mode === "explore" && !G.paused && !G.camFocus && !saveBlock() && !journalOpen() && !savesOpen()
+    && document.getElementById("hint").classList.contains("hidden"),
+  // an automatic save, then the reload loads it: the player carries on from the same spot in the new version
+  saveAndReload: (fail) => { if (!requestSave("auto", { quiet: true, onDone: (ok, id) => (ok && id ? loadSave(id) : fail()) })) fail(); },
+});
 
 window.G = G; // handy from the console
 window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]) }; // and for the save tests

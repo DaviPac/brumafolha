@@ -46,6 +46,8 @@
       <label class="chk"><input type="checkbox" id="perspOn"> Perspectiva 3D</label>
       <button id="fullscreen" class="hidden">Tela cheia</button>
       <label class="vrow" id="tiltRow"><span>Inclinação da câmera</span><input type="range" id="tilt" min="0" max="1" step="0.05"><span class="pct"></span></label>
+      <h3>Versão</h3>
+      <div class="verrow"><span id="pauseVer" class="muted"></span><button id="newsBtn">Novidades</button></div>
       <h3>Controles</h3>
       <ul class="keys" id="keys"></ul>
       <div class="row"><button id="saveBtn">Salvar</button><button id="loadBtn">Carregar</button><button id="resume" class="go" data-default>Continuar</button></div>
@@ -79,6 +81,7 @@
     </div>
   </div>
   <div id="saves" class="screen dim hidden"></div>
+  <div id="news" class="screen dim hidden"></div>
   <div id="intro" class="hidden"></div>
   <div id="creator" class="hidden"></div>
   <div id="title" class="screen">
@@ -93,6 +96,7 @@
         <button id="continue" disabled title="Nenhum save ainda">Continuar</button>
         <button id="load" disabled title="Nenhum save ainda">Carregar jogo</button>
         <button id="options">Opções</button>
+        <button id="newsTitle">Novidades</button>
         <button id="credits">Créditos</button>
         <button id="install" class="hidden">Instalar o jogo</button>
       </nav>
@@ -110,6 +114,7 @@
       </div>
     </div>
     <ul class="help" id="titleHelp"></ul>
+    <div class="ver" id="titleVer"></div>
   </div>
   <div id="tooltip"></div>
 </div>

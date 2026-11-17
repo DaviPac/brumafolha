@@ -3,6 +3,8 @@
 // turning over to show the silver underside the valley is named for, lands where the name will be, and the name
 // comes out of the mist letter by letter. After that first time, a short version. Any key or click skips it.
 import { GREEN, SILVER, paintLeaf } from "./art/appicon.js";
+import { openNotes } from "./update.js";
+import { VERSION } from "./version.js";
 
 const $ = (s, el = document) => el.querySelector(s);
 const SEEN = "brumafolha.opening";
@@ -28,6 +30,8 @@ export function initTitle(on) {
   $("#credits").onclick = () => showPanel(".credits", "#credits");
   for (const b of root.querySelectorAll(".credits .back, .installios .back")) b.onclick = () => showPanel(null);
   $("#install").onclick = install;
+  $("#newsTitle").onclick = () => openNotes();
+  $("#titleVer").textContent = `v${VERSION}`;
   syncInstall();
   let first = true;
   try { first = !localStorage.getItem(SEEN); } catch { /* private mode: always the full opening */ }

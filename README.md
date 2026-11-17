@@ -28,9 +28,16 @@ o *Compartilhar → Adicionar à Tela de Início* do Safari), abre em tela cheia
 - `manifest.webmanifest`: nome, cores, tela cheia, ícones.
 - `sw.js` (service worker): cada arquivo vem da rede primeiro (uma atualização aparece no próximo carregamento) e
   fica num cache; sem rede, serve o cache. Depois do primeiro carregamento a página manda ao SW a lista de tudo o que
-  carregou, então o jogo inteiro já fica offline na primeira visita. Mudou os ícones? Troque `CACHE` em `sw.js`.
+  carregou, então o jogo inteiro já fica offline na primeira visita. Cada versão tem seu cache (`brumafolha-<versão>`), e a nova baixa de novo tudo o que a anterior guardava.
 - Os **ícones** (`icons/*.png`) não são arquivos: o service worker os desenha por código (`src/art/appicon.js`, a
   mesma folha da abertura) e os guarda no cache. Instalar exige HTTPS (ou `localhost`).
+- **Atualizações automáticas**: a versão e as notas de cada uma ficam em `src/version.js`. Para publicar uma
+  atualização, suba `VERSION` e ponha uma entrada nova no topo de `NOTES`. O service worker importa esse arquivo, então
+  o navegador instala a versão nova em segundo plano (confere ao abrir, a cada meia hora e ao voltar para o jogo), e o
+  jogo passa para ela sozinho num momento seguro (`src/update.js`): no menu inicial, na hora; numa partida, explorando
+  sem nada aberto, depois de um save automático que o recarregamento carrega de novo, então o jogador continua do
+  mesmo ponto. Combate, conversa e cena esperam. Depois, a janela **Novidades** mostra o que mudou (ela também fica no
+  menu inicial e nas opções). Os saves guardam a versão que os gravou.
 - No celular há controles por toque (tocar, segurar e arrastar; no combate, um toque mostra e o segundo confirma) e
   a interface se arruma em retrato e em paisagem.
 

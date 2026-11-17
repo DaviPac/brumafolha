@@ -9,7 +9,8 @@ import { combatState, resumeCombat } from "../combat.js";
 import * as S from "../story.js";
 
 export const FORMAT = 1;
-export const GAME_VERSION = "0.5.0";
+import { VERSION as GAME_VERSION } from "../version.js";
+export { GAME_VERSION }; // the saves record which version wrote them
 
 let M = null; // main.js's internals: maps, recruit, unit, buildMap, placeMap, refreshArt, ...
 export function initGame(engine) { M = engine; }
