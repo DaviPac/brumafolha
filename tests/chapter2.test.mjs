@@ -60,8 +60,9 @@ async function monastery(page, v) {
   // Pipa and the wooden bird
   await T.interact(page, "Menina de branco");
   await T.play(page, ["Mostrar o passarinho", "Continuar", "Voltar.", v.pipaCome ? "\"Quer ir ver o seu pai?\"" : "Até mais."], { until: ["explore", "dialogue"] });
-  await T.sleep(300);
-  if (await page.evaluate(() => window.G.mode === "dialogue")) await T.play(page, ["Até mais."]); // she said no (a d20)
+  // the d20 decides: if she says no, the conversation goes back to its start and waits for a way out; if she says
+  // yes, it ends by itself and "Até mais." is never asked
+  await T.play(page, ["Até mais."]).catch((e) => { if (!/escolhas não usadas/.test(e.message)) throw e; });
   assert.ok(await F(page, "pipa_bird"), "Pipa recebeu o passarinho");
   // the Mother, in the garden
   await T.goTo(page, 31, 22);

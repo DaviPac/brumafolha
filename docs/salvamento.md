@@ -312,3 +312,19 @@ Falta, ou não foi testado:
 - **Exportar e importar** não foram testados num navegador de verdade (o download não roda no navegador sem janela).
 - O teste que procura estado de módulo fora do registro (seção 9, item 5) não foi escrito.
 - Um save de uma versão mais nova do jogo é recusado; ainda não há nenhuma migração escrita (o formato é o 1).
+
+### 12.1 Capítulo 2 (versão 0.9.0)
+
+- **Conteúdo novo, mapas novos.** O capítulo 2 vive em três mapas próprios (`bosque`, `mosteiro`, `claustro`, em
+  `src/maps2.js`). Os mapas da 0.8.0 não ganharam nem perderam nada nas listas de objetos, baús, NPCs e inimigos: o que
+  liga a Travessia ao Mosteiro é um gatilho de posição e um item clicável calculado (`interactables()`), que não têm
+  id. `maps1.js` e `maps.js` só passaram a exportar `openWorld` e `gridWorld`.
+- **Flags novas** começam indefinidas (`c2`, `c2_*`, `hulda_*`, `pipa*`, `ch2_done`...); nenhuma flag antiga mudou de
+  sentido. O formato continua 1, sem migração. `schema.js` aceita os mapas novos.
+- **Testes versionados** em `tests/` (`npm test`, Playwright): os saves de referência da 0.8.0 (`tests/saves/0.8.0/`,
+  feitos por `make-saves.mjs` com o código da 0.8.0) carregam com o mesmo estado e seguem jogáveis; os ids dos mapas
+  antigos são comparados, objeto por objeto, entre o código da 0.8.0 (tirado do git) e o atual; a atualização
+  automática é testada com o service worker de verdade (save automático feito pelo código velho, carregado pelo novo);
+  o capítulo 2 é jogado de ponta a ponta com saves novos explorando, em conversa e em combate.
+- Agora exportar e importar foram testados num navegador (o download e o seletor de arquivo pelo Playwright).
+

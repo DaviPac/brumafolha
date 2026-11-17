@@ -216,6 +216,9 @@ Ala do Silêncio atrás do véu do altar). Roteiro em [src/act1ch2.js](src/act1c
 - `chapter2`: o capítulo inteiro em três caminhos (paz, ataque, Coroa), com saves novos explorando, em conversa e em
   combate, recarregados e conferidos.
 O formato do save não mudou (continua 1); nenhuma migração foi necessária.
+- `rest`: o primeiro descanso em Vau-de-Cardo (fogueira e taverna). A oferta do Eco acontece com a tela escurecida, e a
+  caixa de diálogo ficava por baixo do escurecimento (`#fade`): o jogador via só uma tela preta, com uma pergunta
+  esperando resposta. Agora o diálogo fica por cima (`z-index` 42); o teste confere numa captura que a caixa aparece.
 
 Desempenho (Firefox 158 em janela real 1920×1080, medidor F3, `tests/perf-firefox.mjs`): os mapas novos desenham em
 2 a 4 ms por quadro, como o acampamento e Vau-de-Cardo (82-83 quadros/s de jogo).
