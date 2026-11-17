@@ -1494,6 +1494,7 @@ export function fogAt(x, y) {
     f = Math.max(f, b);
     if (F.maren_forgot && !F.maren_aboard) { const m = cast.maren; f = Math.max(f, 0.55 * clamp(1 - dist(x, y, m.x, m.y) / (1.6 * TILE))); }
   }
+  if (G.introFog) f = Math.max(f, G.introFog(x, y)); // the prelude's Bruma, coming down from the north
   return f;
 }
 /** Under the actors: the escape route, glowing on the trail. */

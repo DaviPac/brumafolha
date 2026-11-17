@@ -461,3 +461,29 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
   #journal .gearsheet { grid-template-columns: 1fr; }
   #journal .gstats { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---- the prelude (src/intro.js): letterbox bars, subtitles, title cards in the dark */
+#intro { position: absolute; inset: 0; z-index: 42; cursor: pointer; overflow: hidden; }
+#intro .lb { position: absolute; left: 0; right: 0; height: 11vh; background: #07060b; transition: transform 1s steps(10); }
+#intro .lb.top { top: 0; transform: translateY(-100%); }
+#intro .lb.bot { bottom: 0; transform: translateY(100%); }
+#intro.on .lb { transform: none; }
+#intro .card { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding: 0 16rem; opacity: 0; transition: opacity 1.2s steps(10); pointer-events: none; }
+#intro .card.show { opacity: 1; }
+#intro .card .epi { font-size: 19rem; line-height: 26rem; color: var(--text); text-shadow: 2rem 2rem 0 var(--ink); }
+#intro .card .src { color: var(--muted); margin-top: 10rem; }
+#intro .card h1 { font-size: 52rem; line-height: 58rem; letter-spacing: 3rem; color: var(--text); text-shadow: 3rem 3rem 0 var(--ink), 5rem 5rem 0 #1c787a; }
+#intro .cap { position: absolute; left: 50%; bottom: calc(11vh - 30rem); transform: translateX(-50%); width: min(560rem, 94vw); display: flex; gap: 8rem; align-items: flex-end;
+  opacity: 0; transition: opacity 0.4s steps(4); pointer-events: none; }
+#intro .cap.show { opacity: 1; }
+#intro .cap .portrait { flex: none; border: 4rem solid transparent; border-image: var(--f-portHi) 4 fill / 4rem; background: linear-gradient(#3a4a58, #1a1522) padding-box; }
+#intro .cap .portrait canvas { display: block; width: 58rem; height: 54rem; }
+#intro .cap.voice .portrait { display: none; }
+#intro .cap .body { flex: 1; min-width: 0; padding: 4rem 8rem 6rem; background: rgba(7, 6, 11, 0.78); box-shadow: 0 0 0 2rem rgba(7, 6, 11, 0.4); }
+#intro .cap .name { color: var(--gold); font-weight: 700; }
+#intro .cap.voice .name { color: var(--silver); font-weight: 400; }
+#intro .cap .text { color: #ece2cc; line-height: 16rem; min-height: 32rem; }
+#intro .cap .rest { visibility: hidden; }
+#intro .ctl { position: absolute; right: 8rem; top: 4rem; display: flex; gap: 4rem; opacity: 0.75; }
+#intro .ctl:hover, #intro .ctl:focus-within { opacity: 1; }
+#intro .ctl button { padding: 0 6rem 1rem; }

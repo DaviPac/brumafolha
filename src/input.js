@@ -14,7 +14,7 @@ export const Input = {
 };
 
 // top-most first
-const LAYERS = ["#dice", "#gameover", "#pick", "#tutask", "#pause", "#journal", "#creator", "#endscreen", "#dialogue", "#title"];
+const LAYERS = ["#dice", "#gameover", "#pick", "#tutask", "#pause", "#journal", "#creator", "#endscreen", "#dialogue", "#intro", "#title"];
 const FOCUSABLE = "button:not(:disabled), input, [tabindex]";
 
 export function activeLayer() {

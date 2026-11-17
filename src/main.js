@@ -21,6 +21,7 @@ import { startCombat, combatClick, combatHover, endTurn, selectAbility, abilitie
 import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
+import { playIntro, updateIntro, skipIntro } from "./intro.js";
 import { icon, installIcons } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
@@ -85,9 +86,10 @@ async function boot() {
   }
 }
 
-function create() {
+async function create() {
   initAudio();
   document.getElementById("title").classList.add("hidden");
+  await playIntro(E); // Lyra tells the valley's story before the hero exists
   G.mode = "create";
   openCreator((build) => { recruit(build); begin(); }, (b) => companionFor(b).label);
 }
@@ -644,6 +646,7 @@ Input.onAction = (a) => {
   }
 };
 Input.onCancel = (layer) => {
+  if (layer === "intro") { skipIntro(); return; }
   if (layer === "pause") setPaused(false);
   else if (layer === "journal") closeJournal();
   else if (layer === "dice") document.getElementById("dice").click();
@@ -658,6 +661,7 @@ addEventListener("keydown", (e) => {
   G.keys.add(k);
   if (k === "m" && G.mode !== "title") { syncMute(toggleMute()); return; }
   if (k === "v" && G.mode !== "title") { setView(!PV.on); return; }
+  if (G.mode === "intro") { if (k === "escape") skipIntro(); return; }
   if (k === "l") diceReroll();
   if (k === "h") document.querySelector("#hint:not(.hidden) .ok")?.click();
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") return;
@@ -839,12 +843,26 @@ function setPaused(p) {
   sfx.click();
 }
 
+/** Ease the camera toward a point (a cutscene's focus, the unit in combat, the leader). */
+function moveCamera(dt, f) {
+  if (!f) return;
+  const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = PV.on ? camClampTilted(f.y - 16 - G.vh / 2, G.W.h * TILE) : camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
+  const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? (G.mode === "combat" ? 4 : 6)));
+  G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
+}
+
 let zoneNow = "", zoneT = 0;
 function update(dt) {
   G.time += dt;
   if (G.clockTarget != null) G.clock += clamp(G.clockTarget - G.clock, -dt / 45, dt / 45); // the story moves the sun
   if (G.hitstop > 0) { G.hitstop -= dt; return; }
   G.fx.update(dt);
+  if (G.mode === "intro") {
+    updateIntro(dt);
+    for (const u of G.followers) { stepAlongPath(u, dt); u.animT += dt; }
+    moveCamera(dt, G.camFocus);
+    return;
+  }
   if (!G.party.length) return;
   const l = lead();
   if (G.mode === "explore") {
@@ -898,10 +916,7 @@ function update(dt) {
   S.update(dt);
   updateAudio(dt);
   // camera
-  const f = G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l);
-  const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = PV.on ? camClampTilted(f.y - 16 - G.vh / 2, G.W.h * TILE) : camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
-  const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? (G.mode === "combat" ? 4 : 6)));
-  G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
+  moveCamera(dt, G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l));
   if (G.shake > 0) G.shake -= dt;
   if (clickMark) { clickMark.t -= dt; if (clickMark.t <= 0) clickMark = null; }
   // the keyboard/pad cursor moves the "mouse" during combat

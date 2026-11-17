@@ -20,6 +20,20 @@ Abra http://localhost:5173. A folha de assets fica em http://localhost:5173/tool
 Atalhos de desenvolvimento: `?dev=camp` pula título, criador e sonho; `?dev=ato1&f=goblin_pact,maren_aboard,maren_lucid,tome_alive`
 começa no Ato I como se o prólogo tivesse terminado com essas flags (`&cls=mago`, `&race=elfo` escolhem o herói; `&u=2` força a escala da interface).
 
+## O Prelúdio
+
+Ao clicar em **Começar**, o jogo não vai direto para o criador: uma cena de abertura, narrada pela **Lyra**, passeia
+com a câmera pelo vale de verdade antes de o herói existir.
+
+1. **No escuro**, a inscrição de Velmoor: "Tudo o que existe é lembrado por alguém. O que ninguém lembra, a Bruma leva."
+2. **As Ruínas de Velmoor, de noite**: o Sonhador, Ondrael, e a cidade de torres brancas que ninguém lembra.
+3. **A Bruma desce do norte** e cobre as ruínas enquanto a câmera recua: o que ela faz com lugares e pessoas.
+4. **O Lago Espelhado ao amanhecer**: uma elfa anda até a ponta do píer e se apresenta. Lyra fala do vale, do contrato
+   assinado "L." e do sonho da mulher de cabelos de prata, e termina perguntando: **"Quem é você?"**. Daí abre o criador.
+
+As falas aparecem como legendas, com barras de cinema. `Clique`, `Enter` ou A avançam; `Esc` ou B pulam o prelúdio
+inteiro. A narração não revela os segredos da Lyra (a Poda, Aurelith): só deixa a ponta. Código em [src/intro.js](src/intro.js).
+
 ## O Prólogo: "A Bruma de Brumafolha"
 
 O jogo agora conta o prólogo inteiro da [bíblia da história](docs/historia.md) (§6), seguindo a [planta](docs/planta-prologo.html):
