@@ -20,6 +20,18 @@ Abra http://localhost:5173. A folha de assets fica em http://localhost:5173/tool
 Atalhos de desenvolvimento: `?dev=camp` pula título, criador e sonho; `?dev=ato1&f=goblin_pact,maren_aboard,maren_lucid,tome_alive`
 começa no Ato I como se o prólogo tivesse terminado com essas flags (`&cls=mago`, `&race=elfo` escolhem o herói; `&u=2` força a escala da interface).
 
+## Menu inicial
+
+O jogo abre num menu com o vale vivo ao fundo: a câmera passeia devagar sobre o Lago Espelhado ao entardecer.
+Opções: **Novo jogo**, **Continuar** e **Carregar jogo** (desligados até o salvamento existir, ver
+[docs/salvamento.md](docs/salvamento.md)), **Opções** (o mesmo painel do menu de pausa) e **Créditos**.
+
+Na **primeira vez** que o jogo é aberto, há uma abertura: uma folha cai no escuro, girando e mostrando ora o verde,
+ora o lado prateado de baixo (de onde vem o nome do vale), pousa onde fica o nome, e "Brumafolha" surge letra por
+letra. Nas próximas vezes, uma versão curta. Qualquer tecla ou clique pula. A abertura é feita com animações CSS e não
+com timers, porque toca enquanto o vale é pintado, e esse trabalho ocupa o navegador por um ou dois segundos.
+Código em [src/title.js](src/title.js).
+
 ## O Prelúdio
 
 Ao clicar em **Começar**, o jogo não vai direto para o criador: uma cena de abertura, narrada pela **Lyra**, passeia

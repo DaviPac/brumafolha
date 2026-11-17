@@ -72,13 +72,28 @@
   <div id="intro" class="hidden"></div>
   <div id="creator" class="hidden"></div>
   <div id="title" class="screen">
+    <div class="veil"></div>
+    <div class="leaf"></div>
     <div class="box">
-      <h1>Brumafolha</h1>
+      <h1 class="logo" aria-label="Brumafolha"></h1>
       <h2>Um RPG tático em pixel art</h2>
       <div class="loading">Pintando o vale pixel a pixel...</div>
-      <ul class="help hidden" id="titleHelp"></ul>
-      <button class="hidden go" id="start" data-default>Começar</button>
+      <nav class="menu">
+        <button id="start" class="go" data-default>Novo jogo</button>
+        <button id="continue" disabled title="Chega com o sistema de salvamento">Continuar</button>
+        <button id="load" disabled title="Chega com o sistema de salvamento">Carregar jogo</button>
+        <button id="options">Opções</button>
+        <button id="credits">Créditos</button>
+      </nav>
+      <div class="credits fr fr-panel hidden">
+        <h3>Brumafolha</h3>
+        <p>Toda a arte, a fonte, a música e os sons são feitos por código, no próprio navegador. Nenhum arquivo de imagem ou de som.</p>
+        <p>Efeitos de combate: <b>pixelfx</b>, de patch-gg (licença MIT).</p>
+        <p>História, regras e código: o projeto Brumafolha.</p>
+        <button class="back go">Voltar</button>
+      </div>
     </div>
+    <ul class="help" id="titleHelp"></ul>
   </div>
   <div id="tooltip"></div>
 </div>

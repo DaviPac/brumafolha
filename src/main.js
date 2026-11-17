@@ -22,6 +22,7 @@ import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
 import { playIntro, updateIntro, skipIntro } from "./intro.js";
+import { initTitle, titleLoaded, closeTitle, titleCancel } from "./title.js";
 import { icon, installIcons } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
@@ -49,6 +50,7 @@ async function boot() {
   installFrames();
   await installFont();
   resize();
+  initTitle({ start: create, options: () => { setupMenu(false); setPaused(true); } });
   document.getElementById("titleHelp").innerHTML = `
     <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
     <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
@@ -66,18 +68,15 @@ async function boot() {
   resize();
 
   console.log(`loaded in ${Math.round(performance.now() - t0)} ms`);
-  document.querySelector(".loading").classList.add("hidden");
-  document.querySelector(".help").classList.remove("hidden");
-  const btn = document.getElementById("start");
-  btn.classList.remove("hidden");
-  btn.onclick = create;
-  focusDefault();
+  G.clock = 17.9; // the menu's valley is at golden hour
   requestAnimationFrame(loop);
+  titleLoaded();
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
   if (q.get("dev")) {
     initAudio();
-    document.getElementById("title").classList.add("hidden");
+    closeTitle();
+    G.clock = 9;
     const b = newBuild(q.get("race") ?? "humano", q.get("cls") ?? "guerreiro");
     if (!b.name) b.name = "Teste";
     recruit(b);
@@ -87,8 +86,10 @@ async function boot() {
 }
 
 async function create() {
+  if (G.mode !== "title") return;
   initAudio();
-  document.getElementById("title").classList.add("hidden");
+  closeTitle();
+  G.clock = 9;
   await playIntro(E); // Lyra tells the valley's story before the hero exists
   G.mode = "create";
   openCreator((build) => { recruit(build); begin(); }, (b) => companionFor(b).label);
@@ -647,6 +648,7 @@ Input.onAction = (a) => {
 };
 Input.onCancel = (layer) => {
   if (layer === "intro") { skipIntro(); return; }
+  if (layer === "title") { titleCancel(); return; }
   if (layer === "pause") setPaused(false);
   else if (layer === "journal") closeJournal();
   else if (layer === "dice") document.getElementById("dice").click();
@@ -661,6 +663,7 @@ addEventListener("keydown", (e) => {
   G.keys.add(k);
   if (k === "m" && G.mode !== "title") { syncMute(toggleMute()); return; }
   if (k === "v" && G.mode !== "title") { setView(!PV.on); return; }
+  if (G.mode === "title") { if (k === "escape") { if (G.paused) setPaused(false); else titleCancel(); } return; }
   if (G.mode === "intro") { if (k === "escape") skipIntro(); return; }
   if (k === "l") diceReroll();
   if (k === "h") document.querySelector("#hint:not(.hidden) .ok")?.click();
@@ -781,8 +784,9 @@ function syncMute(muted) {
   document.getElementById("pause").classList.toggle("muted", muted);
 }
 // ---------------------------------------------------------------- pause menu
-function setupMenu() {
-  document.getElementById("corner").classList.remove("hidden");
+function setupMenu(corner = true) {
+  document.getElementById("corner").classList.toggle("hidden", !corner);
+  document.getElementById("resume").textContent = corner ? "Continuar" : "Voltar";
   document.getElementById("menuBtn").onclick = () => setPaused(!G.paused);
   document.getElementById("mute").onclick = () => syncMute(toggleMute());
   document.getElementById("bagBtn").onclick = () => toggleJournal("bag");
@@ -834,8 +838,9 @@ function setupMenu() {
   ].map(([k, t]) => `<li>${k}</li><li>${t}</li>`).join("");
 }
 function setPaused(p) {
-  if (G.mode === "title" || G.mode === "over" || G.mode === "end") p = false;
+  if (G.mode === "over" || G.mode === "end") p = false;
   G.paused = p;
+  if (!p && G.mode === "title") setTimeout(() => document.getElementById("options").focus(), 0);
   if (p) setTimeout(() => focusDefault(document.getElementById("pause"), true), 0);
   G.keys.clear();
   UI.tooltip(null);
@@ -857,6 +862,13 @@ function update(dt) {
   if (G.clockTarget != null) G.clock += clamp(G.clockTarget - G.clock, -dt / 45, dt / 45); // the story moves the sun
   if (G.hitstop > 0) { G.hitstop -= dt; return; }
   G.fx.update(dt);
+  if (G.mode === "title") {
+    // the menu's background: a slow drift over the Lago Espelhado
+    const a = G.time * 0.035;
+    G.camFocus = null;
+    moveCamera(dt, { x: (39 + Math.sin(a) * 8) * TILE, y: (27 + Math.sin(a * 1.6) * 3.5) * TILE });
+    return;
+  }
   if (G.mode === "intro") {
     updateIntro(dt);
     for (const u of G.followers) { stepAlongPath(u, dt); u.animT += dt; }

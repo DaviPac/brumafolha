@@ -247,13 +247,47 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 
 /* ---- title, pause, tutorial question, the end */
 .screen { position: absolute; inset: 0; display: grid; place-items: center; padding: 8rem; }
-#title { background: radial-gradient(circle at 50% 40%, rgba(20, 30, 28, 0.5), rgba(5, 5, 8, 0.94)); }
-#title .box { text-align: center; }
-#title h1 { font-size: 65rem; line-height: 70rem; letter-spacing: 4rem; color: var(--text); text-shadow: 3rem 3rem 0 var(--ink), 5rem 5rem 0 #1c787a; }
-#title h2 { color: var(--teal); margin: 2rem 0 14rem; font-weight: 400; }
+/* the main menu (src/title.js): the valley drifting behind, the logo, the menu; .first / .short is the opening,
+   .s1–.s4 its stages (the name, the subtitle, the world, the menu), .skip cuts every animation short */
+#title { background: radial-gradient(ellipse 70% 80% at 50% 45%, rgba(8, 10, 14, 0.25), rgba(5, 5, 8, 0.82)); overflow: hidden; }
+#title .veil { position: absolute; inset: 0; background: #07060b; transition: opacity 1.6s steps(12); pointer-events: none; }
+#title.s3 .veil { opacity: 0; }
+#title .box { position: relative; text-align: center; display: flex; flex-direction: column; align-items: center; }
+#title .logo { font-size: 65rem; line-height: 70rem; letter-spacing: 4rem; color: var(--text); text-shadow: 3rem 3rem 0 var(--ink), 5rem 5rem 0 #1c787a; white-space: nowrap; }
+#title .logo span { display: inline-block; animation: letterIn 0.6s steps(6) both; animation-delay: calc(2.5s + var(--i) * 0.09s); }
+#title.short .logo span { animation-delay: calc(0.1s + var(--i) * 0.03s); }
+@keyframes letterIn { from { opacity: 0; transform: translateY(-8rem); color: var(--silver); text-shadow: none; } }
+#title h2 { color: var(--teal); margin: 2rem 0 16rem; font-weight: 400; animation: fadeIn 0.8s steps(6) 3.9s both; }
+#title.short h2 { animation-delay: 0.6s; }
+@keyframes fadeIn { from { opacity: 0; } }
 #title .loading { color: var(--muted); }
-#title .help { list-style: none; padding: 0; margin: 0 0 12rem; color: #d8ccb4; line-height: 20rem; }
-#title .help b { color: var(--gold); }
+#title .menu { display: flex; flex-direction: column; gap: 4rem; min-width: 150rem; }
+#title .menu button { opacity: 0; transform: translateY(6rem); transition: opacity 0.3s steps(3), transform 0.3s steps(3); }
+#title .menu button:nth-child(2) { transition-delay: 0.06s; } #title .menu button:nth-child(3) { transition-delay: 0.12s; }
+#title .menu button:nth-child(4) { transition-delay: 0.18s; } #title .menu button:nth-child(5) { transition-delay: 0.24s; }
+#title.s4 .menu button { opacity: 1; transform: none; }
+#title .menu button:not(.go) { padding: 2rem 18rem 3rem; }
+#title .credits { max-width: 320rem; padding: 6rem 14rem 10rem; line-height: 16rem; }
+#title .credits h3 { color: var(--gold); margin-bottom: 4rem; }
+#title .credits p { color: #d8ccb4; margin-bottom: 6rem; }
+#title .credits .back { margin-top: 4rem; }
+#title .help { position: absolute; left: 0; right: 0; bottom: 10rem; list-style: none; padding: 0; margin: 0; color: #b8ac96; line-height: 20rem; text-align: center;
+  opacity: 0; transition: opacity 0.6s steps(4) 0.4s; }
+#title.s4 .help { opacity: 1; }
+#title .leaf { position: absolute; left: 50%; top: 50%; width: 48rem; height: 48rem; margin: -24rem 0 0 -24rem; opacity: 0; pointer-events: none; perspective: 200rem; }
+#title .leaf.falling { animation: leafFall 2.6s cubic-bezier(0.25, 0.6, 0.45, 1) forwards, leafOut 0.5s steps(4) 2.6s forwards; }
+@keyframes leafOut { to { opacity: 0; transform: translateY(var(--endY, 0)) scale(0.6); } }
+#title .leaf .sway { width: 100%; height: 100%; animation: leafSway 1.3s ease-in-out infinite alternate; }
+#title .leaf .spin { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: leafSpin 1.2s linear infinite; }
+#title .leaf canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; backface-visibility: hidden; }
+#title .leaf canvas.back { transform: rotateY(180deg); }
+#title.short .leaf { display: none; }
+#title .leaf.gone { opacity: 0 !important; transition: opacity 0.5s steps(4); }
+@keyframes leafFall { 0% { transform: translateY(-62vh); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(var(--endY, 0)); opacity: 1; } }
+@keyframes leafSway { from { transform: translateX(-60rem) rotate(-30deg); } to { transform: translateX(60rem) rotate(24deg); } }
+@keyframes leafSpin { to { transform: rotateY(360deg); } }
+#title.skip *, #title.skip .veil { transition-duration: 0.15s !important; transition-delay: 0s !important; animation-delay: 0s !important; animation-duration: 0.15s !important; }
+#title.skip .leaf .sway, #title.skip .leaf .spin { animation: none; }
 #gameover { position: absolute; inset: 0; display: grid; place-items: center; z-index: 47; text-align: center; }
 #gameover h1 { font-size: 39rem; line-height: 44rem; color: var(--bad); }
 #gameover p { color: var(--muted); margin: 4rem 0 10rem; }
@@ -487,3 +521,4 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 #intro .ctl { position: absolute; right: 8rem; top: 4rem; display: flex; gap: 4rem; opacity: 0.75; }
 #intro .ctl:hover, #intro .ctl:focus-within { opacity: 1; }
 #intro .ctl button { padding: 0 6rem 1rem; }
+#title.first .loading { animation: fadeIn 0.5s steps(4) 4.6s both; } /* the opening first; "still painting" only if it outlasts it */
