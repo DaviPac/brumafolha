@@ -249,7 +249,7 @@ const I = {
 };
 
 // ---------------------------------------------------------------- music
-const PC = { D: [2, 6, 9], Bm: [11, 2, 6], G: [7, 11, 2], A: [9, 1, 4], Fsm: [6, 9, 1], Am: [9, 0, 4], F: [5, 9, 0], Dm: [2, 5, 9], E: [4, 8, 11], Bb: [10, 2, 5], C: [0, 4, 7], Gm: [7, 10, 2] };
+const PC = { Em: [4, 7, 11], Fs: [6, 10, 1], D: [2, 6, 9], Bm: [11, 2, 6], G: [7, 11, 2], A: [9, 1, 4], Fsm: [6, 9, 1], Am: [9, 0, 4], F: [5, 9, 0], Dm: [2, 5, 9], E: [4, 8, 11], Bb: [10, 2, 5], C: [0, 4, 7], Gm: [7, 10, 2] };
 /** Chord tones placed in the first octave at or above `low`, in rising order. */
 const voicing = (pcs, low) => pcs.map((p) => low + ((p - low) % 12 + 12) % 12).sort((a, b) => a - b);
 const rootAt = (pcs, low) => low + ((pcs[0] - low) % 12 + 12) % 12;
@@ -265,9 +265,31 @@ const COMBAT_MEL = [
   [[0, 74, 4], [4, 77, 4], [8, 81, 6], [14, 79, 2]], [[0, 79, 6], [6, 77, 2], [8, 74, 8]],
   [[0, 74, 4], [4, 77, 4], [8, 82, 4], [12, 81, 4]], [[0, 81, 8], [8, 76, 4], [12, 73, 4]],
 ];
+// the main menu's theme, in B minor: the valley's warmth with the mist in it; it rises to F♯ major and falls back
+const TITLE_MEL = [
+  [[0, 71, 4], [4, 74, 4], [8, 78, 8]], [[0, 79, 6], [6, 78, 2], [8, 74, 8]],
+  [[0, 76, 4], [4, 74, 4], [8, 73, 4], [12, 69, 4]], [[0, 73, 12]],
+  [[0, 71, 4], [4, 74, 4], [8, 78, 6], [14, 81, 2]], [[0, 83, 8], [8, 79, 4], [12, 78, 4]],
+  [[0, 76, 6], [6, 74, 2], [8, 71, 8]], [[0, 70, 8], [8, 73, 4], [12, 78, 4]],
+];
 const playMel = (mel, bar, s, sp, play) => { for (const [st, m, len] of mel[bar] ?? []) if (st === s) play(m, len * sp); };
 
 const TRACKS = {
+  title: { // the main menu: a harp turning over slowly, strings, and the theme on the flute after the first four bars
+    bpm: 72, bars: 8, prog: ["Bm", "G", "D", "A", "Bm", "G", "Em", "Fs"],
+    step(bar, s, t, loop, out, sp) {
+      const ch = PC[this.prog[bar]];
+      if (s === 0) { I.pad(t, voicing(ch, 54), sp * 16, 0.8, out, 950); I.bass(t, rootAt(ch, 35), sp * 10, 0.6, out); }
+      if (s % 2 === 0) {
+        const v = voicing(ch, 59), notes = [v[0], v[1], v[2], v[0] + 12, v[1] + 12];
+        I.pluck(t, notes[[0, 1, 2, 3, 4, 3, 2, 1][s / 2]], sp * 3, s % 8 === 0 ? 0.55 : 0.36, out);
+      }
+      // the first time round: four bars of harp alone, then the theme's first phrase; after that the whole theme
+      if (loop > 0 || bar >= 4) playMel(TITLE_MEL, loop === 0 ? bar - 4 : bar, s, sp, (m, d) => I.flute(t, m, d, 0.75, out));
+      if (s === 12 && bar === 7) I.bell(t, 85, 0.3, out, 0.9);
+      if (s === 0 && bar === 0 && loop > 0) I.bell(t, 83, 0.25, out, 0.9);
+    },
+  },
   meadow: {
     bpm: 84, bars: 8, prog: ["D", "Bm", "G", "A", "D", "Fsm", "G", "A"],
     step(bar, s, t, loop, out, sp) {
@@ -577,6 +599,11 @@ def("chest", "world", (t) => {
     metal(tt, [b, b * 1.48, b * 2.21, b * 2.93], [0.3, 0.22, 0.15, 0.1], 0.07, { wet: 0.25 });
   }
 });
+// the main menu: a soft harp note for each button the cursor reaches (higher further down), a rising arpeggio to
+// choose, two falling notes to go back
+def("menuHover", "ui", (t, i = 0) => I.pluck(t, [71, 74, 76, 78, 81][i % 5], 0.12, 0.28, OUT));
+def("menuConfirm", "ui", (t) => { [71, 74, 78, 83].forEach((m, i) => I.pluck(t + i * 0.055, m, 0.2, 0.42, OUT)); I.bell(t + 0.2, 83, 0.25, OUT, 0.7); });
+def("menuBack", "ui", (t) => { I.pluck(t, 74, 0.15, 0.35, OUT); I.pluck(t + 0.08, 69, 0.2, 0.3, OUT); });
 def("talk", "ui", (t) => I.pluck(t, 69, 0.2, 0.4, OUT));
 def("bells", "world", (t) => { [[0, 74, 0.35], [0.9, 69, 0.25], [1.7, 77, 0.2], [3.1, 72, 0.18]].forEach(([d, m, v]) => I.bell(t + d, m, v, OUT, 0.95)); });
 def("rest", "jingles", (t) => { duck(0.3, 2.5); [62, 66, 69, 74].forEach((m, i) => I.bell(t + i * 0.18, m, 0.7, OUT)); I.pad(t, [50, 57, 62, 66], 1.6, 1.2, OUT, 1400); });

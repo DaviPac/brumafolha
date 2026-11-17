@@ -2,6 +2,7 @@
 // the logo, and the menu. The first time the game is opened it plays an opening: a leaf falls through the dark,
 // turning over to show the silver underside the valley is named for, lands where the name will be, and the name
 // comes out of the mist letter by letter. After that first time, a short version. Any key or click skips it.
+import { sfx } from "./audio.js";
 const $ = (s, el = document) => el.querySelector(s);
 const SEEN = "brumafolha.opening";
 const NAME = "Brumafolha";
@@ -19,12 +20,21 @@ export function initTitle(on) {
   root = $("#title");
   const logo = $(".logo", root);
   logo.innerHTML = [...NAME].map((c, i) => `<span style="--i:${i}">${c}</span>`).join("");
-  $("#start").onclick = on.start;
-  $("#options").onclick = on.options;
-  $("#continue").onclick = on.cont;
-  $("#load").onclick = on.load;
-  $("#credits").onclick = () => showCredits(true);
-  $(".credits .back", root).onclick = () => showCredits(false);
+  const pick = (fn) => () => { sfx.menuConfirm?.(); fn?.(); };
+  $("#start").onclick = pick(on.start);
+  $("#options").onclick = pick(on.options);
+  $("#continue").onclick = pick(on.cont);
+  $("#load").onclick = pick(on.load);
+  $("#credits").onclick = pick(() => showCredits(true));
+  $(".credits .back", root).onclick = () => { sfx.menuBack?.(); showCredits(false); };
+  // a harp note when the cursor or the keys reach a button (once per button, not on both hover and focus)
+  let last = null;
+  [...root.querySelectorAll(".menu button, .credits .back")].forEach((b, i) => {
+    const hover = () => { if (last === b || b.disabled || !finished) return; last = b; sfx.menuHover?.(i); };
+    b.addEventListener("mouseenter", hover);
+    b.addEventListener("focus", hover);
+    b.addEventListener("mouseleave", () => { if (last === b) last = null; });
+  });
   let first = true;
   try { first = !localStorage.getItem(SEEN); } catch { /* private mode: always the full opening */ }
   root.classList.add(first ? "first" : "short");
@@ -87,8 +97,10 @@ function showCredits(on) {
 }
 /** Esc / B on the title closes the credits. */
 export function titleCancel() {
-  if (!$(".credits", root).classList.contains("hidden")) showCredits(false);
+  if (!$(".credits", root).classList.contains("hidden")) { sfx.menuBack?.(); showCredits(false); }
 }
+/** main.js: the sound is on (the browser waits for a click or a key before it allows any). */
+export function titleAudioOn() { root?.classList.add("audio"); }
 
 // ---------------------------------------------------------------- the falling leaf
 // Two 16×16 frames drawn pixel by pixel: the green top and the silver underside. It shows its edge between them.

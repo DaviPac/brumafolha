@@ -13,7 +13,7 @@ import { findPath, reachable } from "./path.js";
 import { FxLayer, FX, PAL } from "./fx.js";
 import * as UI from "./ui.js";
 import { openDialogue, dialogueKey, markTalk } from "./dialogue.js";
-import { initAudio, playMusic, updateAmbience, sfx, settings as audioSet, toggleMute, setMuted, setVolume, previewSound, SOUND_GROUPS } from "./audio.js";
+import { initAudio, playMusic, updateAmbience, audioState, sfx, settings as audioSet, toggleMute, setMuted, setVolume, previewSound, SOUND_GROUPS } from "./audio.js";
 import { openCreator } from "./creator.js";
 import { CLASSES, newBuild, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
 import { WEAPONS, ARMORS, gearItem } from "./items.js";
@@ -22,7 +22,7 @@ import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
 import { playIntro, updateIntro, skipIntro } from "./intro.js";
-import { initTitle, titleLoaded, closeTitle, titleCancel, titleSaves } from "./title.js";
+import { initTitle, titleLoaded, closeTitle, titleCancel, titleSaves, titleAudioOn } from "./title.js";
 import { ids, baseline, encode } from "./save/codec.js";
 import { initGame, collect } from "./save/game.js";
 import { initSaves, tickSaves, requestSave, autoSave, bootLoad, openSaves, closeSaves, savesOpen, newestSave, loadSave, saveBlock } from "./save/saves.js";
@@ -91,6 +91,15 @@ async function boot() {
   }
   titleLoaded();
   refreshTitleSaves();
+  // the menu's music starts with the first click or key: browsers allow no sound before one
+  const wake = () => {
+    removeEventListener("pointerdown", wake, true); removeEventListener("keydown", wake, true);
+    initAudio();
+    if (G.mode === "title") playMusic("title", 2.5);
+    titleAudioOn();
+  };
+  addEventListener("pointerdown", wake, true);
+  addEventListener("keydown", wake, true);
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
   if (q.get("dev")) {
@@ -1023,6 +1032,7 @@ function update(dt) {
     const a = G.time * 0.035;
     G.camFocus = null;
     moveCamera(dt, { x: (39 + Math.sin(a) * 8) * TILE, y: (27 + Math.sin(a * 1.6) * 3.5) * TILE });
+    updateAmbience({ wind: 0.45, water: 0.6, fire: 0, birds: 0.45, ruins: 0 }, dt, G.time); // the lake at the end of the afternoon
     return;
   }
   if (G.mode === "intro") {
@@ -1748,5 +1758,5 @@ function loop(now) {
 G.chestArt = [A.makeChest(false), A.makeChest(true)];
 G.hooks.refreshJournal = refreshJournal;
 window.G = G; // handy from the console
-window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]) }; // and for the save tests
+window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]), audio: audioState }; // and for the save tests
 boot();
