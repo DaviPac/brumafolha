@@ -52,6 +52,7 @@ export async function playIntro(engine) {
   lyra.moving = false;
   G.enemies = keep.enemies; G.npcs = keep.npcs;
   G.introFog = null; G.camFocus = null; G.ambient = null;
+  st.clockTo = null; st.pan = null; st.tweens = []; st.timers = [];
   G.clock = keep.clock; G.clockTarget = null;
   st.on = false;
   await UI.fade(0, 500);
