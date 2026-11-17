@@ -107,7 +107,7 @@ A interface foi refeita com estrutura de Baldur's Gate 3 e acabamento de pixel a
 
 ## Luz
 
-Com a luz ligada, o quadro inteiro é desenhado em WebGL2 ([src/light.js](src/light.js)): o código do jogo continua
+Havendo WebGL2, o quadro inteiro é desenhado na GPU, com a luz ligada ou não (desligada, as cores saem como pintadas) ([src/light.js](src/light.js)): o código do jogo continua
 chamando `drawImage`, `fillRect` e companhia, mas num substituto do contexto 2D que junta os sprites num atlas na GPU e
 os desenha em lotes, em três camadas (chão, sprites, sobreposição). Copiar um canvas 2D para o WebGL a cada quadro,
 como a primeira versão fazia, custa uma leitura de volta da GPU no Firefox e derrubava o jogo para 26 quadros por
@@ -120,8 +120,8 @@ segundo.
 - **Paleta**: a luz não mistura com branco nem preto. Uma tabela 3D, montada com todas as rampas da arte, diz
   qual é "um degrau acima" e "um degrau abaixo" de cada cor; a luz chega em degraus inteiros, e a borda entre
   dois degraus usa o mesmo dither Bayer 4×4 da arte, alinhado aos pixels do mundo.
-- **Opções** (menu de pausa): desligada / baixa (sem sombras) / alta, e intensidade. **Desligada**, nada disso
-  roda e o jogo é desenhado exatamente como antes. Sem WebGL2 ela fica desligada sozinha.
+- **Opções** (menu de pausa): desligada / baixa (sem sombras) / alta, e intensidade. **Desligada**, nenhuma luz ou
+  sombra é calculada e o jogo aparece como antes. Sem WebGL2 o jogo cai no desenho 2D antigo, sem luz.
 
 ## Criação de personagem
 
@@ -207,14 +207,14 @@ um controle de verdade.
 
 Falta, ou ficou pela metade:
 
-- **Desempenho**: medido nesta máquina (RTX 3060 de notebook, tela de 165 Hz) numa janela real do Firefox, nas
-  ruínas, com 960×497 de jogo: luz alta, 7 ms de desenho e 83 quadros por segundo; luz desligada (o caminho 2D
-  antigo), 13 ms e 62. No Chrome sem janela, 3 a 5 ms nos dois modos. Testes em navegador sem janela enganam: lá o
-  canvas 2D não é acelerado e os custos são outros. Em telas acima de 100 Hz o jogo desenha um quadro sim, um não.
-  Não foi medido em máquinas fracas. **F3** (ou `?fps` no endereço) mostra quadros por segundo e o tempo de cada
-  parte do desenho.
-- **Reflexos na água com a luz ligada** ainda passam por um canvas 2D copiado para a GPU a cada quadro; perto da água
-  o Firefox pode perder quadros. O modo desligado no Firefox é mais lento que o ligado.
+- **Desempenho**: medido nesta máquina (RTX 3060 de notebook, tela de 165 Hz) numa janela real do Firefox com
+  960×497 de jogo. Vista de cima, nas ruínas, luz alta: 7 ms de desenho, 83 quadros por segundo. Vista 3D, no
+  acampamento: luz alta 12 ms e 62 quadros por segundo; luz desligada 14 ms e 52 a 56 (medido com a máquina ocupada
+  por outros programas). Testes em navegador sem janela enganam: lá o canvas 2D não é acelerado e os custos são
+  outros. Em telas acima de 100 Hz o jogo desenha um quadro sim, um não. Não foi medido em máquinas fracas. **F3**
+  (ou `?fps` no endereço) mostra quadros por segundo e o tempo de cada parte do desenho.
+- **Sem WebGL2**, a vista 3D em canvas 2D é lenta (9 quadros por segundo no Firefox); nesse caso use a vista de cima (`V`).
+- **Efeitos do pixelfx** (fogueira, magias) são o maior custo que resta: são pintados pixel a pixel em JavaScript.
 - **Luz**: os sprites são iluminados pela posição na tela, sem altura (a copa de uma árvore na frente de uma
   fogueira clareia como se estivesse no chão). As sombras caem só no chão, não sobre outros sprites. Cores que
   não estão em nenhuma rampa (misturas com transparência) seguem a rampa mais próxima, então o degrau é aproximado

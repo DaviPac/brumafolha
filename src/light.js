@@ -265,7 +265,7 @@ export function lightLayers(w, h) {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texMask, 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
-  frameNo++; curLayer = null; nQ = 0;
+  frameNo++; curLayer = null; curMirror = null; nQ = 0;
   gl.disable(gl.BLEND); gl.clearColor(0, 0, 0, 0);
   for (const l of layers) { l.x.reset(); gl.bindFramebuffer(gl.FRAMEBUFFER, l.x.fbo); gl.clear(gl.COLOR_BUFFER_BIT); }
   return layers;
@@ -275,17 +275,28 @@ export function lightLayers(w, h) {
 const VS_SPR = `#version 300 es
 in vec2 aPos; in vec2 aUV; in vec4 aCol;
 uniform vec2 uView;
-out vec2 vUV; out vec4 vCol;
-void main() { vUV = aUV; vCol = aCol; vec2 c = aPos / uView * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0); }`;
+out vec2 vUV; out vec4 vCol; out vec2 vPos;
+void main() { vUV = aUV; vCol = aCol; vPos = aPos; vec2 c = aPos / uView * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0); }`;
 const FS_SPR = `#version 300 es
 precision highp float;
-uniform sampler2D uTex;
-in vec2 vUV; in vec4 vCol; out vec4 o;
-void main() { o = texture(uTex, vUV) * vCol; }`;
+uniform sampler2D uTex, uMask;
+uniform float uMirror, uTime; // reflections on water: rippled rows, kept only where the mask says water, tinted by it
+uniform vec4 uMaskRect;       // the layer's origin in the world (x, y), and 1 / the mask's size
+in vec2 vUV; in vec4 vCol; in vec2 vPos; out vec4 o;
+void main() {
+  if (uMirror > 0.5) {
+    vec2 wp = floor(vPos) + uMaskRect.xy;
+    float row = floor(wp.y / 2.0) * 2.0;
+    float off = floor(sin(uTime * 1.8 + row * 0.22) * 1.2 + sin(uTime * 0.7 + row * 0.05) * 0.8 + 0.5);
+    vec4 c = texture(uTex, vUV - vec2(off / float(textureSize(uTex, 0).x), 0.0));
+    c.rgb = mix(c.rgb, vec3(24.0, 96.0, 120.0) / 255.0 * c.a, 0.45);
+    o = c * vCol * 0.5 * texture(uMask, (wp + 0.5) * uMaskRect.zw).a;
+  } else o = texture(uTex, vUV) * vCol;
+}`;
 
-const PAGE = 2048, BIG = 640, MAXQ = 4096, FPV = 8;
+const PAGE = 2048, BIG = 640, MAXQ = 4096, FPV = 8, GAP = 3; // GAP: clear texels between sprites in a row (reflections ripple sideways)
 let progSpr, vaoS, vboS, pages = [], srcs = new WeakMap(), named = new Map(), surfaces = [];
-let frameNo = 0, curLayer = null, curTex = null, curBlend = 0, nQ = 0;
+let frameNo = 0, curLayer = null, curTex = null, curBlend = 0, curMirror = null, nQ = 0;
 const qv = new Float32Array(MAXQ * 6 * FPV);
 
 function setupSprites() {
@@ -322,11 +333,11 @@ function place(img) {
     let spot = null;
     for (const p of pages) {
       // shelves: rows of similar height, filled left to right
-      for (const sh of p.shelves) if (sh.h >= h && sh.h <= h * 1.35 + 4 && sh.x + w + 1 <= PAGE) { spot = { p, x: sh.x, y: sh.y }; sh.x += w + 1; break; }
-      if (!spot && p.y + h + 1 <= PAGE) { p.shelves.push({ y: p.y, h, x: w + 1 }); spot = { p, x: 0, y: p.y }; p.y += h + 1; }
+      for (const sh of p.shelves) if (sh.h >= h && sh.h <= h * 1.35 + 4 && sh.x + w + GAP <= PAGE) { spot = { p, x: sh.x, y: sh.y }; sh.x += w + GAP; break; }
+      if (!spot && p.y + h + 1 <= PAGE) { p.shelves.push({ y: p.y, h, x: GAP + w + GAP }); spot = { p, x: GAP, y: p.y }; p.y += h + 1; }
       if (spot) break;
     }
-    if (!spot) { const p = newPage(); p.shelves.push({ y: p.y, h, x: w + 1 }); spot = { p, x: 0, y: p.y }; p.y += h + 1; }
+    if (!spot) { const p = newPage(); p.shelves.push({ y: p.y, h, x: GAP + w + GAP }); spot = { p, x: GAP, y: p.y }; p.y += h + 1; }
     e = { tex: spot.p.tex, tw: PAGE, th: PAGE, x: spot.x, y: spot.y, w, h };
     gl.bindTexture(gl.TEXTURE_2D, e.tex);
   }
@@ -351,6 +362,12 @@ function flush() {
   gl.enable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
   // colours carry their alpha already; "lighter" adds light without thickening the layer
   if (curBlend) gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE); else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  const M = curMirror;
+  gl.uniform1f(progSpr.u.uMirror, M ? 1 : 0);
+  if (M) {
+    gl.uniform1f(progSpr.u.uTime, M.t); gl.uniform4f(progSpr.u.uMaskRect, M.x, M.y, 1 / M.mask.tw, 1 / M.mask.th);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, M.mask.tex); gl.uniform1i(progSpr.u.uMask, 1);
+  }
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, curTex);
   gl.drawArrays(gl.TRIANGLES, 0, nQ * 6);
   nQ = 0;
@@ -396,6 +413,14 @@ class Layer {
   scale(x, y) { const m = this.m; m[0] *= x; m[1] *= x; m[2] *= y; m[3] *= y; this.flat = false; }
   rotate(a) { const m = this.m, c = Math.cos(a), s = Math.sin(a), [a0, a1, a2, a3] = m; m[0] = a0 * c + a2 * s; m[1] = a1 * c + a3 * s; m[2] = a2 * c - a0 * s; m[3] = a3 * c - a1 * s; this.flat = false; }
 
+  /**
+   * From here until mirror(null), what is drawn is a reflection on water: `mask` is an image the size of the map whose
+   * alpha says where water is, (x, y) the world position of this layer's top-left, t the time (for the ripple).
+   */
+  mirror(mask, x, y, t) {
+    flush();
+    curMirror = mask ? { mask: srcs.get(mask) ?? place(mask), x, y, t } : null;
+  }
   /** A quad of texture `tex` (u, v in 0..1) at x, y, w, h, tinted by r, g, b, a (alpha already multiplied in). */
   quad(tex, u0, v0, u1, v1, x, y, w, h, r, g, b, a) {
     if (curLayer !== this || curTex !== tex || curBlend !== this.blend || nQ >= MAXQ) { flush(); curLayer = this; curTex = tex; curBlend = this.blend; }

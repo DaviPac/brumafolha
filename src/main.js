@@ -1122,10 +1122,11 @@ function drawProp(target, o, x, y) {
 function drawReflections(cx, cy, items) {
   const W = G.W;
   if (!W.waterMask) return;
-  const vw = G.vw, vh = G.vh;
-  if (!reflA || reflA[0].width !== vw || reflA[0].height !== vh) { reflA = makeCanvas(vw, vh); reflB = makeCanvas(vw, vh); reflB[0].dyn = true; }
-  const [ca, a] = reflA, [cb, b] = reflB;
-  a.clearRect(0, 0, vw, vh);
+  const vw = G.vw, vh = G.vh, gpu = !!ctx.mirror;
+  if (!gpu && (!reflA || reflA[0].width !== vw || reflA[0].height !== vh)) { reflA = makeCanvas(vw, vh); reflB = makeCanvas(vw, vh); reflB[0].dyn = true; }
+  // on the GPU layers the mirrored sprites are drawn straight onto the ground, rippled and cut to the water by the shader
+  const [ca, a] = gpu ? [null, ctx] : reflA, [cb, b] = gpu ? [] : reflB;
+  if (gpu) ctx.mirror(W.waterMask, cx, cy, G.time); else a.clearRect(0, 0, vw, vh);
   let any = false;
   const wet = (x, y) => { const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE); for (let k = 0; k <= 3; k++) for (const dx of [-1, 0, 1]) if (W.tileAt(tx + dx, ty + k) === T.WATER) return true; return false; };
   for (const it of items) {
@@ -1151,6 +1152,7 @@ function drawReflections(cx, cy, items) {
     a.globalAlpha = 1;
     any = true;
   }
+  if (gpu) { ctx.mirror(null); return; }
   if (!any) return;
   // ripple: shift thin rows sideways, then keep only what falls on water
   b.clearRect(0, 0, vw, vh);
@@ -1171,6 +1173,18 @@ function drawReflections(cx, cy, items) {
 }
 
 /** Soft light: additive radial glows for things that carry it (Lumes, the lantern, the hero's silver mark). */
+const glows = new Map();
+/** The same soft glow as a picture, for the GPU layers (which have no gradients). */
+function glowArt(r, g, b, a) {
+  const k = `${r},${g},${b},${a}`;
+  if (!glows.has(k)) {
+    const [c, x] = makeCanvas(96, 96), gr = x.createRadialGradient(48, 48, 0, 48, 48, 48);
+    gr.addColorStop(0, `rgba(${k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = gr; x.fillRect(0, 0, 96, 96);
+    glows.set(k, c);
+  }
+  return glows.get(k);
+}
 function drawGlows(cx, cy) {
   const list = [];
   for (const o of G.W.objects) if (o.glow && !o.hidden) list.push([o.x, o.y, o.glow]);
@@ -1183,8 +1197,9 @@ function drawGlows(cx, cy) {
     if (PV.on) { const p = project(x - cx, y - cy); if (!p) continue; k = p.k; sx = p.x; sy = p.y - (g.h ?? 16) * k; }
     const r = g.r * k * (1 + Math.sin(G.time * 2 + x) * 0.05);
     if (sx < -r || sy < -r || sx > G.vw + r || sy > G.vh + r) continue;
-    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
     const [R, Gc, B] = g.c ?? [150, 190, 255];
+    if (ctx.pixels) { ctx.drawImage(glowArt(R, Gc, B, g.a ?? 0.35), sx - r, sy - r, r * 2, r * 2); continue; }
+    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
     gr.addColorStop(0, `rgba(${R},${Gc},${B},${g.a ?? 0.35})`); gr.addColorStop(1, `rgba(${R},${Gc},${B},0)`);
     ctx.fillStyle = gr;
     ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
@@ -1195,7 +1210,8 @@ function drawGlows(cx, cy) {
 /** The Bruma: a soft pearly fog from the story's fog field, rendered at a quarter resolution. */
 function drawFog(cx, cy) {
   if (!S.hasFog()) return;
-  const C = 4, M = 4, w = Math.ceil(G.vw / C) + 1 + M * 2, h = Math.ceil(G.vh / C) + 1 + M * 2;
+  // the tilted camera sees several times more ground, and squeezes the far part of it: coarser cells are enough there
+  const C = PV.on ? 8 : 4, M = 4, w = Math.ceil(G.vw / C) + 1 + M * 2, h = Math.ceil(G.vh / C) + 1 + M * 2;
   if (!fogC || fogC.width !== w || fogC.height !== h) { [fogC, fogX] = makeCanvas(w, h); fogC.img = fogX.createImageData(w, h); fogC.age = 99; }
   const ox = Math.floor(cx / C) - M, oy = Math.floor(cy / C) - M;
   // the field drifts slowly: it is worked out every third frame (or when the camera outruns the margin) and reused between
@@ -1318,10 +1334,11 @@ function draw() {
   if (G.shake > 0) { cx += Math.round((Math.random() - 0.5) * 4); cy += Math.round((Math.random() - 0.5) * 4); }
   const W = G.W;
   // with the light on, the scene is painted in layers (ground, sprites, overlay) and put together by light.js
-  const lit = lightOn(), LY = lit ? lightLayers(vw * ss, vh * ss) : null;
-  Object.assign(view, { cx, cy, ss, lit });
-  showLight(lit, vw * G.scale, vh * G.scale);
-  paintOn(lit ? LY[0].x : screen);
+  // (with the light off the layers are still used, just not lit: the GPU draws the frame far faster than canvas 2D)
+  const gpu = lightAvailable(), lit = lightOn(), LY = gpu ? lightLayers(vw * ss, vh * ss) : null;
+  Object.assign(view, { cx, cy, ss, lit: gpu });
+  showLight(gpu, vw * G.scale, vh * G.scale);
+  paintOn(gpu ? LY[0].x : screen);
   const bg = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : W.id === "vale" && PV.on ? "#16231c" : "#0b0a10";
 
   // the part of the flat world this frame shows: the screen, or (3D) the trapezoid under the tilted camera
@@ -1348,17 +1365,18 @@ function draw() {
   } else drawFloor(cx, cy, vw, vh, items, bg);
   sec("chão");
 
-  if (lit) paintOn(LY[1].x);
+  if (gpu) paintOn(LY[1].x);
   for (const it of items) { const p = it.u ?? it.c ?? it.g ?? it.o; anchored(p.x, p.y, () => drawItem(it, cx, cy)); }
   sec("sprites");
   // the people in the boat sit with the sprites when the light is on, so the lamps reach them
   const boat = PV.on && W.objects.find((o) => o.id === "boat");
   const over = () => (boat ? anchored(boat.x, boat.y, () => S.drawOver(ctx, cx, cy)) : S.drawOver(ctx, cx, cy));
-  if (lit) { over(); paintOn(LY[2].x); }
+  if (lit) over();
+  if (gpu) paintOn(LY[2].x);
   drawBars(cx, cy);
   if (PV.on) {
     const hz = HAZE[W.id] ?? HAZE.vale;
-    if (lit) ctx.drawImage(hazeStrip(hz), 0, 0, vw, PV.sA * 0.8);
+    if (gpu) ctx.drawImage(hazeStrip(hz), 0, 0, vw, PV.sA * 0.8);
     else {
       const g = ctx.createLinearGradient(0, 0, 0, PV.sA * 0.8);
       g.addColorStop(0, `rgba(${hz},0.62)`); g.addColorStop(0.45, `rgba(${hz},0.2)`); g.addColorStop(1, `rgba(${hz},0)`);
@@ -1377,8 +1395,8 @@ function draw() {
   else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
   if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
   sec("barras");
-  if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => anchored(x, y, () => fn(ctx)));
-  else G.fx.draw(ctx, cx, cy, lit);
+  if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => { if (x > cx + box.x - 140 && x < cx + box.x + box.w + 140 && y > cy + box.y - 80 && y < cy + box.y + box.h + 230) anchored(x, y, () => fn(ctx)); });
+  else G.fx.draw(ctx, cx, cy, gpu);
   sec("efeitos");
   if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
@@ -1406,14 +1424,15 @@ function draw() {
     vignette = c;
   }
   ctx.drawImage(vignette, 0, 0);
-  if (lit) {
+  if (gpu) {
     renderLight({
       ss, cam: PV.on ? [0, 0] : [cx, cy], add: !PV.on && G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null,
-      amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy),
+      amb: lit ? ambientNow(ruinK) : { level: 0, tint: [1, 1, 1], tintK: 0, gain: 0 }, // unlit: every colour as painted
+      lights: lit ? gatherLights(cx, cy) : [], occluders: lit ? gatherOccluders(items, cx, cy) : [],
     });
     base = ctx = screen;
   }
-  sec(lit ? "moldura+luz" : "moldura");
+  sec(gpu ? "moldura+luz" : "moldura");
 }
 
 // ---------------------------------------------------------------- light: what shines, what blocks it, how dark it is
