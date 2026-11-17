@@ -67,7 +67,7 @@ export function itemDef(kind, key) {
 /** A bag entry for a piece of equipment (story items stay as they are). */
 export function gearItem(kind, key) {
   const d = itemDef(kind, key);
-  const icon = kind === "armor" ? "🥋" : kind === "shield" ? "🛡️" : d.type === "arco" ? "🏹" : d.type === "cajado" ? "🪄" : d.type === "machado" ? "🪓" : d.type === "maca" ? "🔨" : d.type === "adaga" ? "🗡️" : d.type === "lanca" ? "🔱" : "⚔️";
+  const icon = kind === "armor" ? "armor" : kind === "shield" ? "shield" : d.type === "arco" ? "bow" : d.type === "cajado" ? "staff" : d.type === "machado" ? "axe" : d.type === "maca" ? "hammer" : d.type === "adaga" ? "dagger" : d.type === "lanca" ? "spear" : "sword";
   return { id: `${kind}:${key}:${Math.random().toString(36).slice(2, 7)}`, gear: kind === "ranged" ? "weapon" : kind, key, name: d.name, icon, desc: d.desc };
 }
 

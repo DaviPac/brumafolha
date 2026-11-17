@@ -14,6 +14,7 @@ import { sfx } from "./audio.js";
 import { FX, PAL } from "./fx.js";
 import { openJournal, refreshJournal } from "./journal.js";
 import { refreshCombatHotbar } from "./combat.js";
+import * as A1 from "./act1.js";
 
 let E;
 const F = G.f; // story flags
@@ -31,6 +32,7 @@ export function init(engine) {
   G.hooks.partyDown = () => { if (G.combat) G.combat.someoneDown = true; hint("down"); };
   G.hooks.itemRead = itemRead;
   G.hooks.journalClosed = () => { const f = afterJournal; afterJournal = null; f?.(); };
+  A1.init({ E, F, cast, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint, refreshJournal });
 }
 
 // ---------------------------------------------------------------- little tools
@@ -98,14 +100,15 @@ const speaker = (name, specKey) => ({ name, portrait: portrait(buildCharacter(SP
 
 // ---------------------------------------------------------------- items
 const ITEMS = {
-  letter: { id: "letter", name: "Carta do Contrato", icon: "✉️", desc: "Selada com uma pena de sabiá. O lacre tem o desenho de uma torre.",
+  letter: { id: "letter", name: "Carta do Contrato", icon: "letter", desc: "Selada com uma pena de sabiá. O lacre tem o desenho de uma torre.",
     read: "<p><i>Ao portador desta:</i></p><p>sob as Ruínas de Velmoor, no vale de Brumafolha, dorme algo que não pode ser esquecido. Traga-o a Vau-de-Cardo, à taverna do Sabiá Cego, e receba trezentas peças.</p><p>Não abra o que encontrar. Não escute o que ele disser.</p><p class='sig'>— L.</p>" },
-  net: { id: "net", name: "Rede da Maren", icon: "🕸️", desc: "Uma rede de pesca remendada tantas vezes que já é mais remendo do que rede." },
-  chair: { id: "chair", name: "Cadeira do Otávio", icon: "🪑", desc: "Uma cadeira de balanço. No encosto, entalhado à faca, com um talho em forma de anzol: \"Para a Maren, do teu Otávio\"." },
+  net: { id: "net", name: "Rede da Maren", icon: "net", desc: "Uma rede de pesca remendada tantas vezes que já é mais remendo do que rede." },
+  chair: { id: "chair", name: "Cadeira do Otávio", icon: "chair", desc: "Uma cadeira de balanço. No encosto, entalhado à faca, com um talho em forma de anzol: \"Para a Maren, do teu Otávio\"." },
 };
 
 // ---------------------------------------------------------------- the cast, map by map
 export function populate(W) {
+  if (W.id === "vau" || W.id === "travessia") return A1.populate(W);
   const npc = (spec, def) => { const u = E.unit(spec, { team: "npc", maxHp: 6, ac: 10, ...def }); W.npcs.push(u); if (def.key) cast[def.key] = u; return u; };
   if (W.id === "vale") {
     const gob = (tx, ty, group, n, spec = "goblin", key) => {
@@ -169,6 +172,7 @@ export function populate(W) {
 
 // ---------------------------------------------------------------- the quest log
 export function quests({ all } = {}) {
+  if (F.act1) return A1.quests({ all });
   if (!F.awake) return G.W?.id === "sonho" ? [{ title: "Um sonho", objs: [["Siga a avenida até a luz", !!F.dream_done]] }] : [];
   const out = [];
   const o = [];
@@ -197,6 +201,28 @@ export function quests({ all } = {}) {
   return out;
 }
 const trimObjs = (o) => { const open = o.filter(([, d]) => !d); return open.length ? open : o.slice(-1); };
+
+/** Development: jump straight to a point in the story (see the ?dev= shortcut in main.js). */
+export function devJump(where, flags) {
+  for (const f of flags) { const [k, v] = f.split("="); F[k] = v ?? true; }
+  G.tutorial = false;
+  G.party = [G.hero, G.mate];
+  F.awake = true; F.dream_done = true;
+  if (where === "camp") E.loadMap("vale", 15, 38, 3);
+  E.partyChanged();
+  G.mode = "explore";
+  if (where === "ato1") {
+    // straight to Vau-de-Cardo, as if the prologue had ended with these flags (?dev=ato1&f=goblin_pact,maren_aboard,...)
+    F.echo ??= "accepted"; F.escape = F.escape_done = true;
+    if (F.echo === "accepted") G.hero.abilities.push("lampejo");
+    G.hero.glow = { r: 30, c: [160, 200, 255], a: 0.35, h: 18 };
+    for (const [id, text, origin] of [["dream", "A cidade branca do sonho, e a mulher de prata.", false], ["o1", "Quem me ensinou a ser quem eu sou: minha mãe, Ana.", true], ["o2", "O lugar que eu chamo de casa: a estrada.", true], ["sunset", "O pôr do sol no Lago Espelhado.", false]]) G.memories.push({ id, text, origin });
+    giveItem(ITEMS.letter);
+    if (!F.returned_heirloom && F.maren_aboard) giveItem(ITEMS.chair);
+    G.gold += 40;
+    A1.begin();
+  }
+}
 
 // ---------------------------------------------------------------- 6.1 the dream
 export async function start() {
@@ -261,6 +287,7 @@ async function campWake() {
   F.whiteK = 0;
   G.party = [G.hero, G.mate];
   E.loadMap("vale", 15, 38, 3);
+  G.clock = 5.9; G.clockTarget = null; // the last of the night: the fire is the light here until you leave it
   E.place(G.hero, 15, 38, 3);
   E.place(G.mate, 14, 37, 1);
   E.partyChanged();
@@ -351,6 +378,7 @@ async function deerTalk() {
 }
 
 export function onRest() {
+  if (F.act1) return A1.onRest();
   if (G.W.id !== "vale" || F.rested_story || !F.awake) return;
   F.rested_story = true;
   scene(async () => {
@@ -984,6 +1012,7 @@ async function cendraScene() {
 
 async function turnStart(u, C) {
   if (u.team === "party" && !u.ai) { hint("turn"); hint("actions"); if (u.abilities.some((k) => ["missiles", "heal", "healword", "mark"].includes(k))) hint("spells"); }
+  if (F.act1) return A1.turnStart(u, C);
   if (C.group !== relicGroup) return;
   if (C.round >= 3 && F.goblin_pact && !C.alliesIn) { C.alliesIn = true; await alliesArrive(C); }
   if (!F.echo && (C.round >= 4 || C.someoneDown)) await echoMoment();
@@ -1044,6 +1073,7 @@ export function onRetry() {
 
 export function onCombatEnd(group) {
   const W = G.W;
+  if (F.act1) return A1.onCombatEnd(group);
   if (group === W.groups.patrol) {
     G.groups.patrol.passive = true;
     setTimeout(() => scene(() => say(null, "O último goblin, caído, ainda agarra a rede: \"Não... a fumaça... precisa...\"")), 900);
@@ -1151,6 +1181,7 @@ async function escapeStart() {
     G.followers.forEach((u) => (u.hidden = false));
     E.loadMap("vale", 24, 12, 0);
     F.escape = true;
+    G.clock = 17.2; G.clockTarget = 17.9; // the afternoon is going
     G.speedCap = 70;
     G.musicOverride = "combat";
     esc.R = -48; esc.hold = 0; esc.fires = [];
@@ -1261,6 +1292,7 @@ async function boatEnding() {
   G.speedCap = null;
   G.musicOverride = "dream";
   G.tint = "rgba(255,120,50,0.2)"; // the sun going down over the lake
+  G.clockTarget = 19.4;
   boat.noReflect = true; // its reflection, with one passenger too many, is drawn by drawOver
   G.camFocus = { x: boat.x, y: boat.y, speed: 2 };
   esc.stop = false; esc.ending = true;
@@ -1330,17 +1362,19 @@ function endScreen() {
   ];
   const mems = G.memories.filter((m) => m.origin).map((m) => `<li>${m.text}</li>`).join("");
   const el = document.getElementById("endscreen");
-  el.innerHTML = `<div class="box"><h1>Fim do Prólogo</h1><h2>A Bruma de Brumafolha</h2>
+  el.innerHTML = `<div class="box fr fr-panel"><h1>Fim do Prólogo</h1><h2>A Bruma de Brumafolha</h2>
     <h3>O que o vale vai lembrar</h3><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("")}</dl>
     ${mems ? `<h3>Quem você é</h3><ul>${mems}</ul>` : ""}
     <p class="muted">Nível ${G.hero.level} · ${G.gold} peças de ouro</p>
-    <button onclick="location.reload()">Jogar de novo</button></div>`;
+    <div class="row"><button class="go" data-default id="toAct1">Continuar: Ato I</button><button class="quiet" onclick="location.reload()">Jogar de novo</button></div></div>`;
   el.classList.remove("hidden");
+  el.querySelector("#toAct1").onclick = () => A1.begin();
   UI.fade(0, 1200);
 }
 
 // ---------------------------------------------------------------- what's clickable, per map
 export function interactables() {
+  if (F.act1) return A1.interactables();
   const out = [];
   const W = G.W;
   const at = (tx, ty, name, act, extra = {}) => out.push({ x: tx * TILE + 16, y: ty * TILE + 26, name, r: 16, act, ...extra });
@@ -1385,6 +1419,7 @@ export function update(dt) {
   for (let i = timers.length - 1; i >= 0; i--) if ((timers[i].t -= dt) <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); }
   const W = G.W, l = lead();
   if (!l) return;
+  if (F.act1) return A1.update(dt);
   // a little life
   if (W.id === "vale") {
     const deer = E.obj("deer");
@@ -1407,11 +1442,13 @@ export function update(dt) {
   }
   if (W.id === "vale" && F.awake && !F.escape) {
     if (near(l, 13, 36, 3)) hint("rest");
+    // the sun comes up once you walk away from the fire, not while you are still talking beside it
+    if (!F.sunup && !near(l, 13, 36, 6.5)) { F.sunup = true; if (G.clock < 10 && G.clockTarget == null) G.clockTarget = 10; }
     // the patrol
     if (!F.patrol && !F.patrol_met && !F.patrol_cd && near(l, 22, 21, 7.5)) patrolScene();
     if (F.patrol_cd && !near(l, 22, 21, 9.5)) F.patrol_cd = false;
     // the ruins
-    if (ty <= 15 && tx >= 9 && tx <= 31) F.ruins_entered = true;
+    if (ty <= 15 && tx >= 9 && tx <= 31) { F.ruins_entered = true; G.clockTarget = 15; }
     if (!F.clan) {
       if (!F.breach_asked && tx >= 29 && tx <= 31 && ty >= 7 && ty <= 12) breachScene();
       else if (tx >= 13 && tx <= 27 && ty >= 4 && ty <= 13) gorzaScene(false);
@@ -1425,8 +1462,9 @@ export function update(dt) {
 }
 
 // ---------------------------------------------------------------- the Bruma, as a field the renderer samples
-export const hasFog = () => !!G.W && (G.W.id !== "relicario" || !!F.relic_collapse);
+export const hasFog = () => !!G.W && (F.act1 ? A1.hasFog() : G.W.id !== "relicario" || !!F.relic_collapse);
 export function fogAt(x, y) {
+  if (F.act1) return A1.fogAt(x, y);
   const W = G.W, l = lead();
   if (W.id === "sonho") {
     let m = 0;

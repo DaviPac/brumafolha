@@ -378,9 +378,13 @@ function startAmbience() {
 export function updateAmbience(lv, dt, time) {
   if (!ctx || !amb) return;
   const t = ctx.currentTime;
+  // the slow swells are set ten times a second, not every frame: each call is one more event on the parameter's timeline
+  if ((amb.acc = (amb.acc ?? 1) + dt) >= 0.1) {
+  amb.acc = 0;
   amb.wind.g.gain.setTargetAtTime(lv.wind * (0.05 + 0.03 * Math.sin(time * 0.31) + 0.02 * Math.sin(time * 0.83)), t, 0.4);
   amb.wind.b.frequency.setTargetAtTime(380 + 160 * Math.sin(time * 0.23) + (lv.ruins ? -120 : 0), t, 0.5);
   amb.water.g.gain.setTargetAtTime(lv.water * (0.09 + 0.06 * Math.max(0, Math.sin(time * 1.7))), t, 0.15);
+  }
   if (settings.muted) return;
   if (lv.fire > 0.02 && Math.random() < lv.fire * dt * 16) {
     noise(t, 0.012 + Math.random() * 0.03, lv.fire * (0.08 + Math.random() * 0.18), { type: "highpass", f: 1500 + Math.random() * 3000, out: ambBus });

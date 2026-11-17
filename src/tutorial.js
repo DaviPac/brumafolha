@@ -2,6 +2,8 @@
 // Turned on or off when the game starts, and from the pause menu.
 import { G } from "./state.js";
 import { sfx } from "./audio.js";
+import { icon } from "./art/icons.js";
+import { key, focusDefault } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
 
@@ -10,9 +12,9 @@ const HINTS = {
   interact: ["Interagir", "Pessoas e objetos com nome ao passar o mouse podem ser usados: <b>clique</b> neles, ou chegue perto e aperte <b>E</b>."],
   check: ["Testes de perícia", "Opções com <span class='chk'>[Perícia CD X]</span> pedem um teste: rola-se um <b>d20</b> e soma-se o bônus de quem do grupo é melhor naquela perícia. Igual ou acima da CD, sucesso. Um 20 natural sempre passa; um 1 sempre falha."],
   party: ["O grupo", "<b>Tab</b> (ou clicar no retrato à esquerda) troca quem você controla. Os outros seguem o líder."],
-  quest: ["Objetivos", "Os objetivos ficam no canto superior direito. O <b>Diário</b> (<b>J</b> ou 📖) guarda as missões e as lembranças."],
-  gear: ["Equipamento", "Armas, armaduras e escudos vão para a Bolsa. Abra a aba <b>⚔️ Equipamento</b> (tecla <b>I</b>) para vestir cada membro do grupo; a prévia mostra a CA e o ataque antes de trocar."],
-  bag: ["A Bolsa", "<b>I</b> (ou 🎒) abre a Bolsa. Itens com 📜 podem ser lidos: clique neles."],
+  quest: ["Objetivos", `Os objetivos ficam no canto superior direito. O <b>Diário</b> (<b>J</b> ou ${icon("book", "sm")}) guarda as missões e as lembranças.`],
+  gear: ["Equipamento", `Armas, armaduras e escudos vão para a Bolsa. Abra a aba ${icon("sword", "sm")} <b>Equipamento</b> (tecla <b>I</b>) para vestir cada membro do grupo; a prévia mostra a CA e o ataque antes de trocar.`],
+  bag: ["A Bolsa", `<b>I</b> (ou ${icon("bag", "sm")}) abre a Bolsa. Itens com ${icon("scroll", "sm")} podem ser lidos: clique neles.`],
   rest: ["Descansar", "Na fogueira do acampamento você faz um <b>descanso longo</b>: vida, magias e habilidades voltam. Só dá para descansar sem inimigos por perto."],
   approach: ["Abordagens", "Nem todo encontro precisa virar luta. Cada opção é um jeito diferente de resolver; o teste mostra quem rola e o bônus."],
   combat: ["Combate", "O combate é por turnos. A faixa no alto mostra a ordem de <b>iniciativa</b> (d20 + Destreza). O anel dourado marca de quem é a vez."],
@@ -25,6 +27,7 @@ const HINTS = {
   stealth: ["Furtividade", "Um teste de Furtividade bem-sucedido deixa você passar sem ser visto, ou começar uma luta com <b>rodada surpresa</b>."],
   lampejo: ["Lampejo de Velmoor", "Uma vez por descanso: depois de um teste que falhou, você pode <b>rolar o d20 de novo</b>. Em combate, ele está na barra e dá <b>vantagem</b> no próximo ataque do grupo."],
   escape: ["Corra!", "Siga a trilha marcada até o barco no cais. Não pare: a Bruma está logo atrás."],
+  light: ["Luz", "De noite, lanternas e fogueiras iluminam e fazem sombra. O menu (<b>Esc</b>) tem a luz em <b>desligada</b>, <b>baixa</b> ou <b>alta</b>, e a intensidade."],
   pause: ["Menu", "<b>Esc</b> ou <b>P</b> pausa o jogo e abre o volume de cada som. As dicas do tutorial também podem ser desligadas lá."],
 };
 
@@ -44,7 +47,7 @@ function next() {
   if (!showing) { el.classList.add("hidden"); return; }
   G.hintsSeen.add(showing);
   const [title, html] = HINTS[showing];
-  el.innerHTML = `<div class="ht">💡 ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi</button><button class="off">Desligar dicas</button></div>`;
+  el.innerHTML = `<div class="ht">${icon("bulb")} ${title}</div><div class="hb">${html}</div><div class="hf"><button class="ok">Entendi ${key("H", "Select")}</button><button class="off quiet">Desligar dicas</button></div>`;
   el.classList.remove("hidden");
   el.querySelector(".ok").onclick = () => { sfx.click(); next(); };
   el.querySelector(".off").onclick = () => { sfx.click(); setTutorial(false); };
@@ -63,6 +66,7 @@ export function askTutorial() {
   return new Promise((res) => {
     const el = $("#tutask");
     el.classList.remove("hidden");
+    focusDefault(el, true);
     const pick = (on) => { sfx.click(); el.classList.add("hidden"); setTutorial(on); res(on); };
     el.querySelector(".yes").onclick = () => pick(true);
     el.querySelector(".no").onclick = () => pick(false);

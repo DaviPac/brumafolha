@@ -5,7 +5,8 @@ import { TILE, roll, rollDie } from "./util.js";
 import { reachable, gridPath } from "./path.js";
 import { MW } from "./world.js";
 import { FX, PAL } from "./fx.js";
-import { floater, log, toast, updateParty, updateInitiative, buildHotbar, tooltip, banner } from "./ui.js";
+import { floater, log, toast, updateParty, updateInitiative, buildHotbar, tooltip, banner, tipHTML } from "./ui.js";
+import { icon } from "./art/icons.js";
 import { sfx } from "./audio.js";
 
 // waits that stand still while the game is paused, so a turn never plays out behind the menu
@@ -33,29 +34,29 @@ export function hitChance(att, def, bonus) {
 
 // ---------------------------------------------------------------- abilities
 export const ABILITIES = {
-  attack: { name: "Ataque", icon: "⚔️", cost: "action", range: 1, kind: "attack", desc: "Golpe corpo a corpo com a arma. Clique num inimigo adjacente." },
-  cleave: { name: "Golpe Giratório", icon: "🌀", cost: "action", range: 0, kind: "cleave", per: "combat", desc: "Gira a espada e atinge todos os inimigos adjacentes. 1x por combate." },
-  secondwind: { name: "Retomar Fôlego", icon: "💨", cost: "bonus", range: 0, kind: "self", per: "rest", desc: "Ação bônus: recupera 1d10 + nível PV. 1x por descanso." },
-  firebolt: { name: "Rajada de Fogo", icon: "🔥", cost: "action", range: 10, kind: "bolt", dmg: "1d10", pal: "fire", desc: "Truque: dispara uma bola de fogo. 1d10 de dano de fogo, alcance 10." },
-  missiles: { name: "Mísseis Mágicos", icon: "✨", cost: "action", range: 10, kind: "missiles", slot: true, desc: "Magia de 1º círculo: três dardos que nunca erram, 1d4+1 cada." },
-  heal: { name: "Curar Ferimentos", icon: "💚", cost: "action", range: 6, kind: "heal", slot: true, heal: "1d8", desc: "Magia de 1º círculo: um aliado recupera 1d8+3 PV." },
-  shoot: { name: "Disparar", icon: "🏹", cost: "action", range: 10, kind: "shoot", desc: "Ataque à distância com o arco." },
-  sacredflame: { name: "Chama Sagrada", icon: "☀️", cost: "action", range: 8, kind: "bolt", dmg: "1d8", pal: "holy", desc: "Truque: luz radiante desce sobre um inimigo. 1d8 de dano, alcance 8." },
-  healword: { name: "Palavra Curativa", icon: "🕊️", cost: "bonus", range: 6, kind: "heal", slot: true, heal: "1d4", desc: "Ação bônus, magia de 1º círculo: um aliado à distância recupera 1d4 + SAB PV." },
-  cunning: { name: "Ação Ardilosa", icon: "👟", cost: "bonus", range: 0, kind: "dash", desc: "Ação bônus: dispara e ganha movimento extra igual ao seu deslocamento." },
-  mark: { name: "Marca do Caçador", icon: "🎯", cost: "bonus", range: 12, kind: "mark", slot: true, desc: "Ação bônus, magia: marca um inimigo; seus ataques com arma nele causam +1d6." },
-  potion: { name: "Poção de Cura", icon: "🧪", cost: "bonus", range: 1, kind: "potion", desc: "Ação bônus: você ou um aliado adjacente bebe e recupera 2d4+2 PV." },
-  rage: { name: "Fúria", icon: "😤", cost: "bonus", range: 0, kind: "rage", per: "combat", desc: "Ação bônus: até o fim do combate, +2 de dano corpo a corpo e metade do dano de armas. 1x por combate." },
-  smite: { name: "Golpe Divino", icon: "⚡", cost: "bonus", range: 0, kind: "smite", slot: true, desc: "Ação bônus, gasta um espaço: o próximo acerto corpo a corpo causa +2d8 de dano radiante." },
-  layhands: { name: "Cura pelas Mãos", icon: "🤲", cost: "action", range: 1, kind: "layhands", per: "rest", desc: "Toque num aliado adjacente (ou em você): cura 5 × nível PV. 1x por descanso." },
-  mockery: { name: "Zombaria Viciosa", icon: "🎭", cost: "action", range: 8, kind: "bolt", dmg: "1d4", pal: "arcane", effect: "mock", desc: "Truque: um insulto com magia. 1d4 de dano psíquico, e o próximo ataque do alvo leva −5." },
-  inspire: { name: "Inspiração de Bardo", icon: "🎵", cost: "bonus", range: 8, kind: "inspire", per: "combat", desc: "Ação bônus: um aliado soma 1d6 ao próximo ataque. 1x por combate." },
-  eldritch: { name: "Rajada Mística", icon: "🔮", cost: "action", range: 12, kind: "bolt", dmg: "1d10", pal: "arcane", desc: "Truque: um raio de força crepitante. 1d10 de dano, alcance 12." },
-  hex: { name: "Maldição", icon: "👁️", cost: "bonus", range: 12, kind: "mark", slot: true, desc: "Ação bônus, magia: amaldiçoa um inimigo; todos os seus ataques nele, magias também, causam +1d6." },
-  produceflame: { name: "Criar Chama", icon: "🔥", cost: "action", range: 6, kind: "bolt", dmg: "1d8", pal: "fire", desc: "Truque: uma chama na palma da mão, arremessada. 1d8 de dano de fogo, alcance 6." },
-  entangle: { name: "Constrição", icon: "🌿", cost: "action", range: 8, kind: "entangle", slot: true, desc: "Magia: raízes agarram um inimigo. Ele rola d20 + bônus contra a CD das suas magias; se falhar, perde o próximo turno." },
-  flurry: { name: "Rajada de Golpes", icon: "👊", cost: "bonus", range: 1, kind: "flurry", desc: "Ação bônus, depois de atacar neste turno: dois golpes desarmados rápidos num inimigo adjacente." },
-  lampejo: { name: "Lampejo de Velmoor", icon: "🍃", cost: "free", range: 0, kind: "flash", per: "rest", desc: "Sem custo de ação: o próximo ataque do grupo rola o d20 duas vezes e fica com o melhor. 1x por descanso (o mesmo Lampejo que rerola testes)." },
+  attack: { name: "Ataque", icon: "sword", cost: "action", range: 1, kind: "attack", desc: "Golpe corpo a corpo com a arma. Clique num inimigo adjacente." },
+  cleave: { name: "Golpe Giratório", icon: "cleave", cost: "action", range: 0, kind: "cleave", per: "combat", desc: "Gira a espada e atinge todos os inimigos adjacentes. 1x por combate." },
+  secondwind: { name: "Retomar Fôlego", icon: "wind", cost: "bonus", range: 0, kind: "self", per: "rest", desc: "Ação bônus: recupera 1d10 + nível PV. 1x por descanso." },
+  firebolt: { name: "Rajada de Fogo", icon: "flame", cost: "action", range: 10, kind: "bolt", dmg: "1d10", pal: "fire", desc: "Truque: dispara uma bola de fogo. 1d10 de dano de fogo, alcance 10." },
+  missiles: { name: "Mísseis Mágicos", icon: "missiles", cost: "action", range: 10, kind: "missiles", slot: true, desc: "Magia de 1º círculo: três dardos que nunca erram, 1d4+1 cada." },
+  heal: { name: "Curar Ferimentos", icon: "heart", cost: "action", range: 6, kind: "heal", slot: true, heal: "1d8", desc: "Magia de 1º círculo: um aliado recupera 1d8+3 PV." },
+  shoot: { name: "Disparar", icon: "bow", cost: "action", range: 10, kind: "shoot", desc: "Ataque à distância com o arco." },
+  sacredflame: { name: "Chama Sagrada", icon: "sun", cost: "action", range: 8, kind: "bolt", dmg: "1d8", pal: "holy", desc: "Truque: luz radiante desce sobre um inimigo. 1d8 de dano, alcance 8." },
+  healword: { name: "Palavra Curativa", icon: "word", cost: "bonus", range: 6, kind: "heal", slot: true, heal: "1d4", desc: "Ação bônus, magia de 1º círculo: um aliado à distância recupera 1d4 + SAB PV." },
+  cunning: { name: "Ação Ardilosa", icon: "boot", cost: "bonus", range: 0, kind: "dash", desc: "Ação bônus: dispara e ganha movimento extra igual ao seu deslocamento." },
+  mark: { name: "Marca do Caçador", icon: "target", cost: "bonus", range: 12, kind: "mark", slot: true, desc: "Ação bônus, magia: marca um inimigo; seus ataques com arma nele causam +1d6." },
+  potion: { name: "Poção de Cura", icon: "potion", cost: "bonus", range: 1, kind: "potion", desc: "Ação bônus: você ou um aliado adjacente bebe e recupera 2d4+2 PV." },
+  rage: { name: "Fúria", icon: "rage", cost: "bonus", range: 0, kind: "rage", per: "combat", desc: "Ação bônus: até o fim do combate, +2 de dano corpo a corpo e metade do dano de armas. 1x por combate." },
+  smite: { name: "Golpe Divino", icon: "bolt", cost: "bonus", range: 0, kind: "smite", slot: true, desc: "Ação bônus, gasta um espaço: o próximo acerto corpo a corpo causa +2d8 de dano radiante." },
+  layhands: { name: "Cura pelas Mãos", icon: "hand", cost: "action", range: 1, kind: "layhands", per: "rest", desc: "Toque num aliado adjacente (ou em você): cura 5 × nível PV. 1x por descanso." },
+  mockery: { name: "Zombaria Viciosa", icon: "mask", cost: "action", range: 8, kind: "bolt", dmg: "1d4", pal: "arcane", effect: "mock", desc: "Truque: um insulto com magia. 1d4 de dano psíquico, e o próximo ataque do alvo leva −5." },
+  inspire: { name: "Inspiração de Bardo", icon: "note", cost: "bonus", range: 8, kind: "inspire", per: "combat", desc: "Ação bônus: um aliado soma 1d6 ao próximo ataque. 1x por combate." },
+  eldritch: { name: "Rajada Mística", icon: "orb", cost: "action", range: 12, kind: "bolt", dmg: "1d10", pal: "arcane", desc: "Truque: um raio de força crepitante. 1d10 de dano, alcance 12." },
+  hex: { name: "Maldição", icon: "eye", cost: "bonus", range: 12, kind: "mark", slot: true, desc: "Ação bônus, magia: amaldiçoa um inimigo; todos os seus ataques nele, magias também, causam +1d6." },
+  produceflame: { name: "Criar Chama", icon: "palmflame", cost: "action", range: 6, kind: "bolt", dmg: "1d8", pal: "fire", desc: "Truque: uma chama na palma da mão, arremessada. 1d8 de dano de fogo, alcance 6." },
+  entangle: { name: "Constrição", icon: "vine", cost: "action", range: 8, kind: "entangle", slot: true, desc: "Magia: raízes agarram um inimigo. Ele rola d20 + bônus contra a CD das suas magias; se falhar, perde o próximo turno." },
+  flurry: { name: "Rajada de Golpes", icon: "fist", cost: "bonus", range: 1, kind: "flurry", desc: "Ação bônus, depois de atacar neste turno: dois golpes desarmados rápidos num inimigo adjacente." },
+  lampejo: { name: "Lampejo de Velmoor", icon: "leaf", cost: "free", range: 0, kind: "flash", per: "rest", desc: "Sem custo de ação: o próximo ataque do grupo rola o d20 duas vezes e fica com o melhor. 1x por descanso (o mesmo Lampejo que rerola testes)." },
 };
 
 /** An ability as this unit has it (the bow's range and damage come from the unit). */
@@ -80,6 +81,17 @@ function canUse(u, ab) {
   if (ab.kind === "potion" && G.potions <= 0) return false;
   if (ab.kind === "flurry" && !u.attackedThisTurn) return false;
   return true;
+}
+
+function whyNot(u, ab) {
+  if (ab.cost === "action" && !u.action) return "Você já usou a ação deste turno.";
+  if (ab.cost === "bonus" && !u.bonus) return "Você já usou a ação bônus deste turno.";
+  if (ab.per === "combat" && u.used[ab.key]) return "Já usado neste combate.";
+  if (ab.per === "rest" && u.restUsed[ab.key]) return "Só volta depois de um descanso.";
+  if (ab.slot && u.slots <= 0) return "Sem espaços de magia.";
+  if (ab.kind === "potion" && G.potions <= 0) return "Sem poções.";
+  if (ab.kind === "flurry" && !u.attackedThisTurn) return "Ataque primeiro neste turno.";
+  return "";
 }
 
 // ---------------------------------------------------------------- start / end
@@ -198,13 +210,15 @@ export function refreshCombatHotbar() {
   const entries = abilitiesOf(u).map((ab) => ({
     ...ab,
     off: !canUse(u, ab) || C.busy,
+    why: whyNot(u, ab),
+    dmg: ab.dmg ?? (ab.kind === "attack" || ab.kind === "cleave" ? u.dmg : ab.kind === "shoot" ? u.bow?.dmg : null),
     sel: C.ability === ab.key,
     count: ab.slot ? u.slots : ab.kind === "potion" ? G.potions : null,
     use: () => selectAbility(ab.key),
   }));
-  const pip = (on, c) => `<span class="pip ${on ? "on" : ""} ${c}"></span>`;
-  buildHotbar(entries, `<div class="econ"><div>${pip(u.action, "a")}Ação</div><div>${pip(u.bonus, "b")}Bônus</div><div>${pip(u.moveLeft > 0, "m")}Movimento ${u.moveLeft}</div></div><button id="endturn">Fim do turno</button>`);
-  document.querySelector("#endturn").onclick = (e) => { e.stopPropagation(); endTurn(); };
+  const pip = (on, ic, label) => `<div class="${on ? "on" : ""}">${icon(ic)} ${label}</div>`;
+  buildHotbar(entries, { who: u, sub: `PV ${u.hp}/${u.maxHp}${u.maxSlots ? ` · magias ${u.slots}/${u.maxSlots}` : ""}`,
+    econ: `<div class="econ">${pip(u.action, "action", "Ação")}${pip(u.bonus, "bonus", "Bônus")}${pip(u.moveLeft > 0, "move", `Mover ${u.moveLeft}`)}</div>`, end: "Fim do turno", onEnd: endTurn });
 }
 
 export function selectAbility(key) {
@@ -239,17 +253,20 @@ export function combatHover(tx, ty) {
       let note = "";
       if (!inRange && ab.kind === "attack") {
         const app = approachTile(u, target);
-        note = app ? `<br>vai até ele (${app.path.length} de movimento)` : "<br><span style='color:#ff8a7a'>longe demais</span>";
+        note = app ? `<br>vai até ele (${app.path.length} de movimento)` : '<br><span class="bad">longe demais</span>';
         if (app) C.preview = { path: app.path };
-      } else if (!inRange) note = "<br><span style='color:#ff8a7a'>fora de alcance</span>";
-      tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">${pct}%</span> de acerto · ${ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg} dano${u.marked === target ? " +1d6 (marca)" : ""}<br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}${note}`);
-    } else if (ab.kind === "missiles") tooltip(`<b>${ab.name}</b> → ${target.name}<br><span class="pct">100%</span> · 3×(1d4+1)${d > ab.range ? "<br>fora de alcance" : ""}`);
-    else if (ab.kind === "mark") tooltip(`<b>${ab.name}</b> → ${target.name}<br>+1d6 nos seus ataques com arma${d > ab.range ? "<br>fora de alcance" : ""}`);
-    else if (friendly) tooltip(`<b>${ab.name}</b> → ${target.name}<br>PV ${target.hp}/${target.maxHp}${d > ab.range ? "<br>fora de alcance" : ""}`);
-    else tooltip(`<b>${ab.name}</b> → ${target.name}${d > ab.range ? "<br><span style='color:#ff8a7a'>fora de alcance</span>" : ""}`);
+      } else if (!inRange) note = '<br><span class="bad">fora de alcance</span>';
+      const dmg = ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg;
+      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows: [["Acerto", `<span class="pct">${pct}%</span>`], ["Dano", `${dmg}${u.marked === target ? " +1d6" : ""}`], ["Alvo", `PV ${target.hp}/${target.maxHp} · CA ${target.ac}`]], foot: note.replace(/^<br>/, "") || null }));
+    } else {
+      const far = d > ab.range ? `<span class="bad">fora de alcance</span>` : null;
+      const rows = ab.kind === "missiles" ? [["Acerto", `<span class="pct">100%</span>`], ["Dano", "3 × (1d4+1)"]] : ab.kind === "mark" ? [["Efeito", "+1d6 nos seus ataques"]] : [["Alvo", `PV ${target.hp}/${target.maxHp}`]];
+      tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows, foot: far }));
+    }
     return;
   }
-  tooltip(target ? `<b>${target.name}</b><br>PV ${target.hp}/${target.maxHp} · CA ${target.ac}` : null);
+  tooltip(target ? tipHTML({ icon: target.team === "enemy" ? "skull" : "hp", title: target.name, sub: target.team === "enemy" ? "hostil" : "aliado",
+    body: `<div class="hpbar"><i style="width:${(100 * target.hp) / target.maxHp}%"></i></div>`, rows: [["PV", `${target.hp}/${target.maxHp}`], ["CA", target.ac]] }) : null);
   if (C.ability) return;
   const [ux, uy] = tileOf(u);
   const reach = reachable(blockedFor(u), ux, uy, u.moveLeft);

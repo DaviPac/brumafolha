@@ -1,12 +1,14 @@
 // The Diário: the bag (items you can read), the quests with their notes, and the Diário de Lembranças.
 // Opening it pauses the game.
 import { G } from "./state.js";
+import { icon } from "./art/icons.js";
+import { key, focusDefault } from "./input.js";
 import { sfx } from "./audio.js";
 import { derive, weaponProficient, armorAllowed, shieldAllowed, signed } from "./rules.js";
 import { WEAPONS, ARMORS, SHIELDS, ARMOR_CAT_NAMES, itemDef, weaponLine } from "./items.js";
 
 const $ = (s) => document.querySelector(s);
-const TABS = [["bag", "🎒 Bolsa"], ["gear", "⚔️ Equipamento"], ["quests", "📖 Missões"], ["memories", "🍃 Lembranças"]];
+const TABS = [["bag", "bag", "Bolsa"], ["gear", "sword", "Equipamento"], ["quests", "book", "Missões"], ["memories", "leaf", "Lembranças"]];
 let tab = "bag", open = false, reading = null, who = 0, err = "";
 
 export const journalOpen = () => open;
@@ -31,7 +33,7 @@ export const toggleJournal = (t) => (open && (t === tab || !t) ? closeJournal() 
 
 function render() {
   const el = $("#journal");
-  el.innerHTML = `<div class="box"><nav>${TABS.map(([k, l]) => `<button data-t="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}<button class="x" title="Fechar (Esc)">✕</button></nav><div class="page"></div></div>`;
+  el.innerHTML = `<div class="box fr fr-panel"><nav><span class="hintkeys">${key("Q", "LB")}</span>${TABS.map(([k, i, l]) => `<button data-t="${k}" class="${k === tab ? "on" : ""}" ${k === tab ? "data-default" : ""}>${icon(i)} ${l}</button>`).join("")}<span class="hintkeys">${key("E", "RB")}</span><button class="x" title="Fechar (Esc)">${icon("close")}</button></nav><div class="page"></div></div>`;
   el.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => { tab = b.dataset.t; reading = null; sfx.click(); render(); }));
   el.querySelector(".x").onclick = closeJournal;
   const page = el.querySelector(".page");
@@ -46,17 +48,19 @@ function render() {
     G.hooks.itemRead?.(it);
   }));
   page.querySelector(".back")?.addEventListener("click", () => { reading = null; render(); });
+  page.querySelectorAll(".item.readable, .mems li.pick").forEach((b) => { b.tabIndex = 0; b.onkeydown = (e) => { if (e.key === "Enter") b.click(); }; });
+  focusDefault(el, true);
 }
 
 function bagPage() {
   if (reading) {
     const it = G.items.find((i) => i.id === reading);
-    return `<div class="reader"><h2>${it.icon} ${it.name}</h2><div class="paper">${it.read}</div><button class="back">← Voltar</button></div>`;
+    return `<div class="reader"><h2>${icon(it.icon)} ${it.name}</h2><div class="paper fr fr-paper">${it.read}</div><button class="back" data-default>${icon("left", "sm")} Voltar</button></div>`;
   }
   const rows = [
-    `<div class="item"><span class="ic">🪙</span><div><b>Ouro</b><p>${G.gold} peças.</p></div></div>`,
-    `<div class="item"><span class="ic">🧪</span><div><b>Poção de Cura</b> ×${G.potions}<p>Recupera 2d4+2 PV. Em combate, gasta a ação bônus.</p></div></div>`,
-    ...G.items.map((it) => `<div class="item ${it.read ? "readable" : ""}" data-item="${it.id}"><span class="ic">${it.icon}</span><div><b>${it.name}</b>${it.read ? ' <span class="tag">📜 ler</span>' : it.gear ? ' <span class="tag">⚔️ equipável</span>' : ""}<p>${it.gear ? gearLine(it) + " — " : ""}${it.desc}</p></div></div>`),
+    `<div class="item"><span class="ic">${icon("coin")}</span><div><b>Ouro</b><p>${G.gold} peças.</p></div></div>`,
+    `<div class="item"><span class="ic">${icon("potion")}</span><div><b>Poção de Cura</b> ×${G.potions}<p>Recupera 2d4+2 PV. Em combate, gasta a ação bônus.</p></div></div>`,
+    ...G.items.map((it) => `<div class="item ${it.read ? "readable" : ""}" data-item="${it.id}"><span class="ic">${icon(it.icon)}</span><div><b>${it.name}</b>${it.read ? ` <span class="tag">${icon("scroll", "sm")} ler</span>` : it.gear ? ` <span class="tag">${icon("sword", "sm")} equipável</span>` : ""}<p>${it.gear ? gearLine(it) + " — " : ""}${it.desc}</p></div></div>`),
   ];
   return `<h2>Bolsa</h2><div class="items">${rows.join("")}</div>`;
 }
@@ -103,8 +107,8 @@ function gearPage() {
     if (nd.move !== d.move) diff.push(`movimento ${d.move} → <b class="${nd.move > d.move ? "up" : "down"}">${nd.move}</b>`);
     const warn = nd.notes.filter((n) => !d.notes.includes(n));
     if (slot === "main" && !weaponProficient(u.build.cls, it.key)) warn.push("sem proficiência: sem +2 para acertar");
-    return `<div class="item gear"><span class="ic">${it.icon}</span><div><b>${it.name}</b> <small>${gearLine(it)}</small><p>${it.desc}</p>
-      ${diff.length ? `<p class="diff">${diff.join(" · ")}</p>` : ""}${warn.map((w) => `<p class="warn">⚠ ${w}</p>`).join("")}</div>
+    return `<div class="item gear"><span class="ic">${icon(it.icon)}</span><div><b>${it.name}</b> <small>${gearLine(it)}</small><p>${it.desc}</p>
+      ${diff.length ? `<p class="diff">${diff.join(" · ")}</p>` : ""}${warn.map((w) => `<p class="warn">${icon("warn", "sm")} ${w}</p>`).join("")}</div>
       <button data-equip="${it.id}" ${why ? `disabled title="${why}"` : ""}>${why ? why : "Equipar"}</button></div>`;
   });
   return `<h2>Equipamento</h2>
@@ -113,7 +117,7 @@ function gearPage() {
     <div class="gearsheet"><div class="doll"></div><div>
       <div class="gstats">${stat("CA", `${d.ac}`)}${stat("Ataque", `${signed(d.atk)} · ${d.dmg}`)}${stat("Distância", d.bow ? `${signed(d.bow.atk)} · ${d.bow.dmg}` : "—")}${stat("Movimento", d.move)}</div>
       <p class="muted small">${d.acNote}${d.reach > 1 ? " · ataca a 2 casas" : ""}</p>
-      ${d.notes.map((n) => `<p class="warn">⚠ ${n}</p>`).join("")}
+      ${d.notes.map((n) => `<p class="warn">${icon("warn", "sm")} ${n}</p>`).join("")}
       <div class="gslots">${SLOTS.map(([k, l]) => { const key = u.equip[k], empty = !key || key === "roupas" || key === "punhos";
         return `<div class="gslot"><span>${l}</span><b>${slotName(k, key)}</b>${empty ? "" : `<button data-unequip="${k}">Tirar</button>`}</div>`; }).join("")}</div>
     </div></div>

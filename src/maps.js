@@ -56,6 +56,7 @@ export function buildDream() {
   const walk = { t: T.MARBLE, walk: true };
   const W = gridWorld("sonho", DREAM, { "#": { t: T.MIST }, "2": { t: T.ROOF }, "~": walk, o: walk, C: walk, L: walk, ".": { t: T.MIST } });
   W.zone = "Velmoor sonhada";
+  W.amb = { level: 0, tint: [1, 1, 1], tintK: 0, gain: 0.4 }; // a sky without a sun: no hour, no shade
   W.floorRamp = IRAMP.warm;
   // a skyline: a tower on every roof tile, taller towards the back
   for (const [x, y] of W.marks["2"]) {
@@ -109,6 +110,7 @@ export function buildRelic() {
     B: floor, "0": solidFloor, P: solidFloor, S: solidFloor, D: solidFloor, E: { t: T.STAIRS, walk: true },
   });
   W.zone = "Relicário de Velmoor";
+  W.amb = { level: -1, tint: [0.8, 0.9, 1.14], tintK: 0.6, gain: 1 }; // a cold light without a source
   W.floorRamp = IRAMP.marble;
   for (const [x, y] of W.marks["0"]) W.objects.push({ kind: "rpillar", x: x * TILE + 16, y: y * TILE + 28, h: 4, seed: 300 + x * 3 + y });
   return W;

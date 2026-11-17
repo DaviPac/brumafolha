@@ -3,6 +3,8 @@ import { G, lead, living } from "./state.js";
 import { TILE, makeCanvas, hash2, Rng, dist, clamp, vnoise } from "./util.js";
 import { buildWorld, MW, MH, zoneAt, T, waterField } from "./world.js";
 import { buildDream, buildRelic } from "./maps.js";
+import { buildVau, buildTravessia } from "./maps1.js";
+import * as TW from "./art/town.js";
 import { paintGround, waterSparkles, PAL as GPAL } from "./art/ground.js";
 import * as A from "./art/props.js";
 import * as I from "./art/interiors.js";
@@ -13,17 +15,24 @@ import * as UI from "./ui.js";
 import { openDialogue, dialogueKey } from "./dialogue.js";
 import { initAudio, playMusic, updateAmbience, sfx, settings as audioSet, toggleMute, setMuted, setVolume, previewSound, SOUND_GROUPS } from "./audio.js";
 import { openCreator } from "./creator.js";
-import { CLASSES, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
+import { CLASSES, newBuild, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
 import { WEAPONS, ARMORS, gearItem } from "./items.js";
 import { startCombat, combatClick, combatHover, endTurn, selectAbility, abilitiesOf, abilityOf, tileOf, tileCenter, blockedFor, refreshCombatHotbar } from "./combat.js";
 import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
+import { icon, installIcons } from "./art/icons.js";
+import { installFont } from "./art/font.js";
+import { installFrames } from "./art/frames.js";
+import { Input, pollInput, key, focusDefault, activeLayer } from "./input.js";
+import { diceReroll } from "./dialogue.js";
+import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
+import * as RULES from "./rules.js";
 import { P as PV, frame as pvFrame, project, unproject, rowToFlat, mouseRel, setPersp } from "./persp.js";
 
 const canvas = document.getElementById("game");
-const mainCtx = canvas.getContext("2d");
-let ctx = mainCtx; // swapped for an offscreen layer while the 3D view paints the flat ground
+const screen = canvas.getContext("2d");
+let ctx = screen; // where the drawing functions paint: the screen, or one of the lit renderer's layers
 let mist, vignette, fgLeft, fgRight, fogC, fogX, reflA, reflB;
 const art = new Map();
 const shadows = new Map();
@@ -35,10 +44,20 @@ const nextFrame = () => new Promise((r) => setTimeout(r, 16));
 // ---------------------------------------------------------------- boot
 async function boot() {
   const t0 = performance.now();
+  installIcons();
+  installFrames();
+  await installFont();
+  resize();
+  document.getElementById("titleHelp").innerHTML = `
+    <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
+    <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
+    <li>${key("I", "Select")} Bolsa · ${key("J", "Y")} Diário · ${key("Esc", "Start")} opções</li>`;
+  for (const el of document.querySelectorAll("[data-icon]")) el.innerHTML = icon(el.dataset.icon);
   for (let v = 0; v < 6; v++) grassArt.push(A.makeTallGrass(v));
   mist = makeMist();
   fgLeft = silhouette(11); fgRight = silhouette(29);
   G.fx = new FxLayer();
+  if (initLight(document.getElementById("gl"))) setRamps(collectRamps([GPAL, A.RAMP, I.IRAMP, SPECS, RULES, ARMORS]));
   spawnCompanions();
   S.init(E);
   for (const id of ["vale", "sonho", "relicario"]) { buildMap(id); await nextFrame(); }
@@ -51,7 +70,19 @@ async function boot() {
   const btn = document.getElementById("start");
   btn.classList.remove("hidden");
   btn.onclick = create;
+  focusDefault();
   requestAnimationFrame(loop);
+  // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
+  const q = new URLSearchParams(location.search);
+  if (q.get("dev")) {
+    initAudio();
+    document.getElementById("title").classList.add("hidden");
+    const b = newBuild(q.get("race") ?? "humano", q.get("cls") ?? "guerreiro");
+    if (!b.name) b.name = "Teste";
+    recruit(b);
+    setupMenu();
+    S.devJump(q.get("dev"), (q.get("f") ?? "").split(",").filter(Boolean));
+  }
 }
 
 function create() {
@@ -83,14 +114,16 @@ function begin() {
 
 // ---------------------------------------------------------------- the maps
 function buildMap(id) {
-  const W = id === "vale" ? buildWorld() : id === "sonho" ? buildDream() : buildRelic();
+  if (maps[id]) return maps[id];
+  const W = { vale: buildWorld, sonho: buildDream, relicario: buildRelic, vau: buildVau, travessia: buildTravessia }[id]();
+  if (id === "vale") W.outdoor = true;
   const g = document.createElement("canvas");
   g.width = W.w * TILE; g.height = W.h * TILE;
-  const img = id === "vale" ? paintGround(W) : I.paintInterior(W, T);
+  const img = id === "vale" ? paintGround(W) : W.outdoor ? TW.paintOutdoor(W, T) : I.paintInterior(W, T);
   g.getContext("2d").putImageData(img, 0, 0);
   W.ground = g;
-  if (id === "vale") W.waterMask = waterMask(img);
-  W.sparkles = id === "vale" ? waterSparkles(W) : [];
+  if (W.outdoor) W.waterMask = waterMask(img);
+  W.sparkles = id === "vale" ? waterSparkles(W) : W.outdoor ? TW.outdoorSparkles(W, T) : [];
   W.enemies = []; W.npcs = []; W.chests = []; W.groups = {};
   S.populate(W);
   for (const o of W.objects) o.art = propArt(o);
@@ -141,6 +174,8 @@ function makeCritters(W) {
       const x = inR ? R.range(10, 30) * TILE : R.range(32, 76) * TILE, y = inR ? R.range(3, 14) * TILE : R.range(17, 37) * TILE;
       out.push({ kind: "ff", x, y, ph: R.range(0, 9), r: R.range(8, 30), sp: R.range(0.15, 0.4) });
     }
+  } else if (W.outdoor) {
+    for (let i = 0; i < 40; i++) out.push({ kind: "ff", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(8, 30), sp: R.range(0.15, 0.4) });
   } else {
     // slow pale motes of light
     for (let i = 0; i < 50; i++) out.push({ kind: "mote", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(10, 40), sp: R.range(0.08, 0.2) });
@@ -166,6 +201,13 @@ function propArt(o) {
     case "trapdoor": return key(`trapdoor${o.open ? 1 : 0}`);
     case "relief": return o.spec ? key(`relief-${o.who}-${o.blank ? 0 : 1}-${o.v ?? 0}`) : null;
     case "deer": return key(`deer${o.frame ?? 0}`);
+    case "palisade": return key(`palisade${o.seed % 6}`);
+    case "house": return key(`house${o.w}-${o.seed}-${JSON.stringify(o.opts)}`);
+    case "stall": return key(`stall${o.color}-${o.seed}`);
+    case "table": return key(`table${o.seed}`);
+    case "cart": return key(`cart${o.wrecked ? 1 : 0}`);
+    case "board": return key(`board${o.wanted === false ? 0 : 1}`);
+    case "strongbox": return key(`strongbox${o.open ? 1 : 0}`);
     default: return key(o.kind);
   }
 }
@@ -201,6 +243,18 @@ function makeArt(o) {
     case "loot": return I.makeLoot();
     case "trapdoor": return I.makeTrapdoor(o.open);
     case "marker": return I.makeMarker();
+    case "palisade": return TW.makePalisade(o.seed % 6);
+    case "house": return TW.makeHouse(o.w, o.seed, o.opts);
+    case "stall": return TW.makeStall(o.color, o.seed);
+    case "lamp": return TW.makeLamp();
+    case "well": return TW.makeWell();
+    case "table": return TW.makeTable(o.seed);
+    case "sign": return TW.makeSign();
+    case "board": return TW.makeBoard(o.wanted !== false);
+    case "cart": return TW.makeCart(!!o.wrecked);
+    case "shrine": return TW.makeShrine();
+    case "strongbox": return TW.makeStrongbox(!!o.open);
+    case "satchel": return TW.makeSatchel();
   }
 }
 const shadowOf = (r) => { r = Math.round(r); if (!shadows.has(r)) shadows.set(r, A.makeShadow(r)); return shadows.get(r); };
@@ -285,6 +339,7 @@ function spawnCompanions() {
 function regear(u, look = true) {
   const keep = u.abilities.filter((k) => k === "lampejo");
   Object.assign(u, combatStats(u.build, u.equip, undefined, u.bonusAtk ?? 0));
+  if (u.ecoEyes) for (const s of ["Percepção", "Intuição", "Investigação"]) u.skills[s] = (u.skills[s] ?? 0) + 2; // a gift of the Echo
   u.abilities.push(...keep);
   if (u.maxSlots) { u.maxSlots += u.slotBonus ?? 0; u.slots = Math.min(u.slots ?? u.maxSlots, u.maxSlots); }
   if (look) { u.spec = specOf(u.build, u.equip); u.ch = buildCharacter(u.spec); u.portrait = portrait(u.ch); }
@@ -323,7 +378,9 @@ const sleep = (ms) => new Promise((r) => {
   setTimeout(tick, Math.min(ms, 50));
 });
 const E = {
-  unit, loadMap, sleep, tileCenter, tileOf, propArt,
+  unit, loadMap, sleep, tileCenter, tileOf, propArt, buildMap,
+  /** A party-grade character built by the creator's rules (Kael, Lyra, Nix), wherever the story needs them. */
+  companion(b, key, extra = {}) { const u = unit(specOf(b), { ...heroDef(b, key), ...extra }); u.spec = specOf(b); u.hp = u.maxHp; u.slots = u.maxSlots ?? 0; return u; },
   map: (id) => maps[id],
   obj: (id, W = G.W) => W.objects.find((o) => o.id === id),
   refresh: (o) => { o.art = propArt(o); },
@@ -346,7 +403,7 @@ const E = {
 };
 
 // ---------------------------------------------------------------- hooks used by other modules
-G.hooks.focus = (u) => { G.focus = u; };
+G.hooks.focus = (u) => { G.focus = u; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
 G.hooks.afterDialogue = () => exploreHotbar();
 G.hooks.hint = hint;
 G.hooks.gainXp = (p, xp) => {
@@ -379,11 +436,13 @@ G.hooks.gameOver = () => {
   playMusic(null, 0.6); sfx.defeat();
   const d = document.createElement("div");
   d.id = "gameover";
-  d.innerHTML = `<div style="text-align:center"><h1 style="font-size:54px;color:#ff6a5a;margin:0">O grupo caiu</h1><p style="color:#a89c86">As brumas do vale guardam mais um segredo.</p>
-    ${checkpoint ? '<button id="retry">Tentar a luta de novo</button> ' : ""}<button id="restart">Recomeçar do início</button></div>`;
+  d.className = "dim";
+  d.innerHTML = `<div class="fr fr-panel" style="padding:6rem 16rem 10rem"><h1>O grupo caiu</h1><p>As brumas guardam mais um segredo.</p>
+    ${checkpoint ? '<button id="retry" class="go" data-default>Tentar a luta de novo</button> ' : ""}<button id="restart" class="quiet">Recomeçar do início</button></div>`;
   document.getElementById("ui").appendChild(d);
   d.querySelector("#restart").onclick = () => location.reload();
   d.querySelector("#retry")?.addEventListener("click", () => { d.remove(); retry(); });
+  focusDefault(d, true);
 };
 G.hooks.lampejo = {
   can: () => G.hero?.abilities.includes("lampejo") && !G.hero.restUsed.lampejo,
@@ -432,12 +491,12 @@ function exploreHotbar() {
   if (G.mode === "combat" || !G.party.length) return;
   const u = lead();
   UI.buildHotbar([
-    { icon: "🧪", name: "Poção de Cura", desc: `Recupera 2d4+2 PV de ${u.name}. Você tem ${G.potions}.`, count: G.potions, off: G.potions <= 0 || u.hp >= u.maxHp,
+    { icon: "potion", name: "Poção de Cura", desc: `Recupera 2d4+2 PV de ${u.name}. Você tem ${G.potions}.`, count: G.potions, off: G.potions <= 0 || u.hp >= u.maxHp,
       use: () => { G.potions--; const r = 2 + Math.ceil(Math.random() * 4) + Math.ceil(Math.random() * 4); u.hp = Math.min(u.maxHp, u.hp + r); UI.floater(u.x, u.y - 34, `+${r}`, "heal"); G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2 }); UI.updateParty(); exploreHotbar(); } },
-    { icon: "🔁", name: "Trocar líder", desc: "Controla o outro personagem (Tab).", off: G.party.length < 2, use: () => selectLeader((G.leader + 1) % G.party.length) },
-    { icon: "🎒", name: "Bolsa", desc: "Itens e cartas (I).", use: () => toggleJournal("bag") },
-    { icon: "📖", name: "Diário", desc: "Missões e lembranças (J).", use: () => toggleJournal("quests") },
-  ], `<div class="econ"><div>🪙 ${G.gold} ouro</div></div>`);
+    { icon: "swap", name: "Trocar líder", desc: "Passa o controle para o próximo do grupo (Tab).", off: G.party.length < 2, use: () => selectLeader((G.leader + 1) % G.party.length) },
+    { icon: "bag", name: "Bolsa", desc: "Itens e cartas (I).", use: () => toggleJournal("bag") },
+    { icon: "book", name: "Diário", desc: "Missões e lembranças (J).", use: () => toggleJournal("quests") },
+  ], { who: u, sub: `${u.cls ?? ""} · nível ${u.level}`, econ: `<div class="econ gold"><div>${icon("coin")} ${G.gold}</div></div>` });
 }
 
 // ---------------------------------------------------------------- explore: movement and interaction
@@ -529,7 +588,7 @@ let clickMark = null;
 
 // ---------------------------------------------------------------- input
 function setMouse(e) {
-  G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true;
+  G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true; cursor.on = false;
   mouseWorld();
 }
 /** The ground point under the mouse (through the tilted camera in 3D), and its tile. */
@@ -539,6 +598,7 @@ function mouseWorld() {
   if (PV.on) [fx, fy] = unproject(mx, my) ?? [-1e5, -1e5];
   G.mouse.wx = G.cam.x + fx; G.mouse.wy = G.cam.y + fy;
   G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
+  if (cursor.on && G.mode === "combat") { G.mouse.tx = cursor.tx; G.mouse.ty = cursor.ty; return; } // the keyboard/pad cursor names its tile itself
   if (PV.on && G.mode === "combat") {
     // in 3D the ground behind someone's head is far away: pointing at a body means that body's tile
     const u = [...G.enemies, ...G.party].filter((e) => e.hp > 0 && !e.gone && !e.hidden).sort((a, b) => b.y - a.y)
@@ -553,6 +613,41 @@ function setView(on, tilt) {
   const box = document.getElementById("perspOn");
   if (box) { box.checked = PV.on; document.getElementById("tiltRow").classList.toggle("off", !PV.on); }
 }
+// a tile cursor for the keyboard and the pad: it stands in for the mouse during combat
+const cursor = { on: false, tx: 0, ty: 0 };
+function cursorMove(dx, dy) {
+  if (!G.combat) return;
+  if (!cursor.on) { [cursor.tx, cursor.ty] = tileOf(G.combat.active ?? lead()); cursor.on = true; }
+  const nx = cursor.tx + dx, ny = cursor.ty + dy;
+  if (nx >= 0 && ny >= 0 && nx < G.W.w && ny < G.W.h) { cursor.tx = nx; cursor.ty = ny; }
+  G.focus = { x: cursor.tx * TILE + 16, y: cursor.ty * TILE + 26 };
+}
+/** Buttons that reach the game because no menu is open (see input.js). */
+Input.onAction = (a) => {
+  if (G.mode === "title" || G.mode === "create" || G.mode === "over" || G.mode === "end") return;
+  if (a === "start") { setPaused(true); return; }
+  if (a === "select" && !document.getElementById("hint").classList.contains("hidden")) { document.querySelector("#hint .ok")?.click(); return; }
+  if (G.paused) return;
+  if (G.mode === "combat") {
+    if (a === "up") cursorMove(0, -1); else if (a === "down") cursorMove(0, 1); else if (a === "left") cursorMove(-1, 0); else if (a === "right") cursorMove(1, 0);
+    else if (a === "confirm") { cursorMove(0, 0); combatClick(cursor.tx, cursor.ty); }
+    else if (a === "cancel") { if (G.combat?.ability) { G.combat.ability = null; refreshCombatHotbar(); } }
+    else if (a === "x") UI.hotbarUse();
+    else if (a === "lb") UI.hotbarMove(-1); else if (a === "rb") UI.hotbarMove(1);
+    else if (a === "y") endTurn();
+  } else if (G.mode === "explore") {
+    if (a === "confirm") nearestInteractable()?.act();
+    else if (a === "x") UI.hotbarUse();
+    else if (a === "lb") UI.hotbarMove(-1); else if (a === "rb") UI.hotbarMove(1);
+    else if (a === "y") toggleJournal("quests");
+    else if (a === "select") toggleJournal("bag");
+  }
+};
+Input.onCancel = (layer) => {
+  if (layer === "pause") setPaused(false);
+  else if (layer === "journal") closeJournal();
+  else if (layer === "dice") document.getElementById("dice").click();
+};
 canvas.addEventListener("mousemove", setMouse);
 canvas.addEventListener("mouseleave", () => { G.mouse.in = false; UI.tooltip(null); });
 canvas.addEventListener("mousedown", (e) => { if (G.paused) return; setMouse(e); if (e.button === 0) onClick(); if (e.button === 2 && G.combat) { G.combat.ability = null; } });
@@ -562,22 +657,28 @@ addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   G.keys.add(k);
   if (k === "m" && G.mode !== "title") { syncMute(toggleMute()); return; }
+  if (k === "v" && G.mode !== "title") { setView(!PV.on); return; }
+  if (k === "l") diceReroll();
+  if (k === "h") document.querySelector("#hint:not(.hidden) .ok")?.click();
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") return;
   if (journalOpen()) { if (k === "escape" || k === "i" || k === "j") closeJournal(); return; }
   // Esc first cancels a chosen combat action; otherwise it (or P) opens and closes the menu
   if (k === "escape" && !G.paused && G.combat?.ability) { G.combat.ability = null; return; }
   if (k === "escape" || k === "p") { setPaused(!G.paused); return; }
-  if (k === "v") { setView(!PV.on); return; }
   if (G.paused) return;
   if ((k === "i" || k === "j") && G.mode !== "dialogue") { toggleJournal(k === "i" ? "bag" : "quests"); return; }
   if (G.mode === "dialogue" && /^[1-9]$/.test(k)) dialogueKey(+k);
   else if (G.mode === "combat") {
     if (k === " ") { e.preventDefault(); endTurn(); }
-    if (/^[1-9]$/.test(k)) { const u = G.combat?.active; const ab = u?.team === "party" && !u.ai && abilitiesOf(u)[+k - 1]; if (ab) selectAbility(ab.key); }
+    const mv = { w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] }[k];
+    if (mv) { e.preventDefault(); document.body.classList.add("nav-keys"); cursorMove(...mv); }
+    if (k === "tab") { e.preventDefault(); UI.hotbarMove(e.shiftKey ? -1 : 1); }
+    if (k === "f") UI.hotbarUse();
+    if (/^[1-9]$/.test(k)) UI.hotbarUse(+k - 1);
   } else if (G.mode === "explore") {
     if (k === "e") nearestInteractable()?.act();
     if (k === "tab") { e.preventDefault(); selectLeader((G.leader + 1) % G.party.length); }
-    if (/^[1-9]$/.test(k)) document.querySelectorAll("#hotbar .slot")[+k - 1]?.click();
+    if (/^[1-9]$/.test(k)) UI.hotbarUse(+k - 1);
   }
 });
 addEventListener("keyup", (e) => G.keys.delete(e.key.toLowerCase()));
@@ -585,6 +686,10 @@ addEventListener("resize", resize);
 
 function resize() {
   const s = innerHeight >= 1000 ? 3 : innerHeight >= 520 ? 2 : 1;
+  // the interface has its own pixel size: 2 screen pixels per UI pixel at 1080p
+  const u = +new URLSearchParams(location.search).get("u") || (innerHeight >= 1500 ? 3 : innerHeight >= 950 && innerWidth >= 1500 ? 2 : innerHeight >= 640 && innerWidth >= 1000 ? 1.5 : 1);
+  document.documentElement.style.setProperty("--u", u);
+  G.ui = u;
   G.scale = s;
   G.vw = Math.ceil(innerWidth / s); G.vh = Math.ceil(innerHeight / s);
   // the 3D view paints at twice the game resolution, so scaled sprites and the ground's rows stay crisp
@@ -592,7 +697,7 @@ function resize() {
   canvas.width = G.vw * ss; canvas.height = G.vh * ss;
   pvFrame(G.vw, G.vh);
   canvas.style.width = G.vw * s + "px"; canvas.style.height = G.vh * s + "px";
-  ctx.imageSmoothingEnabled = false;
+  screen.imageSmoothingEnabled = false;
   G.fx?.resize(G.vw, G.vh);
 }
 
@@ -643,14 +748,14 @@ function surfaceAt(x, y) {
 }
 function updateAudio(dt) {
   if (G.mode === "title" || G.mode === "create" || !G.party.length) return;
-  const l = lead(), vale = G.W.id === "vale";
+  const l = lead(), vale = G.W.id === "vale", out = !!G.W.outdoor;
   const zone = vale ? zoneAt(l.x, l.y) : G.W.zone, ruins = zone === "Ruínas de Velmoor";
-  const track = G.musicOverride !== undefined ? G.musicOverride : G.mode === "combat" ? "combat" : G.mode === "over" ? null : !vale ? "dream" : ruins ? "ruins" : "meadow";
+  const track = G.musicOverride !== undefined ? G.musicOverride : G.mode === "combat" ? "combat" : G.mode === "over" ? null : !out ? "dream" : ruins ? "ruins" : G.W.music ?? "meadow";
   playMusic(track, G.mode === "combat" ? 0.5 : 2.5);
   const w = vale ? waterField(l.x, l.y) : 9, fire = Math.max(0, ...campfires().map((o) => 1 - dist(o.x, o.y, l.x, l.y) / 220));
   updateAmbience({
-    wind: !vale ? 0.35 : ruins ? 1 : 0.7, water: clamp(1 - w / 1.1, 0, 1), fire,
-    birds: !vale || ruins || G.mode === "combat" || G.f.escape ? 0 : 1, ruins: !vale ? 0.8 : ruins ? 1 : 0,
+    wind: !out ? 0.35 : ruins ? 1 : 0.7, water: vale ? clamp(1 - w / 1.1, 0, 1) : out ? clamp(1 - Math.abs(G.W.id === "vau" ? l.y - 25 * TILE : l.x - 31 * TILE) / (7 * TILE)) : 0, fire,
+    birds: !out || ruins || G.mode === "combat" || (vale && G.f.escape) || G.clock > 19.5 || G.clock < 5.5 ? 0 : 1, ruins: !out ? 0.8 : ruins ? 1 : 0,
   }, dt, G.time);
   // footsteps: one every ~20 px walked, quieter for everyone but the leader
   for (const u of [...G.party, ...G.enemies, ...G.followers]) {
@@ -667,7 +772,7 @@ function updateAudio(dt) {
   }
 }
 function syncMute(muted) {
-  document.getElementById("mute").textContent = muted ? "🔇" : "🔊";
+  document.getElementById("mute").innerHTML = icon(muted ? "mute" : "sound");
   document.getElementById("muteAll").checked = muted;
   document.getElementById("pause").classList.toggle("muted", muted);
 }
@@ -703,10 +808,31 @@ function setupMenu() {
     box.appendChild(row);
   }
   syncMute(audioSet.muted);
+  // light: off / low / high, and how strong
+  const lo = document.getElementById("lightOpts");
+  const modes = [["off", "Desligada"], ["low", "Baixa"], ["high", "Alta"]];
+  const drawLight = () => {
+    lo.innerHTML = lightAvailable()
+      ? `<div class="seg">${modes.map(([k, l]) => `<button data-lm="${k}" class="${lightSettings.mode === k ? "on" : ""}">${l}</button>`).join("")}</div>
+        <label class="vrow ${lightSettings.mode === "off" ? "off" : ""}"><span>Intensidade</span><input type="range" min="0.4" max="1.4" step="0.1" value="${lightSettings.intensity}"><span class="pct">${Math.round(lightSettings.intensity * 100)}%</span></label>
+        <p class="muted">${lightSettings.mode === "off" ? "Sem luz dinâmica: o jogo como era." : lightSettings.mode === "low" ? "Luzes e hora do dia, sem sombras." : "Luzes, hora do dia e sombras dos objetos."}</p>`
+      : `<p class="muted">Este navegador não tem WebGL2: a luz dinâmica fica desligada.</p>`;
+    lo.querySelectorAll("[data-lm]").forEach((b) => (b.onclick = () => { setLight({ mode: b.dataset.lm }); sfx.click(); drawLight(); lo.querySelector(`[data-lm="${b.dataset.lm}"]`)?.focus(); }));
+    const r = lo.querySelector("input");
+    if (r) r.oninput = () => { setLight({ intensity: +r.value }); lo.querySelector(".pct").textContent = Math.round(r.value * 100) + "%"; };
+  };
+  drawLight();
+  document.getElementById("keys").innerHTML = [
+    [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
+    [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
+    [key("Espaço", "Y"), "encerrar o turno"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
+    [key("Q E", "LB RB"), "trocar de aba nos menus"], [key("M", ""), "som"], [key("V", ""), "perspectiva 3D"], [key("Esc P", "Start"), "este menu"],
+  ].map(([k, t]) => `<li>${k}</li><li>${t}</li>`).join("");
 }
 function setPaused(p) {
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") p = false;
   G.paused = p;
+  if (p) setTimeout(() => focusDefault(document.getElementById("pause"), true), 0);
   G.keys.clear();
   UI.tooltip(null);
   document.getElementById("pause").classList.toggle("hidden", !p);
@@ -716,6 +842,7 @@ function setPaused(p) {
 let zoneNow = "", zoneT = 0;
 function update(dt) {
   G.time += dt;
+  if (G.clockTarget != null) G.clock += clamp(G.clockTarget - G.clock, -dt / 45, dt / 45); // the story moves the sun
   if (G.hitstop > 0) { G.hitstop -= dt; return; }
   G.fx.update(dt);
   if (!G.party.length) return;
@@ -727,9 +854,10 @@ function update(dt) {
     if (G.keys.has("s") || G.keys.has("arrowdown")) my++;
     if (G.keys.has("a") || G.keys.has("arrowleft")) mx--;
     if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
+    if (!mx && !my) { mx = Input.axis.x; my = Input.axis.y; }
     if (mx || my) {
       l.path = []; pending = null;
-      const k = Math.min(88, G.speedCap ?? 88) * dt / Math.hypot(mx, my);
+      const k = Math.min(88, G.speedCap ?? 88) * dt / Math.max(1, Math.hypot(mx, my));
       if (canStand(l.x + mx * k, l.y)) l.x += mx * k;
       if (canStand(l.x, l.y + my * k)) l.y += my * k;
       l.dir = mx ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
@@ -750,7 +878,7 @@ function update(dt) {
     // zone names
     if ((zoneT -= dt) < 0) {
       zoneT = 0.5;
-      const z = G.W.id === "vale" ? zoneAt(l.x, l.y) : G.W.zone;
+      const z = G.W.id === "vale" ? zoneAt(l.x, l.y) : G.W.zoneAt ? G.W.zoneAt(l.x, l.y) : G.W.zone;
       if (z !== zoneNow) { zoneNow = z; UI.banner(z); }
     }
   } else if (G.mode === "combat") {
@@ -776,13 +904,19 @@ function update(dt) {
   G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
   if (G.shake > 0) G.shake -= dt;
   if (clickMark) { clickMark.t -= dt; if (clickMark.t <= 0) clickMark = null; }
+  // the keyboard/pad cursor moves the "mouse" during combat
+  if (cursor.on && G.mode === "combat") { [G.mouse.x, G.mouse.y] = UI.worldToScreen(cursor.tx * TILE + 16, cursor.ty * TILE + 12); G.mouse.in = true; }
+  else if (cursor.on) cursor.on = false;
+  // what the leader could use right now, with the key that does it
+  if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${key("E", "A")} ${it.name}`); } else UI.prompt(null);
   // mouse in world
   mouseWorld();
   if (G.mode === "combat" && G.mouse.in) combatHover(G.mouse.tx, G.mouse.ty);
   else if (G.mode === "explore" && G.mouse.in) {
     const it = underMouse();
     const en = G.enemies.find((e) => { if (e.hp <= 0 || e.gone || e.passive) return false; const [dx, dy] = mouseRel(e.x, e.y); return Math.abs(dx) < 12 && dy < 3 && dy > -32; });
-    UI.tooltip(it ? `<b>${it.name}</b>` : en ? `<b>${en.name}</b><br><span style="color:#ff8a7a">hostil</span>` : null);
+    UI.tooltip(it ? UI.tipHTML({ icon: it.ent ? "talk" : "hand", title: it.name, foot: `${key("Clique", "A")} ${it.ent ? "falar" : "usar"}` })
+      : en ? UI.tipHTML({ icon: "skull", title: en.name, sub: "hostil", rows: [["PV", `${en.hp}/${en.maxHp}`], ["CA", en.ac]] }) : null);
     canvas.style.cursor = it ? "pointer" : "";
   } else if (G.mode !== "combat") { UI.tooltip(null); canvas.style.cursor = ""; }
 }
@@ -843,11 +977,17 @@ function drawBars(cx, cy) {
 // ---------------------------------------------------------------- the 3D view
 // The flat scene is painted as before; in 3D the ground goes to an offscreen layer that is then laid on the tilted
 // plane one screen row at a time, and every standing thing is drawn upright at its feet, scaled by its distance.
-const view = { cx: 0, cy: 0, ss: 1 };
-const layers = [];
-function layer(i, w, h) {
-  let L = layers[i];
-  if (!L || L[0].width !== w || L[0].height !== h) L = layers[i] = makeCanvas(w, h);
+// `base` is what the frame is being painted on: the screen, or (light on) one of the lit renderer's layers.
+const view = { cx: 0, cy: 0, ss: 1, lit: false };
+let base = screen;
+const flats = [];
+/** Paint on `c` from here on, in game pixels. */
+function paintOn(c) { base = ctx = c; ctx.setTransform(view.ss, 0, 0, view.ss, 0, 0); }
+/** An offscreen flat layer of w × h: [what to draw from, what to paint with]. A GPU surface when the light is on. */
+function flatLayer(i, w, h) {
+  if (view.lit) { const L = lightSurface(i, w, h); return [L, L]; }
+  let L = flats[i];
+  if (!L || L[0].width !== w || L[0].height !== h) L = flats[i] = makeCanvas(w, h);
   L[1].setTransform(1, 0, 0, 1, 0, 0);
   return L;
 }
@@ -874,11 +1014,11 @@ function warp(src, fx0, fy0) {
 }
 /** Paint into an offscreen flat layer (ground, fog) as if it were the screen, then warp it into place. */
 function flatPass(i, cx, cy, box, paint, clear) {
-  const [c, x] = layer(i, box.w, box.h);
+  const [c, x] = flatLayer(i, box.w, box.h);
   if (clear) x.clearRect(0, 0, box.w, box.h);
-  const vw = G.vw, vh = G.vh;
+  const vw = G.vw, vh = G.vh, to = base;
   ctx = x; G.vw = box.w; G.vh = box.h;
-  try { paint(cx + box.x, cy + box.y, box.w, box.h); } finally { ctx = mainCtx; G.vw = vw; G.vh = vh; }
+  try { paint(cx + box.x, cy + box.y, box.w, box.h); } finally { ctx = to; G.vw = vw; G.vh = vh; }
   ctx.setTransform(view.ss, 0, 0, view.ss, 0, 0);
   warp(c, box.x, box.y);
 }
@@ -939,7 +1079,18 @@ function drawCombatGrid(cx, cy) {
   }
   // hovered tile
   const mx = G.mouse.tx, my = G.mouse.ty;
-  if (G.mouse.in && !G.W.blocked(mx, my)) { ctx.strokeStyle = "rgba(244,236,220,0.5)"; ctx.strokeRect(Math.round(mx * TILE - cx) + 0.5, Math.round(my * TILE - cy) + 0.5, TILE - 1, TILE - 1); }
+  if (G.mouse.in && cursor.on) {
+    // the keyboard/pad cursor: four gold corners that breathe
+    const x = Math.round(mx * TILE - cx), y = Math.round(my * TILE - cy), k = Math.floor(G.time * 3) % 2, L = 7;
+    for (const [c, w] of [["#18121e", 3], [G.W.blocked(mx, my) ? "#ff7a5a" : "#f6d056", 1]]) {
+      ctx.fillStyle = c;
+      const o = (w - 1) / 2;
+      for (const [ax, ay, sx, sy] of [[x - k, y - k, 1, 1], [x + TILE - 1 + k, y - k, -1, 1], [x - k, y + TILE - 1 + k, 1, -1], [x + TILE - 1 + k, y + TILE - 1 + k, -1, -1]]) {
+        ctx.fillRect(Math.min(ax, ax + sx * (L - 1)) - o, ay - o, L + o * 2, w);
+        ctx.fillRect(ax - o, Math.min(ay, ay + sy * (L - 1)) - o, w, L + o * 2);
+      }
+    }
+  } else if (G.mouse.in && !G.W.blocked(mx, my)) { ctx.strokeStyle = "rgba(244,236,220,0.5)"; ctx.strokeRect(Math.round(mx * TILE - cx) + 0.5, Math.round(my * TILE - cy) + 0.5, TILE - 1, TILE - 1); }
 }
 
 /**
@@ -955,23 +1106,27 @@ function drawProp(target, o, x, y) {
   const gust = 0.68 + 0.32 * Math.sin(t * 0.45 - o.x * 0.004); // never quite still
   const speed = o.kind === "bush" ? 2.2 : o.kind === "pine" ? 1.3 : 1.6;
   target.drawImage(a.trunk, x, y);
-  const L = a.leaves, B = 2;
-  for (let row = 0; row < L.height; row += B) {
-    if (row >= bottom) { target.drawImage(L, 0, row, L.width, L.height - row, x, y + row, L.width, L.height - row); break; }
+  // bands two pixels tall, but neighbours that slide by the same amount go out as one blit (a tree is a handful, not fifty)
+  const L = a.leaves, B = 2, LW = L.width, LH = L.height, rest = Math.min(LH, Math.ceil(bottom / B) * B);
+  let r0 = 0, o0 = 0;
+  for (let row = 0; row < rest; row += B) {
     const k = Math.min(1, (bottom - row) / (bottom - top));
     const off = Math.round(amp * k * gust * (Math.sin(t * speed + ph - row * 0.035) + 0.35 * Math.sin(t * speed * 2.3 + ph * 1.7 - row * 0.06)));
-    target.drawImage(L, 0, row, L.width, B, x + off, y + row, L.width, B);
+    if (off !== o0) { if (row > r0) target.drawImage(L, 0, r0, LW, row - r0, x + o0, y + r0, LW, row - r0); r0 = row; o0 = off; }
   }
+  if (rest > r0) target.drawImage(L, 0, r0, LW, rest - r0, x + o0, y + r0, LW, rest - r0);
+  if (LH > rest) target.drawImage(L, 0, rest, LW, LH - rest, x, y + rest, LW, LH - rest);
 }
 
 /** Mirror images of whatever stands by the water: flipped at the feet, rippling, cut to the water and tinted by it. */
 function drawReflections(cx, cy, items) {
   const W = G.W;
   if (!W.waterMask) return;
-  const vw = G.vw, vh = G.vh;
-  if (!reflA || reflA[0].width !== vw || reflA[0].height !== vh) { reflA = makeCanvas(vw, vh); reflB = makeCanvas(vw, vh); }
-  const [ca, a] = reflA, [cb, b] = reflB;
-  a.clearRect(0, 0, vw, vh);
+  const vw = G.vw, vh = G.vh, gpu = !!ctx.mirror;
+  if (!gpu && (!reflA || reflA[0].width !== vw || reflA[0].height !== vh)) { reflA = makeCanvas(vw, vh); reflB = makeCanvas(vw, vh); reflB[0].dyn = true; }
+  // on the GPU layers the mirrored sprites are drawn straight onto the ground, rippled and cut to the water by the shader
+  const [ca, a] = gpu ? [null, ctx] : reflA, [cb, b] = gpu ? [] : reflB;
+  if (gpu) ctx.mirror(W.waterMask, cx, cy, G.time); else a.clearRect(0, 0, vw, vh);
   let any = false;
   const wet = (x, y) => { const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE); for (let k = 0; k <= 3; k++) for (const dx of [-1, 0, 1]) if (W.tileAt(tx + dx, ty + k) === T.WATER) return true; return false; };
   for (const it of items) {
@@ -997,6 +1152,7 @@ function drawReflections(cx, cy, items) {
     a.globalAlpha = 1;
     any = true;
   }
+  if (gpu) { ctx.mirror(null); return; }
   if (!any) return;
   // ripple: shift thin rows sideways, then keep only what falls on water
   b.clearRect(0, 0, vw, vh);
@@ -1017,6 +1173,18 @@ function drawReflections(cx, cy, items) {
 }
 
 /** Soft light: additive radial glows for things that carry it (Lumes, the lantern, the hero's silver mark). */
+const glows = new Map();
+/** The same soft glow as a picture, for the GPU layers (which have no gradients). */
+function glowArt(r, g, b, a) {
+  const k = `${r},${g},${b},${a}`;
+  if (!glows.has(k)) {
+    const [c, x] = makeCanvas(96, 96), gr = x.createRadialGradient(48, 48, 0, 48, 48, 48);
+    gr.addColorStop(0, `rgba(${k})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = gr; x.fillRect(0, 0, 96, 96);
+    glows.set(k, c);
+  }
+  return glows.get(k);
+}
 function drawGlows(cx, cy) {
   const list = [];
   for (const o of G.W.objects) if (o.glow && !o.hidden) list.push([o.x, o.y, o.glow]);
@@ -1029,8 +1197,9 @@ function drawGlows(cx, cy) {
     if (PV.on) { const p = project(x - cx, y - cy); if (!p) continue; k = p.k; sx = p.x; sy = p.y - (g.h ?? 16) * k; }
     const r = g.r * k * (1 + Math.sin(G.time * 2 + x) * 0.05);
     if (sx < -r || sy < -r || sx > G.vw + r || sy > G.vh + r) continue;
-    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
     const [R, Gc, B] = g.c ?? [150, 190, 255];
+    if (ctx.pixels) { ctx.drawImage(glowArt(R, Gc, B, g.a ?? 0.35), sx - r, sy - r, r * 2, r * 2); continue; }
+    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
     gr.addColorStop(0, `rgba(${R},${Gc},${B},${g.a ?? 0.35})`); gr.addColorStop(1, `rgba(${R},${Gc},${B},0)`);
     ctx.fillStyle = gr;
     ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
@@ -1041,23 +1210,37 @@ function drawGlows(cx, cy) {
 /** The Bruma: a soft pearly fog from the story's fog field, rendered at a quarter resolution. */
 function drawFog(cx, cy) {
   if (!S.hasFog()) return;
-  const C = 4, w = Math.ceil(G.vw / C) + 1, h = Math.ceil(G.vh / C) + 1;
-  if (!fogC || fogC.width !== w || fogC.height !== h) { [fogC, fogX] = makeCanvas(w, h); fogC.img = fogX.createImageData(w, h); }
-  const d = fogC.img.data, t = G.time, ox = Math.floor(cx / C), oy = Math.floor(cy / C);
-  for (let j = 0; j < h; j++)
-    for (let i = 0; i < w; i++) {
-      const wx = (ox + i) * C, wy = (oy + j) * C;
-      let f = S.fogAt(wx, wy);
-      if (f > 0.01) f *= 0.7 + vnoise(wx / 70 + t * 0.12, wy / 50 - t * 0.05, 5) * 0.55;
-      const k = (j * w + i) * 4;
-      d[k] = 236; d[k + 1] = 240; d[k + 2] = 246; d[k + 3] = clamp(f, 0, 1) * 235;
-    }
-  fogX.putImageData(fogC.img, 0, 0);
+  // the tilted camera sees several times more ground, and squeezes the far part of it: coarser cells are enough there
+  const C = PV.on ? 8 : 4, M = 4, w = Math.ceil(G.vw / C) + 1 + M * 2, h = Math.ceil(G.vh / C) + 1 + M * 2;
+  if (!fogC || fogC.width !== w || fogC.height !== h) { [fogC, fogX] = makeCanvas(w, h); fogC.img = fogX.createImageData(w, h); fogC.age = 99; }
+  const ox = Math.floor(cx / C) - M, oy = Math.floor(cy / C) - M;
+  // the field drifts slowly: it is worked out every third frame (or when the camera outruns the margin) and reused between
+  const fresh = ++fogC.age >= 3 || fogC.map !== G.W || Math.abs(ox - fogC.ox) >= M || Math.abs(oy - fogC.oy) >= M;
+  if (fresh) {
+    fogC.age = 0; fogC.map = G.W; fogC.ox = ox; fogC.oy = oy;
+    const d = fogC.img.data, t = G.time;
+    for (let j = 0; j < h; j++)
+      for (let i = 0; i < w; i++) {
+        const wx = (ox + i) * C, wy = (oy + j) * C;
+        let f = S.fogAt(wx, wy);
+        if (f > 0.01) f *= 0.7 + vnoise(wx / 70 + t * 0.12, wy / 50 - t * 0.05, 5) * 0.55;
+        const k = (j * w + i) * 4;
+        d[k] = 236; d[k + 1] = 240; d[k + 2] = 246; d[k + 3] = clamp(f, 0, 1) * 235;
+      }
+  }
+  const x = fogC.ox * C - cx, y = fogC.oy * C - cy;
+  if (ctx.pixels) { ctx.pixels("fog", fogC.img.data, w, h, fresh ? null : false, x, y, w * C, h * C, true); return; }
+  if (fresh || fogC.stale) fogX.putImageData(fogC.img, 0, 0);
+  fogC.stale = false;
   ctx.save();
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(fogC, ox * C - cx, oy * C - cy, w * C, h * C);
+  ctx.drawImage(fogC, x, y, w * C, h * C);
   ctx.restore();
 }
+
+const SEC = {}; let secT = 0;
+/** Close a section of the frame for the F3 meter. */
+function sec(name) { if (!meter) return; const n = performance.now(); SEC[name] = (SEC[name] ?? 0) + n - secT; secT = n; }
 
 /** The ground layer: terrain, water glints, markers, the combat grid, reflections, shadows and selection rings. */
 function drawFloor(cx, cy, vw, vh, items, bg) {
@@ -1077,12 +1260,13 @@ function drawFloor(cx, cy, vw, vh, items, bg) {
     ctx.fillRect(x, y, len, 1);
     if (len > 3) ctx.fillRect(x + 1, y - 1, len - 2, 1);
   }
-
+  sec("chão");
   // click marker
   if (clickMark) ring(clickMark.x - cx, clickMark.y - cy, `rgba(232,192,106,${clickMark.t * 2})`, 6 + (0.5 - clickMark.t) * 10);
   S.drawGround(ctx, cx, cy);
   drawCombatGrid(cx, cy);
   drawReflections(cx, cy, items);
+  sec("reflexos");
   // shadows first, so nothing's shadow falls on top of a neighbour
   for (const it of items) {
     const r = it.o ? (it.o.clip ? 0 : it.o.art?.shadow) : it.u ? (it.u.float || it.u.ghost ? 0 : it.u.small ? 7 : 9) : it.c ? 12 : 0;
@@ -1131,15 +1315,30 @@ function drawItem(it, cx, cy) {
 }
 
 /** Distance haze for the 3D view, per area: far ground fades into the air (or the dark, underground). */
-const HAZE = { vale: "150,172,182", sonho: "232,235,241", relicario: "12,16,24" };
+const HAZE = { vale: "150,172,182", sonho: "232,235,241", relicario: "12,16,24", vau: "96,110,132", travessia: "150,172,182" };
+const hazeArt = new Map();
+/** The haze as a tall strip to stretch over the top of the view (the GPU layers have no gradients). */
+function hazeStrip(rgb) {
+  if (!hazeArt.has(rgb)) {
+    const [c, x] = makeCanvas(1, 128);
+    for (let i = 0; i < 128; i++) { const k = i / 127, a = k < 0.45 ? 0.62 + (0.2 - 0.62) * (k / 0.45) : 0.2 * (1 - (k - 0.45) / 0.55); x.fillStyle = `rgba(${rgb},${a})`; x.fillRect(0, i, 1, 1); }
+    hazeArt.set(rgb, c);
+  }
+  return hazeArt.get(rgb);
+}
 
 function draw() {
   const vw = G.vw, vh = G.vh, ss = PV.on ? PV.ss : 1;
+  secT = performance.now();
   let cx = Math.round(G.cam.x), cy = Math.round(G.cam.y);
   if (G.shake > 0) { cx += Math.round((Math.random() - 0.5) * 4); cy += Math.round((Math.random() - 0.5) * 4); }
   const W = G.W;
-  Object.assign(view, { cx, cy, ss });
-  ctx.setTransform(ss, 0, 0, ss, 0, 0);
+  // with the light on, the scene is painted in layers (ground, sprites, overlay) and put together by light.js
+  // (with the light off the layers are still used, just not lit: the GPU draws the frame far faster than canvas 2D)
+  const gpu = lightAvailable(), lit = lightOn(), LY = gpu ? lightLayers(vw * ss, vh * ss) : null;
+  Object.assign(view, { cx, cy, ss, lit: gpu });
+  showLight(gpu, vw * G.scale, vh * G.scale);
+  paintOn(gpu ? LY[0].x : screen);
   const bg = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : W.id === "vale" && PV.on ? "#16231c" : "#0b0a10";
 
   // the part of the flat world this frame shows: the screen, or (3D) the trapezoid under the tilted camera
@@ -1153,51 +1352,67 @@ function draw() {
   // everything standing, sorted by its feet
   const items = [];
   const inView = (x, y, m = 120) => x > cx + box.x - m && x < cx + box.x + box.w + m && y > cy + box.y - 20 && y < cy + box.y + box.h + 160;
-  for (const o of W.objects) if (!o.hidden && inView(o.x, o.y)) items.push({ y: o.y + (o.sortY ?? 0), o });
+  for (const o of W.objects) if (!o.hidden && inView(o.x, o.y, o.kind === "house" ? 210 : 120)) items.push({ y: o.y + (o.sortY ?? 0), o });
   for (const g of W.grass) if (inView(g.x, g.y, 20)) items.push({ y: g.y, g });
   for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) if (!u.gone && !u.hidden && inView(u.x, u.y)) items.push({ y: u.y + (u.float ? 40 : 0), u });
   G.chests.forEach((c) => inView(c.x, c.y) && items.push({ y: c.y, c }));
   items.sort((a, b) => a.y - b.y);
+  sec("ordem");
 
   if (PV.on) {
     ctx.fillStyle = bg; ctx.fillRect(0, 0, vw, vh);
     flatPass(0, cx, cy, box, (x, y, w, h) => drawFloor(x, y, w, h, items, bg));
   } else drawFloor(cx, cy, vw, vh, items, bg);
+  sec("chão");
 
+  if (gpu) paintOn(LY[1].x);
   for (const it of items) { const p = it.u ?? it.c ?? it.g ?? it.o; anchored(p.x, p.y, () => drawItem(it, cx, cy)); }
+  sec("sprites");
+  // the people in the boat sit with the sprites when the light is on, so the lamps reach them
+  const boat = PV.on && W.objects.find((o) => o.id === "boat");
+  const over = () => (boat ? anchored(boat.x, boat.y, () => S.drawOver(ctx, cx, cy)) : S.drawOver(ctx, cx, cy));
+  if (lit) over();
+  if (gpu) paintOn(LY[2].x);
   drawBars(cx, cy);
   if (PV.on) {
-    const g = ctx.createLinearGradient(0, 0, 0, PV.sA * 0.8), hz = HAZE[W.id] ?? HAZE.vale;
-    g.addColorStop(0, `rgba(${hz},0.62)`); g.addColorStop(0.45, `rgba(${hz},0.2)`); g.addColorStop(1, `rgba(${hz},0)`);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, vw, vh);
+    const hz = HAZE[W.id] ?? HAZE.vale;
+    if (gpu) ctx.drawImage(hazeStrip(hz), 0, 0, vw, PV.sA * 0.8);
+    else {
+      const g = ctx.createLinearGradient(0, 0, 0, PV.sA * 0.8);
+      g.addColorStop(0, `rgba(${hz},0.62)`); g.addColorStop(0.45, `rgba(${hz},0.2)`); g.addColorStop(1, `rgba(${hz},0)`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, vw, vh);
+    }
   }
 
   // atmosphere: the ruins are darker and misty; the dream is pale; the Relicário is cold
+  // (with the light on, the darkness of a place is its ambient light instead of a veil over the picture)
   const l = lead(), t = G.time;
   let ruinK = 0;
   if (W.id === "vale" && l) {
     ruinK = clamp(1 - Math.max(0, (l.y - 15 * TILE)) / (6 * TILE)) * (l.x < 33 * TILE ? 1 : 0.3);
-    if (ruinK > 0.01) { ctx.fillStyle = `rgba(16,20,40,${0.32 * ruinK})`; ctx.fillRect(0, 0, vw, vh); }
+    if (ruinK > 0.01 && !lit) { ctx.fillStyle = `rgba(16,20,40,${0.32 * ruinK})`; ctx.fillRect(0, 0, vw, vh); }
   } else if (W.id === "sonho") { ctx.fillStyle = "rgba(170,180,230,0.16)"; ctx.fillRect(0, 0, vw, vh); }
-  else if (W.id === "relicario") { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
-  if (G.tint) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
-  if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => anchored(x, y, () => fn(ctx)));
-  else G.fx.draw(ctx, cx, cy);
-  drawGlows(cx, cy);
+  else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
+  if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
+  sec("barras");
+  if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => { if (x > cx + box.x - 140 && x < cx + box.x + box.w + 140 && y > cy + box.y - 80 && y < cy + box.y + box.h + 230) anchored(x, y, () => fn(ctx)); });
+  else G.fx.draw(ctx, cx, cy, gpu);
+  sec("efeitos");
+  if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
-  const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : 0.15;
+  const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : W.id === "vau" ? 0.05 : 0.15;
   ctx.globalAlpha = mk;
   const mx = -((cx * 1.0 + t * 8) % mist.width) - mist.width, my = -((cy * 1.0 + t * 3) % mist.height) - mist.height;
   for (let y = my; y < vh; y += mist.height) for (let x = mx; x < vw; x += mist.width) ctx.drawImage(mist, Math.round(x), Math.round(y));
   ctx.globalAlpha = 1;
+  sec("névoa fina");
   if (!PV.on) drawFog(cx, cy);
   else if (S.hasFog()) flatPass(1, cx, cy, box, (x, y) => drawFog(x, y), true);
-  const boat = PV.on && W.objects.find((o) => o.id === "boat");
-  if (boat) anchored(boat.x, boat.y, () => S.drawOver(ctx, cx, cy));
-  else S.drawOver(ctx, cx, cy);
+  sec("bruma");
+  if (!lit) over();
 
   // framing: branches at the bottom corners (outdoors), and a vignette
-  if (W.id === "vale") {
+  if (W.id === "vale" || W.id === "travessia") {
     ctx.drawImage(fgLeft, Math.round(-30 - (cx * 0.05) % 10), vh - fgLeft.height + 34);
     ctx.save(); ctx.scale(-1, 1); ctx.drawImage(fgRight, Math.round(-vw - 24 + (cx * 0.05) % 10), vh - fgRight.height + 40); ctx.restore();
   }
@@ -1209,6 +1424,72 @@ function draw() {
     vignette = c;
   }
   ctx.drawImage(vignette, 0, 0);
+  if (gpu) {
+    renderLight({
+      ss, cam: PV.on ? [0, 0] : [cx, cy], add: !PV.on && G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null,
+      amb: lit ? ambientNow(ruinK) : { level: 0, tint: [1, 1, 1], tintK: 0, gain: 0 }, // unlit: every colour as painted
+      lights: lit ? gatherLights(cx, cy) : [], occluders: lit ? gatherOccluders(items, cx, cy) : [],
+    });
+    base = ctx = screen;
+  }
+  sec(gpu ? "moldura+luz" : "moldura");
+}
+
+// ---------------------------------------------------------------- light: what shines, what blocks it, how dark it is
+const DAY = [ // hour, darkness in ramp steps, ambient colour, how much of it
+  [0, -2, [0.6, 0.72, 1.14], 0.9], [4.6, -2, [0.6, 0.72, 1.14], 0.9], [5.6, -1.4, [0.86, 0.78, 1.02], 0.75], [6.4, -0.7, [1.1, 0.9, 0.9], 0.6],
+  [7.6, 0, [1, 1, 1], 0], [16.4, 0, [1, 1, 1], 0], [17.6, -0.7, [1.16, 0.88, 0.72], 0.7], [19, -1.3, [0.92, 0.74, 0.92], 0.8], [20.4, -2, [0.6, 0.72, 1.14], 0.9], [24, -2, [0.6, 0.72, 1.14], 0.9],
+];
+/** The sky's light at an hour of the day (0–24): whole steps of darkness, and a colour for what stays dark. */
+function dayLight(h) {
+  h = ((h % 24) + 24) % 24;
+  let i = 0;
+  while (i < DAY.length - 2 && DAY[i + 1][0] <= h) i++;
+  const a = DAY[i], b = DAY[i + 1], k = clamp((h - a[0]) / (b[0] - a[0]));
+  const level = Math.round(a[1] + (b[1] - a[1]) * k);
+  return { level, tint: a[2].map((v, j) => v + (b[2][j] - v) * k), tintK: a[3] + (b[3] - a[3]) * k, gain: level === 0 ? 0.4 : 1 };
+}
+function ambientNow(ruinK) {
+  const W = G.W;
+  if (G.ambient) return G.ambient; // the story's say (a sunset, a room going dark)
+  if (W.amb) return W.amb; // indoors, or a dream: the hour doesn't matter
+  const d = dayLight(G.clock);
+  // the ruins sit under their own smoke: a step darker than the valley, and colder
+  if (W.id === "vale" && ruinK > 0.5 && d.level === 0) return { level: -1, tint: [0.78, 0.86, 1.1], tintK: 0.7 * ruinK, gain: 1 };
+  return d;
+}
+G.clock = 9;
+const flick = (seed) => { const t = Math.floor(G.time * 9); return 1 + 0.07 * Math.sin(t * 1.7 + seed) + 0.04 * Math.sin(t * 3.3 + seed * 2); };
+/** Something at flat (x, y) on the ground, `up` pixels tall: where it is in the view and how large things are there. */
+function onView(x, y, up = 0) {
+  if (!PV.on) return [x, y - up, 1];
+  const p = project(x, y);
+  return p ? [p.x, p.y - up * p.k, p.k] : null;
+}
+function gatherLights(cx, cy) {
+  const out = [];
+  const add = (wx, wy, up, r, c, i, shadows) => { const p = onView(wx - cx, wy - cy, up); if (p) out.push({ x: p[0], y: p[1], r: r * p[2], c, i, shadows }); };
+  const glow = (e, g) => add(e.x, e.y, g.h ?? 16, g.r * 2.6, (g.c ?? [150, 190, 255]).map((v) => v / 255), Math.min(1, (g.a ?? 0.35) * 2.4), g.r > 30);
+  for (const o of G.W.objects) {
+    if (o.hidden) continue;
+    if (o.kind === "campfire") { if (!o.out) add(o.x, o.y, 4, 150, o.goblin ? [0.72, 1, 0.66] : [1, 0.7, 0.38], flick(o.x), true); }
+    else if (o.light) { if (!o.light.off) add(o.x + (o.light.dx ?? 0), o.y, o.light.h ?? 0, o.light.r, o.light.c, (o.light.i ?? 1) * (o.light.flicker ? flick(o.x) : 1), o.light.shadows ?? true); }
+    else if (o.glow) glow(o, o.glow);
+    else if (o.kind === "statue" && o.lit) add(o.x, o.y, 30, 90, [0.6, 0.78, 1], 0.9, true);
+  }
+  for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) glow(u, u.glow);
+  for (const L of G.fx.lights()) add(L.x, L.y, 0, L.r, L.c, L.i, L.shadows);
+  return out;
+}
+function gatherOccluders(items, cx, cy) {
+  const out = [];
+  const add = (e, w, h) => { const p = onView(e.x - cx, e.y - cy); if (p) out.push({ x: p[0], y: p[1], w: w * p[2], h: h * p[2] }); };
+  for (const it of items) {
+    if (it.o) { const a = it.o.art; if (a?.shadow && !it.o.clip && it.o.kind !== "campfire") add(it.o, a.shadow * 0.75, Math.min(110, a.c.height * 0.7)); }
+    else if (it.u) { if (!it.u.float && !it.u.ghost && !(it.u.hp <= 0 && it.u.team === "party")) add(it.u, it.u.small ? 4 : 5, it.u.small ? 20 : 28); }
+    else if (it.c) add(it.c, 9, 14);
+  }
+  return out;
 }
 
 function drawCritters(cx, cy, ruinK) {
@@ -1242,16 +1523,41 @@ function drawCritters(cx, cy, ruinK) {
   ctx.restore();
 }
 
+// a frame meter for when the game feels slow: F3, or ?fps in the address
+let meter = null, mAcc = 0, mN = 0, mWorst = 0, mU = 0, mD = 0;
+function toggleMeter() {
+  if (meter) { meter.remove(); meter = null; return; }
+  meter = document.createElement("div");
+  meter.style.cssText = "position:fixed;left:6px;top:64px;z-index:999;padding:3px 6px;background:rgba(10,8,16,.8);color:#f4ecdc;font:12px/1.3 monospace;white-space:pre;pointer-events:none";
+  document.body.appendChild(meter);
+}
+addEventListener("keydown", (e) => { if (e.key === "F3") { e.preventDefault(); toggleMeter(); } });
+if (new URLSearchParams(location.search).has("fps")) toggleMeter();
+
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop); // schedule first: an error in one frame must not freeze the game
+  // on a 120/144/165 Hz screen, paint every second or third refresh: the art moves in whole pixels and gains nothing
+  // from more, and the time goes back to the browser (music, input, the interface)
+  if (now - last < 9.5) return;
   const dt = Math.min(0.05, (now - last) / 1000);
+  if (meter) { mAcc += now - last; mN++; mWorst = Math.max(mWorst, now - last); }
   last = now;
   const a = performance.now();
+  pollInput(now);
+  UI.syncMode();
   if (!G.paused) update(dt);
   const b = performance.now();
   draw();
   G.perf = { update: b - a, draw: performance.now() - b };
+  if (meter) {
+    mU += G.perf.update; mD += G.perf.draw;
+    if (mAcc >= 500) {
+      meter.textContent = `${Math.round(1000 * mN / mAcc)} qps  pior ${mWorst.toFixed(0)} ms\nlógica ${(mU / mN).toFixed(1)}  desenho ${(mD / mN).toFixed(1)} ms\n${G.vw}×${G.vh} ×${G.scale}  luz ${lightOn() ? lightSettings.mode : lightAvailable() ? "off" : "sem WebGL2"}\n` + Object.entries(SEC).map(([k, v]) => `${k} ${(v / mN).toFixed(1)}`).join("  ");
+      for (const k in SEC) SEC[k] = 0;
+      mAcc = mN = mWorst = mU = mD = 0;
+    }
+  }
 }
 
 G.chestArt = [A.makeChest(false), A.makeChest(true)];
