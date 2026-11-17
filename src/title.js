@@ -61,7 +61,7 @@ export function titleSaves(any) {
 /** main.js: the world is built and drawn. The valley shows once the opening gets there. */
 export function titleLoaded() {
   loaded = true;
-  $(".loading", root).classList.add("hidden");
+  $(".loading", root)?.classList.add("hidden");
   const left = openEnd - performance.now();
   if (left > 0) at(left / 1000, maybeReveal); else maybeReveal();
 }
@@ -124,8 +124,7 @@ async function install() {
     syncInstall();
   } else if (ios) showPanel(".installios", "#install");
 }
-/** main.js: the sound is on (the browser waits for a click or a key before it allows any). */
-export function titleAudioOn() { root?.classList.add("audio"); }
+
 
 // ---------------------------------------------------------------- the falling leaf
 // Two 16×16 frames drawn pixel by pixel (src/art/appicon.js, also the app icon): the green top and the silver
