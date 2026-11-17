@@ -346,9 +346,13 @@ export async function combatClick(tx, ty) {
   refreshCombatHotbar();
 }
 
+/** The camera follows what is happening: a projectile in flight, else whoever is hit, healed or walking. */
+const watch = (o) => G.hooks.watch?.(o);
+
 function moveAlong(u, path) {
   // an empty path never "arrives" in stepAlongPath, so resolve it here or the turn hangs
   if (!path?.length) return Promise.resolve();
+  watch(u);
   u.moveLeft -= path.length;
   return new Promise((res) => {
     u.path = path.map(([x, y]) => tileCenter(x, y));
@@ -445,6 +449,7 @@ function weaponExtras(u, t, crit, melee) {
 
 async function meleeAttack(u, t, expr) {
   u.attackedThisTurn = true;
+  watch(t);
   lunge(u, t);
   const flip = t.x < u.x;
   await sleep(120);
@@ -475,14 +480,17 @@ function bolt(u, t, palette, onHit, arc = 0, dur = null) {
     sfx.cast(kind);
     const fx = G.fx.spawn(FX.fireball, { x: sx, y: sy, angle: ang, palette, radius: 4 }, {
       move: { x: ex, y: ey, dur: dur ?? Math.max(0.18, d / 420), arc },
-      onArrive: () => { G.fx.spawn(FX.hitSpark, { x: ex, y: ey, palette, flip: ex < sx }); sfx.impact(kind); onHit(); res(); },
+      onArrive: () => { watch(t); G.fx.spawn(FX.hitSpark, { x: ex, y: ey, palette, flip: ex < sx }); sfx.impact(kind); onHit(); res(); },
     });
     fx.fx.options.angle = ang;
+    fx.camSpeed = 9; // keep up with it
+    watch(fx);
   });
 }
 
 async function rangedSpell(u, t, expr, palette, label, bonus = u.atk, weapon = false, effect = null) {
   face(u, t);
+  watch(u); // on the shooter while they aim, then on the shot
   const arrow = soundKind(palette) === "arrow";
   u.pose = "cast"; u.poseT = arrow ? 0.85 : 0.5;
   if (arrow) sfx.bowDraw(0.5); // draw the bow before letting go
@@ -516,6 +524,8 @@ export async function useAbility(u, ab, target) {
   if (ab.per === "combat") u.used[ab.key] = true;
   if (ab.per === "rest") u.restUsed[ab.key] = true;
   if (ab.slot) u.slots--;
+  // abilities that throw something follow the projectile themselves; the rest show whom they touch
+  watch(["bolt", "shoot", "missiles"].includes(ab.kind) ? u : target ?? u);
   switch (ab.kind) {
     case "attack": await meleeAttack(u, target, u.dmg); break;
     case "bolt": await rangedSpell(u, target, ab.dmg, PAL[ab.pal ?? "fire"], ab.name, u.spellAtk ?? u.atk, false, ab.effect); break;

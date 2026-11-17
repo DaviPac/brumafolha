@@ -9,6 +9,8 @@ export const Input = {
   axis: { x: 0, y: 0 },
   /** Right stick, for scrolling long pages. */
   scroll: 0,
+  /** Right stick as a direction, each axis −1..1 (pans the camera in combat). */
+  look: { x: 0, y: 0 },
   onAction: null, // (name) => void, when no menu took it
   onCancel: null, // (layerId) => void
 };
@@ -136,7 +138,7 @@ function fire(name, down, now, repeats) {
 /** Call every frame. */
 export function pollInput(now = performance.now()) {
   const pad = [...(navigator.getGamepads?.() ?? [])].find((p) => p && p.connected);
-  if (!pad) { Input.axis.x = Input.axis.y = 0; Input.scroll = 0; return; }
+  if (!pad) { Input.axis.x = Input.axis.y = 0; Input.scroll = 0; Input.look.x = Input.look.y = 0; return; }
   const dz = (v) => (Math.abs(v) < 0.25 ? 0 : v);
   const sx = dz(pad.axes[0] ?? 0), sy = dz(pad.axes[1] ?? 0);
   const b = (i) => !!pad.buttons[i]?.pressed;
@@ -148,6 +150,7 @@ export function pollInput(now = performance.now()) {
   Input.axis.x = sx || (b(15) ? 1 : 0) - (b(14) ? 1 : 0);
   Input.axis.y = sy || (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
   Input.scroll = dz(pad.axes[3] ?? 0);
+  Input.look.x = dz(pad.axes[2] ?? 0); Input.look.y = Input.scroll;
   if (Input.scroll) {
     const layer = activeLayer(), sc = layer && [...layer.querySelectorAll(".page, .pane, .box, .sheet")].find((el) => el.scrollHeight > el.clientHeight + 2);
     if (sc) sc.scrollTop += Input.scroll * 14;

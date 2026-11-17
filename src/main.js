@@ -540,7 +540,9 @@ async function quickLoad() {
 }
 
 // ---------------------------------------------------------------- hooks used by other modules
-G.hooks.focus = (u) => { G.focus = u; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
+G.hooks.focus = (u) => { G.focus = u; freeCam = false; if (cursor.on) [cursor.tx, cursor.ty] = tileOf(u); };
+/** Something happens in combat (a projectile flies, a blow lands, someone walks): the camera follows it. */
+G.hooks.watch = (o) => { G.focus = o; freeCam = false; };
 G.hooks.afterDialogue = () => exploreHotbar();
 G.hooks.hint = hint;
 G.hooks.gainXp = (p, xp) => {
@@ -731,11 +733,14 @@ function setMouse(e) {
   G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true; cursor.on = false;
   mouseWorld();
 }
+/** The ground point under a screen point (client px), relative to the camera's corner; null above the horizon in 3D. */
+function groundRel(sx, sy) {
+  const mx = sx / G.scale, my = sy / G.scale;
+  return PV.on ? unproject(mx, my) : [mx, my];
+}
 /** The ground point under the mouse (through the tilted camera in 3D), and its tile. */
 function mouseWorld() {
-  const mx = G.mouse.x / G.scale, my = G.mouse.y / G.scale;
-  let fx = mx, fy = my;
-  if (PV.on) [fx, fy] = unproject(mx, my) ?? [-1e5, -1e5];
+  const [fx, fy] = groundRel(G.mouse.x, G.mouse.y) ?? [-1e5, -1e5];
   G.mouse.wx = G.cam.x + fx; G.mouse.wy = G.cam.y + fy;
   G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
   if (cursor.on && G.mode === "combat") { G.mouse.tx = cursor.tx; G.mouse.ty = cursor.ty; return; } // the keyboard/pad cursor names its tile itself
@@ -761,6 +766,53 @@ function cursorMove(dx, dy) {
   const nx = cursor.tx + dx, ny = cursor.ty + dy;
   if (nx >= 0 && ny >= 0 && nx < G.W.w && ny < G.W.h) { cursor.tx = nx; cursor.ty = ny; }
   G.focus = { x: cursor.tx * TILE + 16, y: cursor.ty * TILE + 26 };
+  freeCam = false;
+}
+
+// ---------------------------------------------------------------- free camera in combat
+// The player can look around the field: drag with the right (or middle) mouse button, Shift + WASD/arrows, or the
+// right stick. Any action (a walk, an attack, a spell, a new turn) takes the camera back and follows it; C recenters.
+let freeCam = false, drag = null;
+/** Put the camera's corner at (x, y), kept on the map, and stop it following anyone. */
+function panTo(x, y) {
+  freeCam = true;
+  G.cam.x = camClamp(x, G.W.w * TILE, G.vw);
+  G.cam.y = PV.on ? camClampTilted(y, G.W.h * TILE) : camClamp(y, G.W.h * TILE, G.vh);
+}
+function startDrag(e) {
+  const g = groundRel(e.clientX, e.clientY);
+  if (!g) return;
+  drag = { sx: e.clientX, sy: e.clientY, ax: G.cam.x + g[0], ay: G.cam.y + g[1], btn: e.button, moved: false };
+}
+addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  if (!G.combat || G.paused) { drag = null; return; }
+  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+  drag.moved = true;
+  canvas.style.cursor = "grabbing";
+  // keep the ground point that was grabbed under the mouse
+  const g = groundRel(e.clientX, e.clientY);
+  if (g) panTo(drag.ax - g[0], drag.ay - g[1]);
+});
+addEventListener("mouseup", (e) => {
+  if (!drag || e.button !== drag.btn) return;
+  // a right click that didn't drag still cancels the chosen action
+  if (!drag.moved && drag.btn === 2 && G.combat) { G.combat.ability = null; refreshCombatHotbar(); }
+  if (drag.moved) canvas.style.cursor = "";
+  drag = null;
+});
+/** Shift + WASD/arrows and the right stick pan the camera, every frame. */
+function panCamera(dt) {
+  let mx = Input.look.x, my = Input.look.y;
+  if (G.keys.has("shift")) {
+    if (G.keys.has("w") || G.keys.has("arrowup")) my--;
+    if (G.keys.has("s") || G.keys.has("arrowdown")) my++;
+    if (G.keys.has("a") || G.keys.has("arrowleft")) mx--;
+    if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
+  }
+  if (!mx && !my) return;
+  const k = 340 * dt / Math.max(1, Math.hypot(mx, my));
+  panTo(G.cam.x + mx * k, G.cam.y + my * k * (PV.on ? 1.6 : 1));
 }
 /** Buttons that reach the game because no menu is open (see input.js). */
 Input.onAction = (a) => {
@@ -793,7 +845,12 @@ Input.onCancel = (layer) => {
 };
 canvas.addEventListener("mousemove", setMouse);
 canvas.addEventListener("mouseleave", () => { G.mouse.in = false; UI.tooltip(null); });
-canvas.addEventListener("mousedown", (e) => { if (G.paused) return; setMouse(e); if (e.button === 0) onClick(); if (e.button === 2 && G.combat) { G.combat.ability = null; } });
+canvas.addEventListener("mousedown", (e) => {
+  if (G.paused) return;
+  setMouse(e);
+  if (e.button === 0) onClick();
+  if ((e.button === 2 || e.button === 1) && G.combat) { e.preventDefault(); startDrag(e); }
+});
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("keydown", (e) => {
   if (e.key === "F5" || e.key === "F9") {
@@ -822,7 +879,8 @@ addEventListener("keydown", (e) => {
   else if (G.mode === "combat") {
     if (k === " ") { e.preventDefault(); endTurn(); }
     const mv = { w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] }[k];
-    if (mv) { e.preventDefault(); document.body.classList.add("nav-keys"); cursorMove(...mv); }
+    if (mv) { e.preventDefault(); if (!e.shiftKey) { document.body.classList.add("nav-keys"); cursorMove(...mv); } }
+    if (k === "c") freeCam = false;
     if (k === "tab") { e.preventDefault(); UI.hotbarMove(e.shiftKey ? -1 : 1); }
     if (k === "f") UI.hotbarUse();
     if (/^[1-9]$/.test(k)) UI.hotbarUse(+k - 1);
@@ -981,7 +1039,8 @@ function setupMenu(corner = true) {
   document.getElementById("keys").innerHTML = [
     [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
     [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
-    [key("Espaço", "Y"), "encerrar o turno"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
+    [key("Espaço", "Y"), "encerrar o turno"],
+    [key("Botão direito + arrastar", "RS") + key("Shift+WASD", ""), "mover a câmera no combate"], [key("C", ""), "recentralizar a câmera"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
     [key("Q E", "LB RB"), "trocar de aba nos menus"], [key("M", ""), "som"], [key("V", ""), "perspectiva 3D"], [key("Esc P", "Start"), "este menu"],
   ].map(([k, t]) => `<li>${k}</li><li>${t}</li>`).join("");
 }
@@ -1001,7 +1060,7 @@ function setPaused(p) {
 function moveCamera(dt, f) {
   if (!f) return;
   const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = PV.on ? camClampTilted(f.y - 16 - G.vh / 2, G.W.h * TILE) : camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
-  const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? (G.mode === "combat" ? 4 : 6)));
+  const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? f.camSpeed ?? (G.mode === "combat" ? 4 : 6)));
   G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
 }
 
@@ -1084,8 +1143,10 @@ function update(dt) {
   }
   S.update(dt);
   updateAudio(dt);
-  // camera
-  moveCamera(dt, G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l));
+  // camera: in combat the player may look around freely until the next action
+  if (G.mode !== "combat") { freeCam = false; drag = null; }
+  else if (!G.camFocus) panCamera(dt);
+  if (!(freeCam && G.mode === "combat" && !G.camFocus)) moveCamera(dt, G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l));
   if (G.shake > 0) G.shake -= dt;
   if (clickMark) { clickMark.t -= dt; if (clickMark.t <= 0) clickMark = null; }
   // the keyboard/pad cursor moves the "mouse" during combat
