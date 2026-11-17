@@ -167,8 +167,8 @@ segundo.
 - **Sol**: de dia, ao ar livre, o sol projeta as mesmas silhuetas pela hora do relógio: de manhã para oeste e
   compridas, ao meio-dia curtas para o norte, à tarde para leste. O chão na sombra desce um degrau da rampa, com
   borda em dither, puxando para o azul do céu. Sem sol à noite, em interiores, no sonho e quando a história fixa o céu.
-- **Bloom** (opção à parte, desligado por padrão): o que a luz empurra além do mais claro da arte e toda a luz dos
-  efeitos (fogo, magias) espalham um halo. É reduzido a 1/4 e 1/8, borrado nas duas direções e somado de volta em
+- **Bloom** (opção à parte, desligado por padrão, com controle de força): o coração de cada luz (fogueiras,
+  lampiões, janelas), o que é quase branco e a luz dos efeitos (fogo, magias) espalham um halo na cor da luz. É reduzido a 1/4 e 1/8, borrado nas duas direções e somado de volta em
   faixas com o mesmo dither Bayer, nunca um degradê liso. A névoa e o céu ficam de fora.
 - **Paleta**: a luz não mistura com branco nem preto. Uma tabela 3D, montada com todas as rampas da arte, diz
   qual é "um degrau acima" e "um degrau abaixo" de cada cor; a luz chega em degraus inteiros, e a borda entre

@@ -972,12 +972,15 @@ function setupMenu(corner = true) {
       ? `<div class="seg">${modes.map(([k, l]) => `<button data-lm="${k}" class="${lightSettings.mode === k ? "on" : ""}">${l}</button>`).join("")}</div>
         <label class="vrow ${lightSettings.mode === "off" ? "off" : ""}"><span>Intensidade</span><input type="range" min="0.4" max="1.4" step="0.1" value="${lightSettings.intensity}"><span class="pct">${Math.round(lightSettings.intensity * 100)}%</span></label>
         <p class="muted">${lightSettings.mode === "off" ? "Sem luz dinâmica: o jogo como era." : lightSettings.mode === "low" ? "Luzes e hora do dia, sem sombras." : "Luzes, hora do dia e sombras com a forma dos objetos, que seguem o sol e as lâmpadas."}</p>
-        <label class="chk"><input type="checkbox" id="bloomOn" ${lightSettings.bloom ? "checked" : ""}> Bloom: brilho em volta do fogo, das magias e do que é muito claro</label>`
+        <label class="chk"><input type="checkbox" id="bloomOn" ${lightSettings.bloom ? "checked" : ""}> Bloom: brilho em volta do fogo, das lâmpadas, das magias e do que é muito claro</label>
+        <label class="vrow ${lightSettings.bloom ? "" : "off"}"><span>Força do bloom</span><input type="range" id="bloomK" min="0.4" max="2.5" step="0.1" value="${lightSettings.bloomK ?? 1}"><span class="pct" id="bloomPct">${Math.round((lightSettings.bloomK ?? 1) * 100)}%</span></label>`
       : `<p class="muted">Este navegador não tem WebGL2: a luz dinâmica fica desligada.</p>`;
     lo.querySelectorAll("[data-lm]").forEach((b) => (b.onclick = () => { setLight({ mode: b.dataset.lm }); sfx.click(); drawLight(); lo.querySelector(`[data-lm="${b.dataset.lm}"]`)?.focus(); }));
     const bl = lo.querySelector("#bloomOn");
-    if (bl) bl.onchange = () => { setLight({ bloom: bl.checked }); sfx.click(); };
-    const r = lo.querySelector("input[type=range]");
+    if (bl) bl.onchange = () => { setLight({ bloom: bl.checked }); sfx.click(); drawLight(); lo.querySelector("#bloomOn")?.focus(); };
+    const bk = lo.querySelector("#bloomK");
+    if (bk) bk.oninput = () => { setLight({ bloomK: +bk.value }); lo.querySelector("#bloomPct").textContent = Math.round(bk.value * 100) + "%"; };
+    const r = lo.querySelector("input[type=range]:not(#bloomK)");
     if (r) r.oninput = () => { setLight({ intensity: +r.value }); lo.querySelector(".pct").textContent = Math.round(r.value * 100) + "%"; };
   };
   drawLight();

@@ -25,7 +25,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
-export const lightSettings = { mode: "high", intensity: 1, bloom: false, ...store.get("brum.light", {}) };
+export const lightSettings = { mode: "high", intensity: 1, bloom: false, bloomK: 1, ...store.get("brum.light", {}) };
 export function setLight(patch) { Object.assign(lightSettings, patch); store.set("brum.light", lightSettings); }
 
 const VS = `#version 300 es
@@ -114,8 +114,12 @@ void main() {
   if (uBloom > 0.5) {
     // what glows: what the light pushed past the art's own brightest, and every bit of the effects' light
     // (not the haze or the fog over the world: a pale sky is not a lamp)
+    // the lamps themselves glow too, but only the heart of their light, in their own colour
     float l = dot(world, vec3(0.3, 0.59, 0.11));
-    oB = vec4(world * smoothstep(0.7, 1.0, l) * (1.0 - ov.a) + ad.rgb, 1.0);
+    vec3 L = texture(uLitO, uv).rgb * uGain;
+    float core = smoothstep(0.85, 1.5, max(L.r, max(L.g, L.b)));
+    vec3 hue = L / max(0.001, max(L.r, max(L.g, L.b)));
+    oB = vec4((world * smoothstep(0.78, 1.0, l) + hue * core * 0.35) * (1.0 - ov.a) + ad.rgb * 0.7, 1.0);
   } else oB = vec4(0.0);
 }`;
 
@@ -148,7 +152,7 @@ void main() {
   ivec2 w = ivec2(floor(vec2(fc.x, uView.y - fc.y) + uCam));
   float bay = (B[(w.y & 3) * 4 + (w.x & 3)] + 0.5) / 16.0;
   vec3 b = texture(uA, uv).rgb * uK.x + texture(uB, uv).rgb * uK.y;
-  b = floor(b * 10.0 + bay) / 10.0; // in bands, like the light, never a smooth gradient
+  b = floor(b * 24.0 + bay) / 24.0; // in fine bands with the art's dither, never a smooth gradient
   o = vec4(texture(uScene, uv).rgb + b, 1.0);
 }`;
 
@@ -785,7 +789,8 @@ export function renderLight(s) {
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, A0.tex); gl.uniform1i(C.u.uA, 1);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, B0.tex); gl.uniform1i(C.u.uB, 2);
   gl.uniform2f(C.u.uView, w, h); gl.uniform1f(C.u.uSS, ss); gl.uniform2f(C.u.uCam, s.cam[0], s.cam[1]);
-  gl.uniform2f(C.u.uK, 0.6, 0.75);
+  const K = lightSettings.bloomK ?? 1;
+  gl.uniform2f(C.u.uK, 0.9 * K, 1.1 * K);
   drawQuad(0, 0, w, h);
 }
 
