@@ -1,0 +1,290 @@
+{
+ "mapa": "vau",
+ "mode": "dialogue",
+ "leader": 0,
+ "party": [
+  {
+   "uid": "hero",
+   "name": "Aldren",
+   "x": 368,
+   "y": 248,
+   "hp": 20,
+   "maxHp": 20,
+   "team": "party",
+   "gone": false,
+   "level": 2,
+   "xp": 300
+  },
+  {
+   "uid": "lyra",
+   "name": "Lyra",
+   "x": 356,
+   "y": 252,
+   "hp": 21,
+   "maxHp": 21,
+   "team": "party",
+   "gone": false,
+   "level": 2,
+   "xp": 300
+  }
+ ],
+ "followers": [],
+ "hero": "hero",
+ "mate": "lyra",
+ "f": {
+  "goblin_pact": true,
+  "maren_aboard": true,
+  "maren_lucid": true,
+  "tome_alive": true,
+  "awake": true,
+  "dream_done": true,
+  "echo": "accepted",
+  "escape_done": true,
+  "escape": true,
+  "act1": true,
+  "rosalva_met": true
+ },
+ "items": [
+  "chair",
+  "letter"
+ ],
+ "gold": 52,
+ "potions": 1,
+ "memories": [
+  {
+   "id": "dream",
+   "struck": false
+  },
+  {
+   "id": "o1",
+   "struck": false
+  },
+  {
+   "id": "o2",
+   "struck": false
+  },
+  {
+   "id": "sunset",
+   "struck": false
+  }
+ ],
+ "approval": {},
+ "npcs": [
+  {
+   "uid": "vau:0",
+   "name": "Rosalva, a taverneira",
+   "x": 368,
+   "y": 218,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:1",
+   "name": "Guarda do portão",
+   "x": 1296,
+   "y": 378,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:2",
+   "name": "Guarda do portão",
+   "x": 1296,
+   "y": 474,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:3",
+   "name": "Sargento Olmo",
+   "x": 1104,
+   "y": 218,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:4",
+   "name": "Dário Venn, Coletor",
+   "x": 240,
+   "y": 634,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:5",
+   "name": "Iara",
+   "x": 208,
+   "y": 634,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:6",
+   "name": "Beni",
+   "x": 176,
+   "y": 666,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:7",
+   "name": "Velho do norte",
+   "x": 400,
+   "y": 634,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:8",
+   "name": "Vendedora",
+   "x": 560,
+   "y": 378,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:9",
+   "name": "Nix",
+   "x": 784,
+   "y": 378,
+   "hp": 9,
+   "maxHp": 9,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:10",
+   "name": "Maren",
+   "x": 336,
+   "y": 666,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "vau:11",
+   "name": "Tomé",
+   "x": 272,
+   "y": 666,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  }
+ ],
+ "enemies": [],
+ "chests": [
+  false
+ ],
+ "objects": [
+  {
+   "id": "tavern",
+   "kind": "house",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "garrison",
+   "kind": "house",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "strongbox",
+   "kind": "strongbox",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "board",
+   "kind": "board",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "campfire",
+   "kind": "campfire",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "boat",
+   "kind": "rowboat",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  }
+ ],
+ "combat": null,
+ "dialogue": {
+  "npc": "vau:0",
+  "node": "L"
+ },
+ "abilities": [
+  "attack",
+  "cleave",
+  "lampejo",
+  "potion",
+  "secondwind"
+ ]
+}

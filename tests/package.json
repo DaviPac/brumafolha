@@ -1,0 +1,12 @@
+{
+  "name": "brumafolha-tests",
+  "private": true,
+  "type": "module",
+  "description": "Testes do jogo no navegador (Playwright): saves antigos, saves novos, atualização automática.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-timeout=600000 *.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

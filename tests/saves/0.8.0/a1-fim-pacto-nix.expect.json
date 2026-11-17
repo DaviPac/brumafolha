@@ -1,0 +1,298 @@
+{
+ "mapa": "travessia",
+ "mode": "explore",
+ "leader": 0,
+ "party": [
+  {
+   "uid": "hero",
+   "name": "Aldren",
+   "x": 1392,
+   "y": 504,
+   "hp": 28,
+   "maxHp": 28,
+   "team": "party",
+   "gone": false,
+   "level": 3,
+   "xp": 950
+  },
+  {
+   "uid": "lyra",
+   "name": "Lyra",
+   "x": 1168,
+   "y": 474,
+   "hp": 26,
+   "maxHp": 26,
+   "team": "party",
+   "gone": false,
+   "level": 3,
+   "xp": 950
+  },
+  {
+   "uid": "vau:9",
+   "name": "Nix",
+   "x": 1168,
+   "y": 474,
+   "hp": 21,
+   "maxHp": 21,
+   "team": "party",
+   "gone": false,
+   "level": 3,
+   "xp": 850
+  }
+ ],
+ "followers": [],
+ "hero": "hero",
+ "mate": "lyra",
+ "f": {
+  "goblin_pact": true,
+  "maren_aboard": true,
+  "maren_lucid": true,
+  "tome_alive": true,
+  "otavio_found": true,
+  "silas_doubt": true,
+  "returned_heirloom": true,
+  "awake": true,
+  "dream_done": true,
+  "echo": "accepted",
+  "escape_done": true,
+  "escape": true,
+  "act1": true,
+  "q_nix": true,
+  "lume_got": true,
+  "lume_done": "nix",
+  "nix_joined": true,
+  "rosalva_met": true,
+  "note": true,
+  "eco_trade": "o1",
+  "lost_o1": true,
+  "rested1": true,
+  "gate_busy": false,
+  "gate_passed": true,
+  "trav_entered": true,
+  "proc": "passed",
+  "hunters": "won",
+  "ch1_done": true
+ },
+ "items": [
+  "letter",
+  "note",
+  "seal",
+  "shield:escudo:gskx4"
+ ],
+ "gold": 162,
+ "potions": 1,
+ "memories": [
+  {
+   "id": "dream",
+   "struck": false
+  },
+  {
+   "id": "o1",
+   "struck": true
+  },
+  {
+   "id": "o2",
+   "struck": false
+  },
+  {
+   "id": "sunset",
+   "struck": false
+  },
+  {
+   "id": "odara",
+   "struck": false
+  }
+ ],
+ "approval": {
+  "lyra": -1
+ },
+ "npcs": [
+  {
+   "uid": "travessia:4",
+   "name": "Irmão Silas",
+   "x": 368,
+   "y": 474,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:9",
+   "name": "Odara, a Pena-Cinza",
+   "x": 1392,
+   "y": 474,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:10",
+   "name": "Gorza",
+   "x": 816,
+   "y": 602,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:11",
+   "name": "Murta",
+   "x": 880,
+   "y": 538,
+   "hp": 8,
+   "maxHp": 8,
+   "team": "npc",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  }
+ ],
+ "enemies": [
+  {
+   "uid": "travessia:0",
+   "name": "Irmã Dalva",
+   "x": 473,
+   "y": 355,
+   "hp": 20,
+   "maxHp": 20,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:1",
+   "name": "Esvaído",
+   "x": 368,
+   "y": 359,
+   "hp": 16,
+   "maxHp": 16,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:2",
+   "name": "Esvaída lavadeira",
+   "x": 368,
+   "y": 405,
+   "hp": 16,
+   "maxHp": 16,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:3",
+   "name": "Esvaído",
+   "x": 368,
+   "y": 378,
+   "hp": 16,
+   "maxHp": 16,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:5",
+   "name": "Capitã Hesta",
+   "x": 1264,
+   "y": 474,
+   "hp": 0,
+   "maxHp": 30,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:6",
+   "name": "Soldado da Coroa",
+   "x": 1200,
+   "y": 506,
+   "hp": 0,
+   "maxHp": 14,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:7",
+   "name": "Soldado da Coroa",
+   "x": 1200,
+   "y": 442,
+   "hp": 0,
+   "maxHp": 14,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  },
+  {
+   "uid": "travessia:8",
+   "name": "Besteiro da Coroa",
+   "x": 1360,
+   "y": 506,
+   "hp": 0,
+   "maxHp": 11,
+   "team": "enemy",
+   "gone": false,
+   "level": 1,
+   "xp": 0
+  }
+ ],
+ "chests": [
+  false
+ ],
+ "objects": [
+  {
+   "id": "shrine",
+   "kind": "shrine",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "wagon",
+   "kind": "cart",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  },
+  {
+   "id": "satchel",
+   "kind": "satchel",
+   "open": false,
+   "hidden": false,
+   "lit": false,
+   "out": false,
+   "empty": false
+  }
+ ],
+ "combat": null,
+ "dialogue": null,
+ "abilities": [
+  "attack",
+  "cleave",
+  "lampejo",
+  "potion",
+  "secondwind"
+ ]
+}
