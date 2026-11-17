@@ -50,7 +50,7 @@ const inScene = (page) => page.evaluate(async () => { const S = await import("/s
  * Stops when the game is back to `until` (default: exploring) with no conversation or scene. Throws if a question
  * comes up that the picks don't answer.
  */
-export async function play(page, picks = [], { until = ["explore"], timeout = 90000, endscreen = true } = {}) {
+export async function play(page, picks = [], { until = ["explore"], timeout = 90000, endscreen = true, shots = null } = {}) {
   const stopInDialogue = until.includes("dialogue");
   picks = [...picks];
   const t0 = Date.now();
@@ -68,6 +68,11 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
       };
     });
     if (s.dice) { if (s.diceReady) await page.evaluate(() => document.querySelector("#dice").onclick()); await sleep(150); calm = 0; continue; }
+    if (shots && (s.dlg || s.end)) {
+      // pictures of the scenes: when a line containing a key is on screen, once (a click shows the whole line at once)
+      const text = await page.evaluate(() => { const e = document.querySelector("#endscreen:not(.hidden)"); if (e) return e.textContent; const t = document.querySelector("#dialogue .text"); t?.onclick?.(); return t?.textContent ?? ""; });
+      for (const [k, file] of Object.entries(shots)) if (text.includes(k)) { delete shots[k]; await sleep(700); await page.screenshot({ path: file, type: "jpeg", quality: 82 }); }
+    }
     if (s.end && endscreen) { await page.click("#endscreen button"); calm = 0; continue; }
     if (s.dlg && s.opts.length) {
       if (stopInDialogue && !picks.length) return; // stay in this conversation (to save in the middle of it)
@@ -145,6 +150,7 @@ export async function mods(page) {
 /** Save with the game's own manual save, then export it as a file through the Load screen. Returns the save's id. */
 export async function saveAndExport(page, file) {
   await mods(page);
+  await page.evaluate(SNAP_SRC);
   await waitFor(page, () => !window.__B.saves.saveBlock(), null, 60000);
   // the snapshot and the save in the same moment: nothing can move between them
   const { id, snap } = await page.evaluate(() => new Promise((res, rej) => {

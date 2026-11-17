@@ -178,6 +178,51 @@ A bíblia descreve o Ato I por áreas, sem ordem de cenas. O que foi decidido aq
 
 Código: [src/act1.js](src/act1.js) (roteiro), [src/maps1.js](src/maps1.js) (mapas), [src/art/town.js](src/art/town.js) (chão e props da vila).
 
+## Ato I, capítulo 2: "O Véu Sereno"
+
+Quem terminou o capítulo 1 segue pela tela de fim (**Seguir para o Mosteiro**) ou pelo fim da estrada da Travessia, a
+leste. `?dev=ato1c2&f=...` começa direto no capítulo 2. Três mapas novos ([src/maps2.js](src/maps2.js)): o **Sul do
+Bosque** (Abel e o passarinho de Pipa, as mariposas da Bruma e a peregrina, a clareira para dormir), o **Mosteiro**
+(pátio, jardim do chá de bruma, hospedaria, portão norte) e o **claustro** (cozinha, dormitório dos órfãos, capela e a
+Ala do Silêncio atrás do véu do altar). Roteiro em [src/act1ch2.js](src/act1ch2.js), arte em
+[src/art/abbey.js](src/art/abbey.js) e [src/art/creatures.js](src/art/creatures.js).
+
+- **Madre Odília**: conversa longa em três rodadas de testes; pode hesitar (e liberar Hulda), empatar ou quase convencer.
+- **Hulda Ferrobarba** entra no grupo (clériga anã, Martelo de Ormun). **O Velho Sabiá** está lá, mas a revelação fica
+  para a Procissão Branca. **Silas** espera na porta da cozinha se `silas_doubt`.
+- **Escolha do Mosteiro**: denunciar à Coroa, atacar, ou levar só Hulda; o custo aparece na manhã seguinte.
+- Usa o que veio antes: `otavio_found` (o livro de nomes, um argumento contra a Madre), o sinete (Irmão Tadeu pergunta
+  pela Página em Branco), a lembrança dada ao Eco (a Madre pede justamente uma lembrança de origem), a aprovação do
+  companheiro (alta: ele responde por você; baixa: ele concorda com a Madre e o teste fica mais difícil), Nix (chaleira,
+  fechadura, o livro), dormir no Mosteiro (uma lembrança riscada "pelo chá", e a Madre vê a sua mão).
+- Combates novos: as mariposas (Esquecido) e a Irmã Sálvia com os irmãos do Véu; os dois têm saída sem luta. Atacar o
+  Mosteiro abre um terceiro.
+
+### Decisões (capítulo 2)
+
+1. L. não sai do Mosteiro: precisa saber a data da procissão; promete contar tudo lá (a revelação fica para o clímax).
+2. Silas não entra no grupo ainda (`silas_promise`): estará na procissão.
+3. Dormir no Mosteiro não é proibido: risca uma lembrança não-de-origem (marcada `by: "cha"`) e a Madre vê a marca.
+4. "Denunciar à Coroa" é mandar o registro à guarnição de Vau-de-Cardo; a Madre escapa em qualquer escolha.
+
+### Compatibilidade de saves (testado)
+
+`cd tests && npm install && npm test` roda tudo no Chromium do Playwright:
+- `old-saves`: os 9 saves de referência da 0.8.0 (`tests/saves/0.8.0/`: prólogo explorando, em conversa e em combate;
+  Vau-de-Cardo; conversa e combate no Ato I; capítulo 1 terminado com e sem pacto, com e sem Nix) carregam com o mesmo
+  estado e seguem jogáveis; os dois com `ch1_done` chegam ao capítulo 2.
+- `ids`: os ids posicionais dos mapas antigos são idênticos na 0.8.0 e na versão nova, em três combinações de flags.
+- `update`: a 0.8.0 com service worker recebe a versão nova, faz o save automático com o código velho e recarrega no novo.
+- `chapter2`: o capítulo inteiro em três caminhos (paz, ataque, Coroa), com saves novos explorando, em conversa e em
+  combate, recarregados e conferidos.
+O formato do save não mudou (continua 1); nenhuma migração foi necessária.
+
+Desempenho (Firefox 158 em janela real 1920×1080, medidor F3, `tests/perf-firefox.mjs`): os mapas novos desenham em
+2 a 4 ms por quadro, como o acampamento e Vau-de-Cardo (82-83 quadros/s de jogo).
+
+Falta: Bosque de Lethiel, a Procissão Branca e a revelação de L.; recrutar Silas e Murta. O capítulo 2 foi jogado de
+ponta a ponta por roteiro automático, não à mão; o equilíbrio dos combates não foi ajustado jogando.
+
 ## Interface
 
 A interface foi refeita com estrutura de Baldur's Gate 3 e acabamento de pixel art:
