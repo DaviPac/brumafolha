@@ -65,9 +65,19 @@ No criador, a aba **Equipamento** escolhe o kit inicial da classe. No jogo, a ab
 
 - Clique no chão para andar (ou WASD). Clique em personagens/baús para interagir, `E` interage com o que está perto.
 - `I` abre a Bolsa, `J` abre o Diário (missões e lembranças).
-- `Tab` troca o personagem controlado. A fogueira do acampamento faz um descanso longo.
+- `V` alterna a perspectiva 3D. `Tab` troca o personagem controlado. A fogueira do acampamento faz um descanso longo.
 - Combate: clique num quadrado para mover, num inimigo para atacar; `1–5` escolhe a ação; `Espaço` encerra o turno; botão direito/`Esc` cancela.
 - `Esc` ou `P` (ou o botão ☰ no canto superior esquerdo) abre o menu de pausa, com volume separado para música, ambiente e cada tipo de efeito (golpes e magias, passos, fanfarras, interface, mundo). `M` liga/desliga o som.
+
+## Perspectiva 3D
+
+O jogo abre com a câmera inclinada sobre o vale, num estilo parecido com o "Mode 7" dos consoles antigos:
+- O **chão** (terreno, água, sombras, grade de combate, reflexos, a Bruma) é desenhado plano e depois deitado num plano em perspectiva, linha por linha: o que está longe encolhe e some numa névoa de distância; o que está perto cresce.
+- Tudo o que fica **de pé** (personagens, árvores, muros, efeitos, barras de vida, vaga-lumes) é um *billboard*: continua ereto, ancorado nos pés e escalado pela distância. Na linha do líder a escala é 1, então o grupo fica idêntico à vista plana.
+- O clique é projetado de volta no chão; em combate, clicar no corpo de alguém escolhe a casa dessa pessoa.
+- `V` alterna entre a vista 3D e a vista de cima. No menu (`Esc`) há a opção **Perspectiva 3D** e o controle **Inclinação da câmera**; a escolha fica salva no navegador.
+
+Código em [src/persp.js](src/persp.js) (a projeção) e na função `draw` de [src/main.js](src/main.js). O porte para Unity continua com a vista de cima.
 
 ## Arte
 

@@ -2,11 +2,13 @@
 import { G } from "./state.js";
 import { makeCanvas } from "./util.js";
 import { sfx } from "./audio.js";
+import { worldToView } from "./persp.js";
 
 const $ = (s) => document.querySelector(s);
 
 export function worldToScreen(x, y) {
-  return [(x - G.cam.x) * G.scale, (y - G.cam.y) * G.scale];
+  const [sx, sy] = worldToView(x, y);
+  return [sx * G.scale, sy * G.scale];
 }
 
 export function floater(x, y, text, cls = "dmg") {

@@ -47,26 +47,52 @@ export class FxLayer {
     }
     this.list = this.list.filter((e) => { const d = e.fx.done(); if (d) e.onDone?.(); return !d || e.keep; });
   }
-  draw(ctx, camX, camY, view) {
+  draw(ctx, camX, camY) {
     const vis = this.list.filter((e) => e.x > camX - 200 && e.x < camX + this.w + 200 && e.y > camY - 200 && e.y < camY + this.h + 260);
     if (!vis.length) return;
     const f = this.frame;
     clearFrame(f);
     f.ox = camX | 0; f.oy = camY | 0;
     for (const e of vis) e.fx.draw(f);
-    const n = f.w * f.h, C = f.color, L = f.light, cd = this.ci.data, ld = this.li.data;
-    let anyL = false;
+    this.blit(ctx, f, this, 0, 0);
+  }
+  /**
+   * The 3D view: each effect is painted alone into a small frame around its anchor and handed to place(x, y, fn),
+   * which sets up the billboard transform for that spot and calls fn(ctx) to draw in flat coordinates.
+   */
+  drawEach(camX, camY, place) {
+    if (!this.small) {
+      const W = 240, H = 272;
+      this.small = { f: createFrame(W, H), ax: 120, ay: 212 };
+      [this.small.cc, this.small.cctx] = makeCanvas(W, H);
+      [this.small.lc, this.small.lctx] = makeCanvas(W, H);
+      this.small.ci = new ImageData(W, H); this.small.li = new ImageData(W, H);
+    }
+    const S = this.small, f = S.f;
+    for (const e of this.list) {
+      clearFrame(f);
+      f.ox = Math.round(e.x) - S.ax; f.oy = Math.round(e.y) - S.ay;
+      place(e.x, e.y, (ctx) => {
+        e.fx.draw(f);
+        this.blit(ctx, f, S, f.ox - camX, f.oy - camY);
+      });
+    }
+  }
+  /** A pixelfx frame onto a 2D context: color with alpha, then light added on top. */
+  blit(ctx, f, B, x, y) {
+    const n = f.w * f.h, C = f.color, L = f.light, cd = B.ci.data, ld = B.li.data;
+    let anyC = false, anyL = false;
     for (let i = 0; i < n; i++) {
       const c = C[i], l = L[i], j = i * 4;
+      if (c) anyC = true;
       cd[j] = c & 255; cd[j + 1] = (c >>> 8) & 255; cd[j + 2] = (c >>> 16) & 255; cd[j + 3] = c >>> 24;
       if (l & 0xffffff) { anyL = true; ld[j] = l & 255; ld[j + 1] = (l >>> 8) & 255; ld[j + 2] = (l >>> 16) & 255; ld[j + 3] = 255; }
       else ld[j + 3] = 0;
     }
-    this.cctx.putImageData(this.ci, 0, 0);
-    ctx.drawImage(this.cc, 0, 0);
+    if (anyC) { B.cctx.putImageData(B.ci, 0, 0); ctx.drawImage(B.cc, x, y); }
     if (anyL) {
-      this.lctx.putImageData(this.li, 0, 0);
-      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(this.lc, 0, 0); ctx.restore();
+      B.lctx.putImageData(B.li, 0, 0);
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(B.lc, x, y); ctx.restore();
     }
   }
 }
