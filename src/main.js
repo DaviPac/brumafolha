@@ -80,6 +80,12 @@ async function boot() {
   G.clock = 17.9; // the menu's valley is at golden hour
   requestAnimationFrame(loop);
   if (loading) {
+    // a load reloads the page, and the browser only lets sound start after a click or a key: the new page has had
+    // neither yet. Try now (it works if the browser still counts the click that asked for the load), and on the first one.
+    initAudio();
+    const wake = () => { initAudio(); removeEventListener("pointerdown", wake, true); removeEventListener("keydown", wake, true); };
+    addEventListener("pointerdown", wake, true);
+    addEventListener("keydown", wake, true);
     if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); }
     return;
   }
