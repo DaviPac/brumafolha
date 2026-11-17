@@ -22,7 +22,8 @@ import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
 import { playIntro, updateIntro, skipIntro } from "./intro.js";
-import { initTitle, titleLoaded, closeTitle, titleCancel, titleSaves, titleAudioOn } from "./title.js";
+import { initTitle, titleLoaded, closeTitle, titleCancel, titleSaves } from "./title.js";
+import { showPress, pressReady } from "./press.js";
 import { ids, baseline, encode } from "./save/codec.js";
 import { initGame, collect } from "./save/game.js";
 import { initSaves, tickSaves, requestSave, autoSave, bootLoad, openSaves, closeSaves, savesOpen, newestSave, loadSave, saveBlock } from "./save/saves.js";
@@ -57,9 +58,9 @@ async function boot() {
   await installFont();
   resize();
   // a load reloads the page: then the title and its opening are skipped, behind a black screen
-  const loading = hasPendingLoad();
+  const loading = hasPendingLoad(), dev = new URLSearchParams(location.search).get("dev");
   if (loading) { UI.fade(1, 0); document.getElementById("title").classList.add("hidden"); }
-  else initTitle({ start: create, options: () => { setupMenu(false); setPaused(true); }, cont: continueGame, load: () => openSaves("load", () => document.getElementById("load").focus()) });
+  else if (!dev) showPress(startMenu); // "click to start", over a pixelfx night, while the valley is painted
   document.getElementById("titleHelp").innerHTML = `
     <li>${key("Clique", "")}${key("WASD", "L")} andar · ${key("E", "A")} interagir · ${key("Tab", "")} trocar de personagem</li>
     <li>Combate: ${key("1-9", "LB RB")} escolhe a ação · ${key("Clique", "A")} confirma · ${key("Espaço", "Y")} encerra o turno</li>
@@ -93,18 +94,7 @@ async function boot() {
     if (await bootLoad(loadFailed)) { closeTitle(); await UI.fade(0, 500); showNewNotes(); }
     return;
   }
-  titleLoaded();
-  refreshTitleSaves();
-  showNewNotes();
-  // the menu's music starts with the first click or key: browsers allow no sound before one
-  const wake = () => {
-    removeEventListener("pointerdown", wake, true); removeEventListener("keydown", wake, true);
-    initAudio();
-    if (G.mode === "title") playMusic("title", 2.5);
-    titleAudioOn();
-  };
-  addEventListener("pointerdown", wake, true);
-  addEventListener("keydown", wake, true);
+  if (!dev) pressReady();
   // development shortcut: ?dev=camp (&cls=mago&race=elfo&f=flag1,flag2) skips the title, the creator and the dream
   const q = new URLSearchParams(location.search);
   if (q.get("dev")) {
@@ -116,7 +106,18 @@ async function boot() {
     recruit(b);
     setupMenu();
     S.devJump(q.get("dev"), (q.get("f") ?? "").split(",").filter(Boolean));
+    showNewNotes();
   }
+}
+
+/** The click on the start screen: the sound can start now, and with it the menu's music and opening. */
+function startMenu() {
+  initAudio();
+  playMusic("title", 2.5);
+  initTitle({ start: create, options: () => { setupMenu(false); setPaused(true); }, cont: continueGame, load: () => openSaves("load", () => document.getElementById("load").focus()) });
+  titleLoaded();
+  refreshTitleSaves();
+  showNewNotes(); // after an update: what changed (only once the menu is up, not behind the start screen)
 }
 
 async function create() {

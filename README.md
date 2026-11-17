@@ -41,6 +41,14 @@ o *Compartilhar → Adicionar à Tela de Início* do Safari), abre em tela cheia
 - No celular há controles por toque (tocar, segurar e arrastar; no combate, um toque mostra e o segundo confirma) e
   a interface se arruma em retrato e em paisagem.
 
+## Tela de início
+
+Antes do menu, uma noite no vale feita só com efeitos do [pixelfx](https://github.com/patch-gg/pixelfx): aurora,
+estrelas cadentes, a Bruma baixa e vaga-lumes sobre o capim. Ela aparece enquanto o vale é pintado e, quando o jogo
+está pronto, pede **Clique para iniciar** (ou qualquer tecla, um toque, o A do controle). Ela existe porque o
+navegador não deixa tocar nenhum som antes de um clique: assim a música do menu e a abertura começam juntas.
+Código em [src/press.js](src/press.js).
+
 ## Menu inicial
 
 O jogo abre num menu com o vale vivo ao fundo: a câmera passeia devagar sobre o Lago Espelhado ao entardecer.
