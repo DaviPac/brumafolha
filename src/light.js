@@ -280,6 +280,7 @@ void main() { vUV = aUV; vCol = aCol; vPos = aPos; vec2 c = aPos / uView * 2.0 -
 const FS_SPR = `#version 300 es
 precision highp float;
 uniform sampler2D uTex, uMask;
+uniform float uStraight;      // the texture holds plain (not premultiplied) alpha: raw pixels from the effects and the fog
 uniform float uMirror, uTime; // reflections on water: rippled rows, kept only where the mask says water, tinted by it
 uniform vec4 uMaskRect;       // the layer's origin in the world (x, y), and 1 / the mask's size
 in vec2 vUV; in vec4 vCol; in vec2 vPos; out vec4 o;
@@ -291,12 +292,16 @@ void main() {
     vec4 c = texture(uTex, vUV - vec2(off / float(textureSize(uTex, 0).x), 0.0));
     c.rgb = mix(c.rgb, vec3(24.0, 96.0, 120.0) / 255.0 * c.a, 0.45);
     o = c * vCol * 0.5 * texture(uMask, (wp + 0.5) * uMaskRect.zw).a;
-  } else o = texture(uTex, vUV) * vCol;
+  } else {
+    vec4 c = texture(uTex, vUV);
+    if (uStraight > 0.5) c.rgb *= c.a;
+    o = c * vCol;
+  }
 }`;
 
 const PAGE = 2048, BIG = 640, MAXQ = 4096, FPV = 8, GAP = 3; // GAP: clear texels between sprites in a row (reflections ripple sideways)
 let progSpr, vaoS, vboS, pages = [], srcs = new WeakMap(), named = new Map(), surfaces = [];
-let frameNo = 0, curLayer = null, curTex = null, curBlend = 0, curMirror = null, nQ = 0;
+let frameNo = 0, curLayer = null, curTex = null, curBlend = 0, curMirror = null, curStraight = false, nQ = 0;
 const qv = new Float32Array(MAXQ * 6 * FPV);
 
 function setupSprites() {
@@ -363,15 +368,19 @@ function flush() {
   // colours carry their alpha already; "lighter" adds light without thickening the layer
   if (curBlend) gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE); else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   const M = curMirror;
-  gl.uniform1f(progSpr.u.uMirror, M ? 1 : 0);
-  if (M) {
-    gl.uniform1f(progSpr.u.uTime, M.t); gl.uniform4f(progSpr.u.uMaskRect, M.x, M.y, 1 / M.mask.tw, 1 / M.mask.th);
-    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, M.mask.tex); gl.uniform1i(progSpr.u.uMask, 1);
-  }
+  gl.uniform1f(progSpr.u.uMirror, M ? 1 : 0); gl.uniform1f(progSpr.u.uStraight, curStraight ? 1 : 0);
+  if (M) { gl.uniform1f(progSpr.u.uTime, M.t); gl.uniform4f(progSpr.u.uMaskRect, M.x, M.y, 1 / M.mask.tw, 1 / M.mask.th); }
+  // the mask's unit always holds something harmless: left alone it keeps the lit pass's bindings, which are the very
+  // layers being painted, and WebGL refuses to draw into a texture a sampler could read
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, M ? M.mask.tex : pages[0].tex); gl.uniform1i(progSpr.u.uMask, 1);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, curTex);
   gl.drawArrays(gl.TRIANGLES, 0, nQ * 6);
   nQ = 0;
 }
+const straight = new WeakSet(); // textures uploaded as raw pixels with plain alpha
+const views = new WeakMap();
+/** ImageData pixels as a plain Uint8Array over the same memory (not every browser takes the clamped kind with a row offset). */
+function bytes(d) { if (d instanceof Uint8Array) return d; let v = views.get(d); if (!v) views.set(d, (v = new Uint8Array(d.buffer, d.byteOffset, d.length))); return v; }
 const colors = new Map();
 function parseColor(str) {
   let c = colors.get(str);
@@ -423,7 +432,7 @@ class Layer {
   }
   /** A quad of texture `tex` (u, v in 0..1) at x, y, w, h, tinted by r, g, b, a (alpha already multiplied in). */
   quad(tex, u0, v0, u1, v1, x, y, w, h, r, g, b, a) {
-    if (curLayer !== this || curTex !== tex || curBlend !== this.blend || nQ >= MAXQ) { flush(); curLayer = this; curTex = tex; curBlend = this.blend; }
+    if (curLayer !== this || curTex !== tex || curBlend !== this.blend || nQ >= MAXQ) { flush(); curLayer = this; curTex = tex; curBlend = this.blend; curStraight = straight.has(tex); }
     let x0 = x, y0 = y, x1 = x + w, y1 = y, x2 = x, y2 = y + h, x3 = x + w, y3 = y + h;
     if (!this.flat) {
       const m = this.m, X = (px, py) => m[0] * px + m[2] * py + m[4], Y = (px, py) => m[1] * px + m[3] * py + m[5];
@@ -471,16 +480,18 @@ class Layer {
    */
   pixels(name, data, w, h, box, dx, dy, dw, dh, smooth = false) {
     let t = named.get(name);
-    if (!t || t.w !== w || t.h !== h) { if (t) gl.deleteTexture(t.tex); t = { tex: plainTex(w, h, smooth), w, h }; named.set(name, t); if (box === false) box = null; }
+    if (!t || t.w !== w || t.h !== h) { if (t) gl.deleteTexture(t.tex); t = { tex: plainTex(w, h, smooth), w, h }; straight.add(t.tex); named.set(name, t); if (box === false) box = null; }
     if (box !== false) {
-      const [bx, by, bw, bh] = box ?? [0, 0, w, h];
+      // sent as they are, alpha not multiplied in (the shader does it): Firefox refuses raw uploads that ask for both
+      // premultiplication and a sub-rectangle
       if (curTex === t.tex) flush();
       gl.bindTexture(gl.TEXTURE_2D, t.tex);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, bx); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, by);
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, bx, by, bw, bh, gl.RGBA, gl.UNSIGNED_BYTE, data);
-      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      if (box) {
+        const [bx, by, bw, bh] = box;
+        gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, bx); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, by);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, bx, by, bw, bh, gl.RGBA, gl.UNSIGNED_BYTE, bytes(data));
+        gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+      } else gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, bytes(data));
     }
     const [sx, sy, sw, sh] = box || [0, 0, w, h], ga = this.globalAlpha;
     this.quad(t.tex, sx / w, sy / h, (sx + sw) / w, (sy + sh) / h, dx, dy, dw, dh, ga, ga, ga, ga);
@@ -516,7 +527,7 @@ export function renderLight(s) {
     addBox = [A.x0, A.y0, A.x1, A.y1];
     gl.bindTexture(gl.TEXTURE_2D, layerTex[3]);
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, R[0]); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, R[1]);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, R[0], R[1], R[2] - R[0] + 1, R[3] - R[1] + 1, gl.RGBA, gl.UNSIGNED_BYTE, A.data);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, R[0], R[1], R[2] - R[0] + 1, R[3] - R[1] + 1, gl.RGBA, gl.UNSIGNED_BYTE, bytes(A.data));
     gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
   }
   else gl.bindTexture(gl.TEXTURE_2D, texClear);
