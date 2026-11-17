@@ -6,7 +6,7 @@ RPG tático top-down em pixel art: exploração, diálogos com testes de d20 e c
 Toda a arte é gerada por código no carregamento (`src/art/`): cenário, personagens, ícones, molduras da
 interface e até a fonte. Os efeitos de combate (fogo, mísseis, golpes, cura) vêm do
 [pixelfx](https://github.com/patch-gg/pixelfx) (MIT), copiado em `vendor/pixelfx`. Não há nenhum arquivo de
-imagem, som ou fonte, e nada é baixado da rede.
+imagem, som ou fonte (nem os ícones do app, desenhados pelo service worker), e nada é baixado da rede.
 
 ## Rodar
 
@@ -19,6 +19,20 @@ Abra http://localhost:5173. A folha de assets fica em http://localhost:5173/tool
 
 Atalhos de desenvolvimento: `?dev=camp` pula título, criador e sonho; `?dev=ato1&f=goblin_pact,maren_aboard,maren_lucid,tome_alive`
 começa no Ato I como se o prólogo tivesse terminado com essas flags (`&cls=mago`, `&race=elfo` escolhem o herói; `&u=2` força a escala da interface).
+
+## App (PWA) e celular
+
+O jogo é um PWA: instalável (botão **Instalar o jogo** no menu inicial no Chrome/Edge; no iPhone/iPad o botão explica
+o *Compartilhar → Adicionar à Tela de Início* do Safari), abre em tela cheia e joga **sem internet**.
+
+- `manifest.webmanifest`: nome, cores, tela cheia, ícones.
+- `sw.js` (service worker): cada arquivo vem da rede primeiro (uma atualização aparece no próximo carregamento) e
+  fica num cache; sem rede, serve o cache. Depois do primeiro carregamento a página manda ao SW a lista de tudo o que
+  carregou, então o jogo inteiro já fica offline na primeira visita. Mudou os ícones? Troque `CACHE` em `sw.js`.
+- Os **ícones** (`icons/*.png`) não são arquivos: o service worker os desenha por código (`src/art/appicon.js`, a
+  mesma folha da abertura) e os guarda no cache. Instalar exige HTTPS (ou `localhost`).
+- No celular há controles por toque (tocar, segurar e arrastar; no combate, um toque mostra e o segundo confirma) e
+  a interface se arruma em retrato e em paisagem.
 
 ## Menu inicial
 

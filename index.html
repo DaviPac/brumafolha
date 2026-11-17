@@ -6,6 +6,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b0a10">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Brumafolha">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Brumafolha</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -89,12 +94,18 @@
         <button id="load" disabled title="Nenhum save ainda">Carregar jogo</button>
         <button id="options">Opções</button>
         <button id="credits">Créditos</button>
+        <button id="install" class="hidden">Instalar o jogo</button>
       </nav>
       <div class="credits fr fr-panel hidden">
         <h3>Brumafolha</h3>
         <p>Toda a arte, a fonte, a música e os sons são feitos por código, no próprio navegador. Nenhum arquivo de imagem ou de som.</p>
         <p>Efeitos de combate: <b>pixelfx</b>, de patch-gg (licença MIT).</p>
         <p>História, regras e código: o projeto Brumafolha.</p>
+        <button class="back go">Voltar</button>
+      </div>
+      <div class="installios fr fr-panel hidden">
+        <h3>Instalar no iPhone / iPad</h3>
+        <p>No Safari, toque em <b>Compartilhar</b> (o quadrado com a seta para cima) e depois em <b>Adicionar à Tela de Início</b>. O jogo abre em tela cheia e funciona sem internet.</p>
         <button class="back go">Voltar</button>
       </div>
     </div>

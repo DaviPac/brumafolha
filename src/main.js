@@ -1906,6 +1906,21 @@ function loop(now) {
 
 G.chestArt = [A.makeChest(false), A.makeChest(true)];
 G.hooks.refreshJournal = refreshJournal;
+// ---------------------------------------------------------------- the app (PWA): installable, plays offline (sw.js)
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  addEventListener("load", async () => {
+    try {
+      await navigator.serviceWorker.register("sw.js", { type: "module" });
+      // everything this page loaded (modules, styles) goes to the cache, so the next visit works without network
+      const reg = await navigator.serviceWorker.ready;
+      const urls = [location.href, ...performance.getEntriesByType("resource").map((r) => r.name)];
+      reg.active?.postMessage({ type: "precache", urls });
+    } catch (err) {
+      console.warn("Sem service worker: o jogo funciona, mas não offline.", err);
+    }
+  });
+}
+
 window.G = G; // handy from the console
 window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]) }; // and for the save tests
 boot();

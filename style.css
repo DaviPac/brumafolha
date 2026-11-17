@@ -266,12 +266,16 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 #title .menu button { opacity: 0; transform: translateY(6rem); transition: opacity 0.3s steps(3), transform 0.3s steps(3); }
 #title .menu button:nth-child(2) { transition-delay: 0.06s; } #title .menu button:nth-child(3) { transition-delay: 0.12s; }
 #title .menu button:nth-child(4) { transition-delay: 0.18s; } #title .menu button:nth-child(5) { transition-delay: 0.24s; }
+#title .menu button:nth-child(6) { transition-delay: 0.3s; }
 #title.s4 .menu button { opacity: 1; transform: none; }
 #title .menu button:not(.go) { padding: 2rem 18rem 3rem; }
-#title .credits { max-width: 320rem; padding: 6rem 14rem 10rem; line-height: 16rem; }
-#title .credits h3 { color: var(--gold); margin-bottom: 4rem; }
-#title .credits p { color: #d8ccb4; margin-bottom: 6rem; }
-#title .credits .back { margin-top: 4rem; }
+#title .credits, #title .installios { max-width: 320rem; padding: 6rem 14rem 10rem; line-height: 16rem; }
+#title .credits h3, #title .installios h3 { color: var(--gold); margin-bottom: 4rem; }
+#title .credits p, #title .installios p { color: #d8ccb4; margin-bottom: 6rem; }
+#title .credits .back, #title .installios .back { margin-top: 4rem; }
+#title .installios b { color: var(--text); }
+/* installed as an app it already fills the screen */
+@media (display-mode: fullscreen), (display-mode: standalone) { #fullscreen { display: none !important; } }
 #title .help { position: absolute; left: 0; right: 0; bottom: 10rem; list-style: none; padding: 0; margin: 0; color: #b8ac96; line-height: 20rem; text-align: center;
   opacity: 0; transition: opacity 0.6s steps(4) 0.4s; }
 #title.s4 .help { opacity: 1; }

@@ -2,6 +2,8 @@
 // the logo, and the menu. The first time the game is opened it plays an opening: a leaf falls through the dark,
 // turning over to show the silver underside the valley is named for, lands where the name will be, and the name
 // comes out of the mist letter by letter. After that first time, a short version. Any key or click skips it.
+import { GREEN, SILVER, paintLeaf } from "./art/appicon.js";
+
 const $ = (s, el = document) => el.querySelector(s);
 const SEEN = "brumafolha.opening";
 const NAME = "Brumafolha";
@@ -23,8 +25,10 @@ export function initTitle(on) {
   $("#options").onclick = on.options;
   $("#continue").onclick = on.cont;
   $("#load").onclick = on.load;
-  $("#credits").onclick = () => showCredits(true);
-  $(".credits .back", root).onclick = () => showCredits(false);
+  $("#credits").onclick = () => showPanel(".credits", "#credits");
+  for (const b of root.querySelectorAll(".credits .back, .installios .back")) b.onclick = () => showPanel(null);
+  $("#install").onclick = install;
+  syncInstall();
   let first = true;
   try { first = !localStorage.getItem(SEEN); } catch { /* private mode: always the full opening */ }
   root.classList.add(first ? "first" : "short");
@@ -80,48 +84,44 @@ function finish() {
   maybeReveal(); // or, if the world isn't painted yet, as soon as it is
 }
 
-function showCredits(on) {
-  $(".menu", root).classList.toggle("hidden", on);
-  $(".credits", root).classList.toggle("hidden", !on);
-  setTimeout(() => $(on ? ".credits .back" : "#credits", root).focus(), 0);
+/** A panel in place of the menu (the credits, how to install on an iPhone), or the menu again with null. */
+let panelFrom = null;
+function showPanel(sel, from) {
+  $(".menu", root).classList.toggle("hidden", !!sel);
+  for (const p of [".credits", ".installios"]) $(p, root).classList.toggle("hidden", p !== sel);
+  if (sel) panelFrom = from;
+  setTimeout(() => $(sel ? `${sel} .back` : panelFrom ?? "#start", root)?.focus(), 0);
 }
 /** Esc / B on the title closes the credits. */
 export function titleCancel() {
-  if (!$(".credits", root).classList.contains("hidden")) showCredits(false);
+  if ($(".menu", root).classList.contains("hidden")) showPanel(null);
+}
+
+// ---------------------------------------------------------------- installing the game (it is a PWA: see sw.js)
+// Chrome and Edge offer an install prompt the menu can open; Safari on iPhone/iPad has none, so the button explains
+// the Share → Add to Home Screen steps there. Once installed (running as the app), the button goes away.
+let installEvt = null;
+const installed = () => matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches || navigator.standalone === true;
+const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; syncInstall(); });
+addEventListener("appinstalled", () => { installEvt = null; syncInstall(); });
+function syncInstall() { document.getElementById("install")?.classList.toggle("hidden", installed() || !(installEvt || ios)); }
+async function install() {
+  if (installEvt) {
+    installEvt.prompt();
+    await installEvt.userChoice.catch(() => null);
+    installEvt = null;
+    syncInstall();
+  } else if (ios) showPanel(".installios", "#install");
 }
 
 // ---------------------------------------------------------------- the falling leaf
-// Two 16×16 frames drawn pixel by pixel: the green top and the silver underside. It shows its edge between them.
-const OUT = "#18121e";
-const GREEN = ["#1f4a2c", "#2f6b34", "#4f8f3c", "#86b84a"];
-const SILVER = ["#5a6a84", "#8ea2bc", "#c4d4e6", "#f2f6fb"];
-const LEAF = [ // 0 empty, 1 outline, 2–5 shade (dark → light), 6 vein
-  "..............11",
-  "...........11131",
-  ".........1155531",
-  "........15554531",
-  ".......155545531",
-  "......1554565431",
-  ".....15545664431",
-  "....155456444431",
-  "...15556444431..",
-  "...1546444431...",
-  "..1546444331....",
-  "..1564443331....",
-  ".1564433331.....",
-  ".16433331.......",
-  "16111111........",
-  "1...............",
-];
+// Two 16×16 frames drawn pixel by pixel (src/art/appicon.js, also the app icon): the green top and the silver
+// underside. It shows its edge between them.
 function leafFrame(ramp) {
   const c = document.createElement("canvas");
   c.width = c.height = 16;
-  const x = c.getContext("2d");
-  LEAF.forEach((row, j) => [...row].forEach((ch, i) => {
-    if (ch === ".") return;
-    x.fillStyle = ch === "1" ? OUT : ch === "6" ? ramp[0] : ramp[+ch - 2];
-    x.fillRect(i, j, 1, 1);
-  }));
+  paintLeaf(c.getContext("2d"), ramp);
   return c;
 }
 /**
