@@ -66,6 +66,51 @@ export class FxLayer {
     }
     return out;
   }
+  /**
+   * The 3D view: each effect is painted alone into a small frame around its anchor and handed to place(x, y, fn),
+   * which sets up the billboard transform for that spot and calls fn(ctx) to draw in flat coordinates.
+   */
+  drawEach(camX, camY, place) {
+    if (!this.small) {
+      const W = 240, H = 272;
+      const S = this.small = { f: createFrame(W, H), ax: 120, ay: 212 };
+      [S.cc, S.cctx] = makeCanvas(W, H);
+      [S.lc, S.lctx] = makeCanvas(W, H);
+      S.ci = new ImageData(W, H); S.li = new ImageData(W, H);
+      S.c32 = new Uint32Array(S.ci.data.buffer); S.l32 = new Uint32Array(S.li.data.buffer);
+    }
+    this.lightPixels = null;
+    const S = this.small, f = S.f;
+    for (const e of this.list) {
+      f.ox = Math.round(e.x) - S.ax; f.oy = Math.round(e.y) - S.ay;
+      place(e.x, e.y, (ctx) => {
+        clearFrame(f);
+        e.fx.draw(f);
+        this.blit(ctx, f, S, f.ox - camX, f.oy - camY);
+      });
+    }
+  }
+  /** A small pixelfx frame onto a context at x, y: color with alpha, then light added on top. */
+  blit(ctx, f, B, x, y) {
+    const n = f.w * f.h, C = f.color, L = f.light, c32 = B.c32, l32 = B.l32;
+    let anyC = false, anyL = false;
+    for (let i = 0; i < n; i++) {
+      const c = C[i], l = L[i] & 0xffffff;
+      c32[i] = c;
+      if (c) anyC = true;
+      if (l) { anyL = true; l32[i] = l | 0xff000000; } else l32[i] = 0;
+    }
+    if (ctx.pixels) { // the GPU layer takes the pixels as they are
+      if (anyC) ctx.pixels("fx-small", B.ci.data, f.w, f.h, null, x, y, f.w, f.h);
+      if (anyL) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.pixels("fx-small-light", B.li.data, f.w, f.h, null, x, y, f.w, f.h); ctx.restore(); }
+      return;
+    }
+    if (anyC) { B.cctx.putImageData(B.ci, 0, 0); ctx.drawImage(B.cc, x, y); }
+    if (anyL) {
+      B.lctx.putImageData(B.li, 0, 0);
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(B.lc, x, y); ctx.restore();
+    }
+  }
   /** `lit`: the lighting renderer adds the light layer itself, straight from `lightPixels` (no canvas in between). */
   draw(ctx, camX, camY, lit) {
     const vis = this.list.filter((e) => e.x > camX - 200 && e.x < camX + this.w + 200 && e.y > camY - 200 && e.y < camY + this.h + 260);

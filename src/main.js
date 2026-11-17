@@ -26,8 +26,9 @@ import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
 import { Input, pollInput, key, focusDefault, activeLayer } from "./input.js";
 import { diceReroll } from "./dialogue.js";
-import { initLight, lightOn, lightAvailable, lightLayers, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
+import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
+import { P as PV, frame as pvFrame, project, unproject, rowToFlat, mouseRel, setPersp } from "./persp.js";
 
 const canvas = document.getElementById("game");
 const screen = canvas.getContext("2d");
@@ -532,8 +533,7 @@ function interactables() {
   return list;
 }
 function underMouse() {
-  const { wx, wy } = G.mouse;
-  return interactables().find((i) => Math.abs(wx - i.x) < i.r && wy < i.y + 4 && wy > i.y - (i.h ?? 34));
+  return interactables().find((i) => { const [dx, dy] = mouseRel(i.x, i.y); return Math.abs(dx) < i.r && dy < 4 && dy > -(i.h ?? 34); });
 }
 function talk(n) {
   const l = lead();
@@ -589,8 +589,29 @@ let clickMark = null;
 // ---------------------------------------------------------------- input
 function setMouse(e) {
   G.mouse.x = e.clientX; G.mouse.y = e.clientY; G.mouse.in = true; cursor.on = false;
-  G.mouse.wx = G.cam.x + G.mouse.x / G.scale; G.mouse.wy = G.cam.y + G.mouse.y / G.scale;
+  mouseWorld();
+}
+/** The ground point under the mouse (through the tilted camera in 3D), and its tile. */
+function mouseWorld() {
+  const mx = G.mouse.x / G.scale, my = G.mouse.y / G.scale;
+  let fx = mx, fy = my;
+  if (PV.on) [fx, fy] = unproject(mx, my) ?? [-1e5, -1e5];
+  G.mouse.wx = G.cam.x + fx; G.mouse.wy = G.cam.y + fy;
   G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
+  if (cursor.on && G.mode === "combat") { G.mouse.tx = cursor.tx; G.mouse.ty = cursor.ty; return; } // the keyboard/pad cursor names its tile itself
+  if (PV.on && G.mode === "combat") {
+    // in 3D the ground behind someone's head is far away: pointing at a body means that body's tile
+    const u = [...G.enemies, ...G.party].filter((e) => e.hp > 0 && !e.gone && !e.hidden).sort((a, b) => b.y - a.y)
+      .find((e) => { const [dx, dy] = mouseRel(e.x, e.y); return Math.abs(dx) < 11 && dy < 3 && dy > -32; });
+    if (u) [G.mouse.tx, G.mouse.ty] = tileOf(u);
+  }
+}
+/** Switch between the flat top-down view and the tilted 3D camera. */
+function setView(on, tilt) {
+  setPersp(on, tilt);
+  resize();
+  const box = document.getElementById("perspOn");
+  if (box) { box.checked = PV.on; document.getElementById("tiltRow").classList.toggle("off", !PV.on); }
 }
 // a tile cursor for the keyboard and the pad: it stands in for the mouse during combat
 const cursor = { on: false, tx: 0, ty: 0 };
@@ -636,6 +657,7 @@ addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   G.keys.add(k);
   if (k === "m" && G.mode !== "title") { syncMute(toggleMute()); return; }
+  if (k === "v" && G.mode !== "title") { setView(!PV.on); return; }
   if (k === "l") diceReroll();
   if (k === "h") document.querySelector("#hint:not(.hidden) .ok")?.click();
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") return;
@@ -670,7 +692,10 @@ function resize() {
   G.ui = u;
   G.scale = s;
   G.vw = Math.ceil(innerWidth / s); G.vh = Math.ceil(innerHeight / s);
-  canvas.width = G.vw; canvas.height = G.vh;
+  // the 3D view paints at twice the game resolution, so scaled sprites and the ground's rows stay crisp
+  const ss = PV.on ? PV.ss : 1;
+  canvas.width = G.vw * ss; canvas.height = G.vh * ss;
+  pvFrame(G.vw, G.vh);
   canvas.style.width = G.vw * s + "px"; canvas.style.height = G.vh * s + "px";
   screen.imageSmoothingEnabled = false;
   G.fx?.resize(G.vw, G.vh);
@@ -761,6 +786,12 @@ function setupMenu() {
   document.getElementById("muteAll").onchange = (e) => syncMute(setMuted(e.target.checked));
   document.getElementById("tutOn").onchange = (e) => setTutorial(e.target.checked);
   document.getElementById("resume").onclick = () => setPaused(false);
+  const pOn = document.getElementById("perspOn"), tilt = document.getElementById("tilt"), tiltPct = document.querySelector("#tiltRow .pct");
+  const showTilt = () => { tiltPct.textContent = Math.round(tilt.value * 100) + "%"; };
+  pOn.checked = PV.on; tilt.value = PV.tilt; showTilt();
+  document.getElementById("tiltRow").classList.toggle("off", !PV.on);
+  pOn.onchange = () => setView(pOn.checked);
+  tilt.oninput = () => { showTilt(); setView(PV.on, +tilt.value); };
   const box = document.getElementById("vols");
   box.innerHTML = "";
   let sfxHeader = false;
@@ -795,7 +826,7 @@ function setupMenu() {
     [key("Clique", "") + key("WASD", "L"), "andar"], [key("E", "A"), "interagir, confirmar"], [key("Tab", ""), "trocar de personagem"],
     [key("1-9", "LB RB") + key("", "X"), "usar a barra de ações"], [key("Setas", "D-pad"), "cursor no combate, navegar nos menus"],
     [key("Espaço", "Y"), "encerrar o turno"], [key("Esc", "B"), "cancelar, voltar"], [key("I", "Select"), "Bolsa"], [key("J", "Y"), "Diário"],
-    [key("Q E", "LB RB"), "trocar de aba nos menus"], [key("M", ""), "som"], [key("Esc P", "Start"), "este menu"],
+    [key("Q E", "LB RB"), "trocar de aba nos menus"], [key("M", ""), "som"], [key("V", ""), "perspectiva 3D"], [key("Esc P", "Start"), "este menu"],
   ].map(([k, t]) => `<li>${k}</li><li>${t}</li>`).join("");
 }
 function setPaused(p) {
@@ -868,7 +899,7 @@ function update(dt) {
   updateAudio(dt);
   // camera
   const f = G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l);
-  const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
+  const tx = camClamp(f.x - G.vw / 2, G.W.w * TILE, G.vw), ty = PV.on ? camClampTilted(f.y - 16 - G.vh / 2, G.W.h * TILE) : camClamp(f.y - 16 - G.vh / 2, G.W.h * TILE, G.vh);
   const k = 1 - Math.exp(-dt * (G.camFocus?.speed ?? (G.mode === "combat" ? 4 : 6)));
   G.cam.x += (tx - G.cam.x) * k; G.cam.y += (ty - G.cam.y) * k;
   if (G.shake > 0) G.shake -= dt;
@@ -879,12 +910,11 @@ function update(dt) {
   // what the leader could use right now, with the key that does it
   if (G.mode === "explore") { const it = nearestInteractable(); UI.prompt(it, it && `${key("E", "A")} ${it.name}`); } else UI.prompt(null);
   // mouse in world
-  G.mouse.wx = G.cam.x + G.mouse.x / G.scale; G.mouse.wy = G.cam.y + G.mouse.y / G.scale;
-  G.mouse.tx = Math.floor(G.mouse.wx / TILE); G.mouse.ty = Math.floor(G.mouse.wy / TILE);
+  mouseWorld();
   if (G.mode === "combat" && G.mouse.in) combatHover(G.mouse.tx, G.mouse.ty);
   else if (G.mode === "explore" && G.mouse.in) {
     const it = underMouse();
-    const en = G.enemies.find((e) => e.hp > 0 && !e.gone && !e.passive && Math.abs(G.mouse.wx - e.x) < 12 && G.mouse.wy < e.y + 3 && G.mouse.wy > e.y - 32);
+    const en = G.enemies.find((e) => { if (e.hp <= 0 || e.gone || e.passive) return false; const [dx, dy] = mouseRel(e.x, e.y); return Math.abs(dx) < 12 && dy < 3 && dy > -32; });
     UI.tooltip(it ? UI.tipHTML({ icon: it.ent ? "talk" : "hand", title: it.name, foot: `${key("Clique", "A")} ${it.ent ? "falar" : "usar"}` })
       : en ? UI.tipHTML({ icon: "skull", title: en.name, sub: "hostil", rows: [["PV", `${en.hp}/${en.maxHp}`], ["CA", en.ac]] }) : null);
     canvas.style.cursor = it ? "pointer" : "";
@@ -892,6 +922,8 @@ function update(dt) {
 }
 /** Keep the camera inside the map; a map smaller than the screen sits in the middle. */
 const camClamp = (v, size, view) => (size <= view ? (size - view) / 2 : clamp(v, 0, size - view));
+/** The tilted camera sees less ground below the focus and more above it (fading into the haze): keep its near edge on the map. */
+const camClampTilted = (v, size) => { const hi = size - PV.fyBot; return hi <= 0 ? (size - PV.fyBot - Math.max(0, PV.fyTop)) / 2 : clamp(v, 0, hi); };
 
 // ---------------------------------------------------------------- draw
 /** Weapons are drawn only by those fighting right now; everyone else walks with theirs put away. */
@@ -933,11 +965,62 @@ function drawBars(cx, cy) {
   if (G.mode !== "combat") return;
   for (const u of [...G.enemies, ...G.party]) {
     if (u.hp <= 0 || u.gone) continue;
-    const x = Math.round(u.x - cx) - 9, y = Math.round(u.y - cy) - 40;
-    ctx.fillStyle = "#120e16"; ctx.fillRect(x - 1, y - 1, 20, 4);
-    ctx.fillStyle = "#3a1414"; ctx.fillRect(x, y, 18, 2);
-    ctx.fillStyle = u.team === "enemy" ? "#e0402a" : u.ai ? "#e8c06a" : "#6ad04a"; ctx.fillRect(x, y, Math.ceil((18 * u.hp) / u.maxHp), 2);
+    anchored(u.x, u.y, () => {
+      const x = Math.round(u.x - cx) - 9, y = Math.round(u.y - cy) - 40;
+      ctx.fillStyle = "#120e16"; ctx.fillRect(x - 1, y - 1, 20, 4);
+      ctx.fillStyle = "#3a1414"; ctx.fillRect(x, y, 18, 2);
+      ctx.fillStyle = u.team === "enemy" ? "#e0402a" : u.ai ? "#e8c06a" : "#6ad04a"; ctx.fillRect(x, y, Math.ceil((18 * u.hp) / u.maxHp), 2);
+    });
   }
+}
+
+// ---------------------------------------------------------------- the 3D view
+// The flat scene is painted as before; in 3D the ground goes to an offscreen layer that is then laid on the tilted
+// plane one screen row at a time, and every standing thing is drawn upright at its feet, scaled by its distance.
+// `base` is what the frame is being painted on: the screen, or (light on) one of the lit renderer's layers.
+const view = { cx: 0, cy: 0, ss: 1, lit: false };
+let base = screen;
+const flats = [];
+/** Paint on `c` from here on, in game pixels. */
+function paintOn(c) { base = ctx = c; ctx.setTransform(view.ss, 0, 0, view.ss, 0, 0); }
+/** An offscreen flat layer of w × h: [what to draw from, what to paint with]. A GPU surface when the light is on. */
+function flatLayer(i, w, h) {
+  if (view.lit) { const L = lightSurface(i, w, h); return [L, L]; }
+  let L = flats[i];
+  if (!L || L[0].width !== w || L[0].height !== h) L = flats[i] = makeCanvas(w, h);
+  L[1].setTransform(1, 0, 0, 1, 0, 0);
+  return L;
+}
+/** Draw fn() in flat coordinates as a billboard standing at world (x, y). In the flat view, just fn(). */
+function anchored(x, y, fn) {
+  if (!PV.on) { fn(); return; }
+  const fx = x - view.cx, fy = y - view.cy, p = project(fx, fy);
+  if (!p || p.x < -200 * p.k || p.x > G.vw + 200 * p.k) return;
+  const ss = view.ss, k = ss * p.k;
+  ctx.setTransform(k, 0, 0, k, Math.round(ss * (p.x - p.k * fx)), Math.round(ss * (p.y - p.k * fy)));
+  fn();
+  ctx.setTransform(ss, 0, 0, ss, 0, 0);
+}
+/** Lay a flat layer whose top-left is at flat (fx0, fy0) onto the tilted ground plane. */
+function warp(src, fx0, fy0) {
+  const ss = view.ss, rows = Math.ceil(G.vh * ss), vw = G.vw;
+  for (let r = 0; r < rows; r++) {
+    const sy = (r + 0.5) / ss, k = (sy - PV.hy) / PV.D;
+    const fy = Math.floor(rowToFlat(sy)) - fy0;
+    if (fy < 0 || fy >= src.height) continue;
+    const half = PV.cx / k;
+    ctx.drawImage(src, PV.cx - half - fx0, fy, half * 2, 1, 0, r / ss, vw, 1 / ss);
+  }
+}
+/** Paint into an offscreen flat layer (ground, fog) as if it were the screen, then warp it into place. */
+function flatPass(i, cx, cy, box, paint, clear) {
+  const [c, x] = flatLayer(i, box.w, box.h);
+  if (clear) x.clearRect(0, 0, box.w, box.h);
+  const vw = G.vw, vh = G.vh, to = base;
+  ctx = x; G.vw = box.w; G.vh = box.h;
+  try { paint(cx + box.x, cy + box.y, box.w, box.h); } finally { ctx = to; G.vw = vw; G.vh = vh; }
+  ctx.setTransform(view.ss, 0, 0, view.ss, 0, 0);
+  warp(c, box.x, box.y);
 }
 
 function ring(x, y, color, rx = 10) {
@@ -1090,13 +1173,15 @@ function drawReflections(cx, cy, items) {
 /** Soft light: additive radial glows for things that carry it (Lumes, the lantern, the hero's silver mark). */
 function drawGlows(cx, cy) {
   const list = [];
-  for (const o of G.W.objects) if (o.glow && !o.hidden) list.push([o.x, o.y - (o.glow.h ?? 16), o.glow]);
-  for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) list.push([u.x, u.y - (u.glow.h ?? 16), u.glow]);
+  for (const o of G.W.objects) if (o.glow && !o.hidden) list.push([o.x, o.y, o.glow]);
+  for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) list.push([u.x, u.y, u.glow]);
   if (!list.length) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const [x, y, g] of list) {
-    const sx = x - cx, sy = y - cy, r = g.r * (1 + Math.sin(G.time * 2 + x) * 0.05);
+    let sx = x - cx, sy = y - cy - (g.h ?? 16), k = 1;
+    if (PV.on) { const p = project(x - cx, y - cy); if (!p) continue; k = p.k; sx = p.x; sy = p.y - (g.h ?? 16) * k; }
+    const r = g.r * k * (1 + Math.sin(G.time * 2 + x) * 0.05);
     if (sx < -r || sy < -r || sx > G.vw + r || sy > G.vh + r) continue;
     const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
     const [R, Gc, B] = g.c ?? [150, 190, 255];
@@ -1141,21 +1226,13 @@ const SEC = {}; let secT = 0;
 /** Close a section of the frame for the F3 meter. */
 function sec(name) { if (!meter) return; const n = performance.now(); SEC[name] = (SEC[name] ?? 0) + n - secT; secT = n; }
 
-function draw() {
-  const vw = G.vw, vh = G.vh;
-  secT = performance.now();
-  let cx = Math.round(G.cam.x), cy = Math.round(G.cam.y);
-  if (G.shake > 0) { cx += Math.round((Math.random() - 0.5) * 4); cy += Math.round((Math.random() - 0.5) * 4); }
-  const W = G.W;
-  // with the light on, the scene is painted in layers (ground, sprites, overlay, glow) and put together by light.js
-  const lit = lightOn(), LY = lit ? lightLayers(vw, vh) : null;
-  ctx = lit ? LY[0].x : screen;
-  showLight(lit, vw * G.scale, vh * G.scale);
-  ctx.fillStyle = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : "#0b0a10"; ctx.fillRect(0, 0, vw, vh);
+/** The ground layer: terrain, water glints, markers, the combat grid, reflections, shadows and selection rings. */
+function drawFloor(cx, cy, vw, vh, items, bg) {
+  const W = G.W, t = G.time;
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, vw, vh);
   ctx.drawImage(W.ground, -cx, -cy);
 
   // water: drifting glints and a breathing shoreline
-  const t = G.time;
   for (const s of W.sparkles) {
     if (s.x < cx - 8 || s.x > cx + vw + 8 || s.y < cy - 4 || s.y > cy + vh + 4) continue;
     const ph = (t * s.sp + s.ph) % 1;
@@ -1167,22 +1244,11 @@ function draw() {
     ctx.fillRect(x, y, len, 1);
     if (len > 3) ctx.fillRect(x + 1, y - 1, len - 2, 1);
   }
-
   sec("chão");
   // click marker
   if (clickMark) ring(clickMark.x - cx, clickMark.y - cy, `rgba(232,192,106,${clickMark.t * 2})`, 6 + (0.5 - clickMark.t) * 10);
   S.drawGround(ctx, cx, cy);
   drawCombatGrid(cx, cy);
-
-  // everything standing, sorted by its feet
-  const items = [];
-  const inView = (x, y, m = 120) => x > cx - m && x < cx + vw + m && y > cy - 20 && y < cy + vh + 160;
-  for (const o of W.objects) if (!o.hidden && inView(o.x, o.y, o.kind === "house" ? 210 : 120)) items.push({ y: o.y + (o.sortY ?? 0), o });
-  for (const g of W.grass) if (inView(g.x, g.y, 20)) items.push({ y: g.y, g });
-  for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) if (!u.gone && !u.hidden && inView(u.x, u.y)) items.push({ y: u.y + (u.float ? 40 : 0), u });
-  G.chests.forEach((c) => inView(c.x, c.y) && items.push({ y: c.y, c }));
-  items.sort((a, b) => a.y - b.y);
-  sec("ordem");
   drawReflections(cx, cy, items);
   sec("reflexos");
   // shadows first, so nothing's shadow falls on top of a neighbour
@@ -1197,43 +1263,112 @@ function draw() {
   // active / hover rings
   if (G.mode === "combat" && G.combat?.active) ring(G.combat.active.x - cx, G.combat.active.y - cy - 1, G.combat.active.team === "party" ? "#e8c06a" : "#ff5a4a", 11);
   else if (G.mode === "explore" && l) ring(l.x - cx, l.y - cy - 1, "rgba(232,192,106,0.55)", 9);
-  if (lit) ctx = LY[1].x;
-  for (const it of items) {
-    if (it.u) { drawUnit(it.u, cx, cy); continue; }
-    if (it.c) { const a = G.chestArt[it.c.open ? 1 : 0]; ctx.drawImage(a.c, Math.round(it.c.x - cx - a.ox), Math.round(it.c.y - cy - a.oy)); continue; }
-    if (it.g) {
-      const ga = grassArt[it.g.v];
-      let f = Math.floor((t * 1.6 + it.g.ph) % 4);
-      for (const p of G.party) if (Math.abs(p.x - it.g.x) < 9 && Math.abs(p.y - it.g.y) < 6) f = p.x < it.g.x ? 1 : 3;
-      ctx.drawImage(ga.frames[f], Math.round(it.g.x - cx - ga.ox), Math.round(it.g.y - cy - ga.oy));
-      continue;
-    }
-    const o = it.o, a = o.art;
-    if (!a) continue;
-    const x = Math.round(o.x - cx - a.ox), y = Math.round(o.y - cy - a.oy);
-    if (o.alpha != null) ctx.globalAlpha = o.alpha;
-    if (o.clip) {
-      // dissolving from the bottom up, like wet paper
-      const keep = Math.max(0, Math.round(a.c.height * (1 - o.clip)));
-      if (keep > 0) ctx.drawImage(a.c, 0, 0, a.c.width, keep, x, y, a.c.width, keep);
-      ctx.globalAlpha = 1;
-      continue;
-    }
-    if (a.canopy) {
-      // see-through canopy when someone stands behind it
-      const bx = o.x - a.ox + a.canopy.x, by = o.y - a.oy + a.canopy.y;
-      const hide = [...G.party, ...G.enemies].some((u) => !u.gone && u.y < o.y - 2 && u.x > bx && u.x < bx + a.canopy.w && u.y - 20 > by && u.y - 20 < by + a.canopy.h);
-      if (hide) { ctx.globalAlpha = 0.45; drawProp(ctx, o, x, y); ctx.globalAlpha = 1; continue; }
-    }
-    drawProp(ctx, o, x, y);
-    ctx.globalAlpha = 1;
+}
+
+/** One standing thing: a unit, a chest, a tuft of grass or a prop, with its top-left relative to the camera. */
+function drawItem(it, cx, cy) {
+  const t = G.time;
+  if (it.u) { drawUnit(it.u, cx, cy); return; }
+  if (it.c) { const a = G.chestArt[it.c.open ? 1 : 0]; ctx.drawImage(a.c, Math.round(it.c.x - cx - a.ox), Math.round(it.c.y - cy - a.oy)); return; }
+  if (it.g) {
+    const ga = grassArt[it.g.v];
+    let f = Math.floor((t * 1.6 + it.g.ph) % 4);
+    for (const p of G.party) if (Math.abs(p.x - it.g.x) < 9 && Math.abs(p.y - it.g.y) < 6) f = p.x < it.g.x ? 1 : 3;
+    ctx.drawImage(ga.frames[f], Math.round(it.g.x - cx - ga.ox), Math.round(it.g.y - cy - ga.oy));
+    return;
   }
+  const o = it.o, a = o.art;
+  if (!a) return;
+  const x = Math.round(o.x - cx - a.ox), y = Math.round(o.y - cy - a.oy);
+  if (o.alpha != null) ctx.globalAlpha = o.alpha;
+  if (o.clip) {
+    // dissolving from the bottom up, like wet paper
+    const keep = Math.max(0, Math.round(a.c.height * (1 - o.clip)));
+    if (keep > 0) ctx.drawImage(a.c, 0, 0, a.c.width, keep, x, y, a.c.width, keep);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (a.canopy) {
+    // see-through canopy when someone stands behind it
+    const bx = o.x - a.ox + a.canopy.x, by = o.y - a.oy + a.canopy.y;
+    const hide = [...G.party, ...G.enemies].some((u) => !u.gone && u.y < o.y - 2 && u.x > bx && u.x < bx + a.canopy.w && u.y - 20 > by && u.y - 20 < by + a.canopy.h);
+    if (hide) { ctx.globalAlpha = 0.45; drawProp(ctx, o, x, y); ctx.globalAlpha = 1; return; }
+  }
+  drawProp(ctx, o, x, y);
+  ctx.globalAlpha = 1;
+}
+
+/** Distance haze for the 3D view, per area: far ground fades into the air (or the dark, underground). */
+const HAZE = { vale: "150,172,182", sonho: "232,235,241", relicario: "12,16,24", vau: "96,110,132", travessia: "150,172,182" };
+const hazeArt = new Map();
+/** The haze as a tall strip to stretch over the top of the view (the GPU layers have no gradients). */
+function hazeStrip(rgb) {
+  if (!hazeArt.has(rgb)) {
+    const [c, x] = makeCanvas(1, 128);
+    for (let i = 0; i < 128; i++) { const k = i / 127, a = k < 0.45 ? 0.62 + (0.2 - 0.62) * (k / 0.45) : 0.2 * (1 - (k - 0.45) / 0.55); x.fillStyle = `rgba(${rgb},${a})`; x.fillRect(0, i, 1, 1); }
+    hazeArt.set(rgb, c);
+  }
+  return hazeArt.get(rgb);
+}
+
+function draw() {
+  const vw = G.vw, vh = G.vh, ss = PV.on ? PV.ss : 1;
+  secT = performance.now();
+  let cx = Math.round(G.cam.x), cy = Math.round(G.cam.y);
+  if (G.shake > 0) { cx += Math.round((Math.random() - 0.5) * 4); cy += Math.round((Math.random() - 0.5) * 4); }
+  const W = G.W;
+  // with the light on, the scene is painted in layers (ground, sprites, overlay) and put together by light.js
+  const lit = lightOn(), LY = lit ? lightLayers(vw * ss, vh * ss) : null;
+  Object.assign(view, { cx, cy, ss, lit });
+  showLight(lit, vw * G.scale, vh * G.scale);
+  paintOn(lit ? LY[0].x : screen);
+  const bg = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : W.id === "vale" && PV.on ? "#16231c" : "#0b0a10";
+
+  // the part of the flat world this frame shows: the screen, or (3D) the trapezoid under the tilted camera
+  const box = { x: 0, y: 0, w: vw, h: vh };
+  if (PV.on) {
+    pvFrame(vw, vh);
+    box.x = Math.floor(PV.cx - PV.cx / PV.kTop) - 1; box.y = Math.floor(PV.fyTop) - 1;
+    box.w = Math.ceil(vw / PV.kTop) + 3; box.h = Math.ceil(PV.fyBot) + 2 - box.y;
+  }
+
+  // everything standing, sorted by its feet
+  const items = [];
+  const inView = (x, y, m = 120) => x > cx + box.x - m && x < cx + box.x + box.w + m && y > cy + box.y - 20 && y < cy + box.y + box.h + 160;
+  for (const o of W.objects) if (!o.hidden && inView(o.x, o.y, o.kind === "house" ? 210 : 120)) items.push({ y: o.y + (o.sortY ?? 0), o });
+  for (const g of W.grass) if (inView(g.x, g.y, 20)) items.push({ y: g.y, g });
+  for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) if (!u.gone && !u.hidden && inView(u.x, u.y)) items.push({ y: u.y + (u.float ? 40 : 0), u });
+  G.chests.forEach((c) => inView(c.x, c.y) && items.push({ y: c.y, c }));
+  items.sort((a, b) => a.y - b.y);
+  sec("ordem");
+
+  if (PV.on) {
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, vw, vh);
+    flatPass(0, cx, cy, box, (x, y, w, h) => drawFloor(x, y, w, h, items, bg));
+  } else drawFloor(cx, cy, vw, vh, items, bg);
+  sec("chão");
+
+  if (lit) paintOn(LY[1].x);
+  for (const it of items) { const p = it.u ?? it.c ?? it.g ?? it.o; anchored(p.x, p.y, () => drawItem(it, cx, cy)); }
   sec("sprites");
-  if (lit) { S.drawOver(ctx, cx, cy); ctx = LY[2].x; }
+  // the people in the boat sit with the sprites when the light is on, so the lamps reach them
+  const boat = PV.on && W.objects.find((o) => o.id === "boat");
+  const over = () => (boat ? anchored(boat.x, boat.y, () => S.drawOver(ctx, cx, cy)) : S.drawOver(ctx, cx, cy));
+  if (lit) { over(); paintOn(LY[2].x); }
   drawBars(cx, cy);
+  if (PV.on) {
+    const hz = HAZE[W.id] ?? HAZE.vale;
+    if (lit) ctx.drawImage(hazeStrip(hz), 0, 0, vw, PV.sA * 0.8);
+    else {
+      const g = ctx.createLinearGradient(0, 0, 0, PV.sA * 0.8);
+      g.addColorStop(0, `rgba(${hz},0.62)`); g.addColorStop(0.45, `rgba(${hz},0.2)`); g.addColorStop(1, `rgba(${hz},0)`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, vw, vh);
+    }
+  }
 
   // atmosphere: the ruins are darker and misty; the dream is pale; the Relicário is cold
   // (with the light on, the darkness of a place is its ambient light instead of a veil over the picture)
+  const l = lead(), t = G.time;
   let ruinK = 0;
   if (W.id === "vale" && l) {
     ruinK = clamp(1 - Math.max(0, (l.y - 15 * TILE)) / (6 * TILE)) * (l.x < 33 * TILE ? 1 : 0.3);
@@ -1242,7 +1377,8 @@ function draw() {
   else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
   if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
   sec("barras");
-  G.fx.draw(ctx, cx, cy, lit);
+  if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => anchored(x, y, () => fn(ctx)));
+  else G.fx.draw(ctx, cx, cy, lit);
   sec("efeitos");
   if (!lit) drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
@@ -1252,9 +1388,10 @@ function draw() {
   for (let y = my; y < vh; y += mist.height) for (let x = mx; x < vw; x += mist.width) ctx.drawImage(mist, Math.round(x), Math.round(y));
   ctx.globalAlpha = 1;
   sec("névoa fina");
-  drawFog(cx, cy);
+  if (!PV.on) drawFog(cx, cy);
+  else if (S.hasFog()) flatPass(1, cx, cy, box, (x, y) => drawFog(x, y), true);
   sec("bruma");
-  if (!lit) S.drawOver(ctx, cx, cy);
+  if (!lit) over();
 
   // framing: branches at the bottom corners (outdoors), and a vignette
   if (W.id === "vale" || W.id === "travessia") {
@@ -1270,8 +1407,11 @@ function draw() {
   }
   ctx.drawImage(vignette, 0, 0);
   if (lit) {
-    renderLight({ cam: [cx, cy], add: G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null, amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy) });
-    ctx = screen;
+    renderLight({
+      ss, cam: PV.on ? [0, 0] : [cx, cy], add: !PV.on && G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null,
+      amb: ambientNow(ruinK), lights: gatherLights(cx, cy), occluders: gatherOccluders(items, cx, cy),
+    });
+    base = ctx = screen;
   }
   sec(lit ? "moldura+luz" : "moldura");
 }
@@ -1301,26 +1441,34 @@ function ambientNow(ruinK) {
 }
 G.clock = 9;
 const flick = (seed) => { const t = Math.floor(G.time * 9); return 1 + 0.07 * Math.sin(t * 1.7 + seed) + 0.04 * Math.sin(t * 3.3 + seed * 2); };
+/** Something at flat (x, y) on the ground, `up` pixels tall: where it is in the view and how large things are there. */
+function onView(x, y, up = 0) {
+  if (!PV.on) return [x, y - up, 1];
+  const p = project(x, y);
+  return p ? [p.x, p.y - up * p.k, p.k] : null;
+}
 function gatherLights(cx, cy) {
   const out = [];
-  const glow = (e, g) => out.push({ x: e.x - cx, y: e.y - cy - (g.h ?? 16), r: g.r * 2.6, c: (g.c ?? [150, 190, 255]).map((v) => v / 255), i: Math.min(1, (g.a ?? 0.35) * 2.4), shadows: g.r > 30 });
+  const add = (wx, wy, up, r, c, i, shadows) => { const p = onView(wx - cx, wy - cy, up); if (p) out.push({ x: p[0], y: p[1], r: r * p[2], c, i, shadows }); };
+  const glow = (e, g) => add(e.x, e.y, g.h ?? 16, g.r * 2.6, (g.c ?? [150, 190, 255]).map((v) => v / 255), Math.min(1, (g.a ?? 0.35) * 2.4), g.r > 30);
   for (const o of G.W.objects) {
     if (o.hidden) continue;
-    if (o.kind === "campfire") { if (!o.out) out.push({ x: o.x - cx, y: o.y - cy - 4, r: 150, c: o.goblin ? [0.72, 1, 0.66] : [1, 0.7, 0.38], i: flick(o.x), shadows: true }); }
-    else if (o.light) { if (!o.light.off) out.push({ x: o.x - cx + (o.light.dx ?? 0), y: o.y - cy - (o.light.h ?? 0), r: o.light.r, c: o.light.c, i: (o.light.i ?? 1) * (o.light.flicker ? flick(o.x) : 1), shadows: o.light.shadows ?? true }); }
+    if (o.kind === "campfire") { if (!o.out) add(o.x, o.y, 4, 150, o.goblin ? [0.72, 1, 0.66] : [1, 0.7, 0.38], flick(o.x), true); }
+    else if (o.light) { if (!o.light.off) add(o.x + (o.light.dx ?? 0), o.y, o.light.h ?? 0, o.light.r, o.light.c, (o.light.i ?? 1) * (o.light.flicker ? flick(o.x) : 1), o.light.shadows ?? true); }
     else if (o.glow) glow(o, o.glow);
-    else if (o.kind === "statue" && o.lit) out.push({ x: o.x - cx, y: o.y - cy - 30, r: 90, c: [0.6, 0.78, 1], i: 0.9, shadows: true });
+    else if (o.kind === "statue" && o.lit) add(o.x, o.y, 30, 90, [0.6, 0.78, 1], 0.9, true);
   }
   for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) glow(u, u.glow);
-  for (const L of G.fx.lights()) out.push({ ...L, x: L.x - cx, y: L.y - cy });
+  for (const L of G.fx.lights()) add(L.x, L.y, 0, L.r, L.c, L.i, L.shadows);
   return out;
 }
 function gatherOccluders(items, cx, cy) {
   const out = [];
+  const add = (e, w, h) => { const p = onView(e.x - cx, e.y - cy); if (p) out.push({ x: p[0], y: p[1], w: w * p[2], h: h * p[2] }); };
   for (const it of items) {
-    if (it.o) { const a = it.o.art; if (a?.shadow && !it.o.clip && it.o.kind !== "campfire") out.push({ x: it.o.x - cx, y: it.o.y - cy, w: a.shadow * 0.75, h: Math.min(110, a.c.height * 0.7) }); }
-    else if (it.u) { if (!it.u.float && !it.u.ghost && !(it.u.hp <= 0 && it.u.team === "party")) out.push({ x: it.u.x - cx, y: it.u.y - cy, w: it.u.small ? 4 : 5, h: it.u.small ? 20 : 28 }); }
-    else if (it.c) out.push({ x: it.c.x - cx, y: it.c.y - cy, w: 9, h: 14 });
+    if (it.o) { const a = it.o.art; if (a?.shadow && !it.o.clip && it.o.kind !== "campfire") add(it.o, a.shadow * 0.75, Math.min(110, a.c.height * 0.7)); }
+    else if (it.u) { if (!it.u.float && !it.u.ghost && !(it.u.hp <= 0 && it.u.team === "party")) add(it.u, it.u.small ? 4 : 5, it.u.small ? 20 : 28); }
+    else if (it.c) add(it.c, 9, 14);
   }
   return out;
 }
@@ -1330,25 +1478,28 @@ function drawCritters(cx, cy, ruinK) {
   ctx.save();
   for (const c of G.W.critters) {
     const a = t * c.sp + c.ph;
-    const x = Math.round(c.x + Math.sin(a) * c.r + Math.sin(a * 2.3) * 6 - cx), y = Math.round(c.y + Math.sin(a * 1.7) * c.r * 0.5 + Math.cos(a * 3.1) * 4 - cy - 14);
-    if (x < -4 || y < -4 || x > G.vw + 4 || y > G.vh + 4) continue;
-    if (c.kind === "bf") {
-      if (G.f.escape) continue;
-      const open = Math.floor(t * 12 + c.ph) % 2 === 0;
-      ctx.fillStyle = "rgba(10,20,10,0.25)"; ctx.fillRect(x, y + 12, 2, 1);
-      ctx.fillStyle = c.c[0];
-      if (open) { ctx.fillRect(x - 2, y - 1, 2, 2); ctx.fillRect(x + 1, y - 1, 2, 2); ctx.fillStyle = c.c[1]; ctx.fillRect(x - 2, y - 1, 1, 1); ctx.fillRect(x + 2, y - 1, 1, 1); }
-      else { ctx.fillRect(x - 1, y - 2, 1, 2); ctx.fillRect(x + 1, y - 2, 1, 2); }
-      ctx.fillStyle = "#1a1020"; ctx.fillRect(x, y - 1, 1, 2);
-    } else {
-      const mote = c.kind === "mote";
-      const b = Math.max(0, Math.sin(t * (mote ? 0.9 : 2.2) + c.ph * 3)) * (mote ? 0.7 : 0.35 + ruinK * 0.65);
-      if (b < 0.05) continue;
-      ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = mote ? `rgba(120,150,220,${b * 0.3})` : `rgba(120,160,40,${b * 0.35})`; ctx.fillRect(x - 1, y - 1, 3, 3);
-      ctx.fillStyle = mote ? `rgba(220,235,255,${b})` : `rgba(230,255,150,${b})`; ctx.fillRect(x, y, 1, 1);
-      ctx.globalCompositeOperation = "source-over";
-    }
+    const gx = c.x + Math.sin(a) * c.r + Math.sin(a * 2.3) * 6, gy = c.y + Math.sin(a * 1.7) * c.r * 0.5 + Math.cos(a * 3.1) * 4;
+    const x = Math.round(gx - cx), y = Math.round(gy - cy - 14);
+    if (!PV.on && (x < -4 || y < -4 || x > G.vw + 4 || y > G.vh + 4)) continue;
+    if (c.kind === "bf" && G.f.escape) continue;
+    anchored(gx, gy, () => {
+      if (c.kind === "bf") {
+        const open = Math.floor(t * 12 + c.ph) % 2 === 0;
+        ctx.fillStyle = "rgba(10,20,10,0.25)"; ctx.fillRect(x, y + 12, 2, 1);
+        ctx.fillStyle = c.c[0];
+        if (open) { ctx.fillRect(x - 2, y - 1, 2, 2); ctx.fillRect(x + 1, y - 1, 2, 2); ctx.fillStyle = c.c[1]; ctx.fillRect(x - 2, y - 1, 1, 1); ctx.fillRect(x + 2, y - 1, 1, 1); }
+        else { ctx.fillRect(x - 1, y - 2, 1, 2); ctx.fillRect(x + 1, y - 2, 1, 2); }
+        ctx.fillStyle = "#1a1020"; ctx.fillRect(x, y - 1, 1, 2);
+      } else {
+        const mote = c.kind === "mote";
+        const b = Math.max(0, Math.sin(t * (mote ? 0.9 : 2.2) + c.ph * 3)) * (mote ? 0.7 : 0.35 + ruinK * 0.65);
+        if (b < 0.05) return;
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = mote ? `rgba(120,150,220,${b * 0.3})` : `rgba(120,160,40,${b * 0.35})`; ctx.fillRect(x - 1, y - 1, 3, 3);
+        ctx.fillStyle = mote ? `rgba(220,235,255,${b})` : `rgba(230,255,150,${b})`; ctx.fillRect(x, y, 1, 1);
+        ctx.globalCompositeOperation = "source-over";
+      }
+    });
   }
   ctx.restore();
 }

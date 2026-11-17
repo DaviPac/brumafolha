@@ -164,8 +164,20 @@ Tudo funciona com mouse, teclado e gamepad. As teclas mostradas na tela acompanh
 | Opções | `Esc` ou `P` | Start |
 | Trocar de personagem | `Tab`, ou clique no retrato | atalho na barra de ações |
 | Som | `M` | no menu |
+| Perspectiva 3D | `V` | no menu |
 
 No d20, `Espaço`/A continua e `L`/X usa o Lampejo de Velmoor. `H`/Select fecha a dica do tutorial.
+
+## Perspectiva 3D
+
+O jogo abre com a câmera inclinada sobre o vale, num estilo parecido com o "Mode 7" dos consoles antigos:
+- O **chão** (terreno, água, sombras, grade de combate, reflexos, a Bruma) é desenhado plano e depois deitado num plano em perspectiva, linha por linha: o que está longe encolhe e some numa névoa de distância; o que está perto cresce.
+- Tudo o que fica **de pé** (personagens, árvores, muros, efeitos, barras de vida, vaga-lumes) é um *billboard*: continua ereto, ancorado nos pés e escalado pela distância. Na linha do líder a escala é 1, então o grupo fica idêntico à vista plana.
+- O clique é projetado de volta no chão; em combate, clicar no corpo de alguém escolhe a casa dessa pessoa.
+- `V` alterna entre a vista 3D e a vista de cima. No menu (`Esc`) há a opção **Perspectiva 3D** e o controle **Inclinação da câmera**; a escolha fica salva no navegador.
+- Com a **luz** ligada a vista 3D também é desenhada em WebGL: o chão plano vai para uma textura e é deitado de lá; luzes e sombras são projetadas para a tela e escaladas pela distância.
+
+Código em [src/persp.js](src/persp.js) (a projeção) e na função `draw` de [src/main.js](src/main.js). O porte para Unity continua com a vista de cima.
 
 ## Arte
 

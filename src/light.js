@@ -34,13 +34,14 @@ void main() { o = vec4(vK, 0.0, 0.0, 1.0); }`;
 
 const FS_LIGHT = `#version 300 es
 precision highp float;
-uniform vec2 uView; uniform vec3 uLight; uniform vec3 uColor; uniform float uPow; uniform sampler2D uMask;
+uniform vec2 uView; uniform float uSS; uniform vec3 uLight; uniform vec3 uColor; uniform float uPow; uniform sampler2D uMask;
 layout(location = 0) out vec4 oShadowed; layout(location = 1) out vec4 oOpen;
 void main() {
-  vec2 px = vec2(gl_FragCoord.x, uView.y - gl_FragCoord.y);
+  vec2 fc = gl_FragCoord.xy / uSS;
+  vec2 px = vec2(fc.x, uView.y - fc.y);
   float d = distance(px, uLight.xy) / uLight.z;
   float f = pow(max(0.0, 1.0 - d), 1.35) * uPow;
-  float sh = texture(uMask, gl_FragCoord.xy / uView).r;
+  float sh = texture(uMask, fc / uView).r;
   oOpen = vec4(uColor * f, 1.0);
   oShadowed = vec4(uColor * f * (1.0 - sh), 1.0);
 }`;
@@ -48,7 +49,7 @@ void main() {
 const FS_MIX = `#version 300 es
 precision highp float;
 precision highp sampler3D;
-uniform vec2 uView; uniform vec2 uCam;
+uniform vec2 uView; uniform vec2 uCam; uniform float uSS; // the view in game pixels; the picture is uSS times that
 uniform sampler2D uGround, uSprites, uOver, uAdd, uLitS, uLitO;
 uniform sampler3D uDark, uBright;
 uniform float uAmb;      // whole steps of darkness (0, -1, -2...)
@@ -78,8 +79,9 @@ vec3 shade(vec3 c, vec3 L, float bay) {
   return clamp(r, 0.0, 1.0);
 }
 void main() {
-  vec2 uv = gl_FragCoord.xy / uView;
-  vec2 px = vec2(gl_FragCoord.x, uView.y - gl_FragCoord.y);
+  vec2 fc = gl_FragCoord.xy / uSS;
+  vec2 uv = fc / uView;
+  vec2 px = vec2(fc.x, uView.y - fc.y);
   ivec2 w = ivec2(floor(px + uCam));
   float bay = (B[(w.y & 3) * 4 + (w.x & 3)] + 0.5) / 16.0;
   // the three painted layers hold colour already multiplied by alpha; the effects' light comes as raw rows, top first
@@ -215,6 +217,23 @@ function buildLut() {
 }
 
 // ---------------------------------------------------------------- per-frame
+/**
+ * A separate surface to paint on and then draw from (the 3D view paints the flat ground on one and lays it down row
+ * by row). Ask after lightLayers each frame; it comes back ready, with its last picture still on it.
+ */
+export function lightSurface(i, w, h) {
+  let L = surfaces[i];
+  if (!L || L.w !== w || L.h !== h) {
+    if (L) { gl.deleteTexture(L.tex); gl.deleteFramebuffer(L.fbo); }
+    L = surfaces[i] = new Layer(10 + i);
+    L.w = w; L.h = h; L.tex = plainTex(w, h); L.fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, L.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, L.tex, 0);
+  }
+  L.reset();
+  return L;
+}
+
 /** The three layers to paint this frame: [ground, sprites, overlay], each { x } with x standing in for a 2D context. */
 export function lightLayers(w, h) {
   if (!layers || size[0] !== w || size[1] !== h) {
@@ -231,6 +250,7 @@ export function lightLayers(w, h) {
     }
     layers ??= [0, 1, 2].map((i) => ({ x: new Layer(i) }));
     layers.forEach((l, i) => {
+      l.x.w = w; l.x.h = h; l.x.tex = layerTex[i];
       l.x.fbo ??= gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, l.x.fbo);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, layerTex[i], 0);
@@ -264,7 +284,7 @@ in vec2 vUV; in vec4 vCol; out vec4 o;
 void main() { o = texture(uTex, vUV) * vCol; }`;
 
 const PAGE = 2048, BIG = 640, MAXQ = 4096, FPV = 8;
-let progSpr, vaoS, vboS, pages = [], srcs = new WeakMap(), named = new Map();
+let progSpr, vaoS, vboS, pages = [], srcs = new WeakMap(), named = new Map(), surfaces = [];
 let frameNo = 0, curLayer = null, curTex = null, curBlend = 0, nQ = 0;
 const qv = new Float32Array(MAXQ * 6 * FPV);
 
@@ -276,7 +296,7 @@ function setupSprites() {
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, FPV * 4, 0);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, FPV * 4, 8);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, FPV * 4, 16);
-  pages = []; srcs = new WeakMap(); named = new Map(); curLayer = null; nQ = 0;
+  pages = []; srcs = new WeakMap(); named = new Map(); surfaces = []; curLayer = null; nQ = 0;
   newPage();
 }
 function plainTex(w, h, smooth) {
@@ -324,8 +344,8 @@ function send(e, img) {
 function flush() {
   if (!nQ || !curLayer) { nQ = 0; return; }
   gl.bindFramebuffer(gl.FRAMEBUFFER, curLayer.fbo);
-  gl.viewport(0, 0, size[0], size[1]);
-  gl.useProgram(progSpr.p); gl.uniform2f(progSpr.u.uView, size[0], size[1]); gl.uniform1i(progSpr.u.uTex, 0);
+  gl.viewport(0, 0, curLayer.w, curLayer.h);
+  gl.useProgram(progSpr.p); gl.uniform2f(progSpr.u.uView, curLayer.w, curLayer.h); gl.uniform1i(progSpr.u.uTex, 0);
   gl.bindVertexArray(vaoS); gl.bindBuffer(gl.ARRAY_BUFFER, vboS);
   gl.bufferSubData(gl.ARRAY_BUFFER, 0, qv, 0, nQ * 6 * FPV);
   gl.enable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD);
@@ -353,7 +373,9 @@ function parseColor(str) {
 
 /** One layer of the frame. It answers to the part of CanvasRenderingContext2D the game draws with. */
 class Layer {
-  constructor(i) { this.i = i; this.fbo = null; this.reset(); }
+  constructor(i) { this.i = i; this.fbo = null; this.tex = null; this.w = 0; this.h = 0; this.reset(); }
+  get width() { return this.w; }
+  get height() { return this.h; }
   reset() {
     this.m = [1, 0, 0, 1, 0, 0]; this.flat = true; this.stack = [];
     this.globalAlpha = 1; this.blend = 0; this.lineWidth = 1; this.imageSmoothingEnabled = false;
@@ -367,6 +389,9 @@ class Layer {
   set globalCompositeOperation(v) { this.blend = v === "lighter" ? 1 : 0; }
   save() { this.stack.push([this.m.slice(), this.flat, this.globalAlpha, this.blend, this.fs, this.fc, this.ss, this.sc, this.lineWidth]); }
   restore() { const s = this.stack.pop(); if (s) [this.m, this.flat, this.globalAlpha, this.blend, this.fs, this.fc, this.ss, this.sc, this.lineWidth] = s; }
+  setTransform(a, b, c, d, e, f) { this.m = [a, b, c, d, e, f]; this.flat = a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0; }
+  /** Wipes the whole layer (the game only ever clears all of one). */
+  clearRect() { if (curLayer === this) flush(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.disable(gl.BLEND); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); }
   translate(x, y) { const m = this.m; m[4] += m[0] * x + m[2] * y; m[5] += m[1] * x + m[3] * y; this.flat = false; }
   scale(x, y) { const m = this.m; m[0] *= x; m[1] *= x; m[2] *= y; m[3] *= y; this.flat = false; }
   rotate(a) { const m = this.m, c = Math.cos(a), s = Math.sin(a), [a0, a1, a2, a3] = m; m[0] = a0 * c + a2 * s; m[1] = a1 * c + a3 * s; m[2] = a2 * c - a0 * s; m[3] = a3 * c - a1 * s; this.flat = false; }
@@ -397,6 +422,15 @@ class Layer {
   /** drawImage(img, dx, dy) · (img, dx, dy, dw, dh) · (img, sx, sy, sw, sh, dx, dy, dw, dh) */
   drawImage(img, a, b, c, d, e, f, g, h) {
     if (!img.width || !img.height) return;
+    if (img instanceof Layer) {
+      // another surface as the picture: its rows are stored bottom-up
+      if (curLayer === img) flush();
+      let sx = 0, sy = 0, sw = img.w, sh = img.h, dx = a, dy = b, dw = img.w, dh = img.h;
+      if (e !== undefined) { sx = a; sy = b; sw = c; sh = d; dx = e; dy = f; dw = g; dh = h; } else if (c !== undefined) { dw = c; dh = d; }
+      const ga = this.globalAlpha;
+      this.quad(img.tex, sx / img.w, 1 - sy / img.h, (sx + sw) / img.w, 1 - (sy + sh) / img.h, dx, dy, dw, dh, ga, ga, ga, ga);
+      return;
+    }
     let t = srcs.get(img);
     if (!t) t = place(img);
     else if (img.dyn && t.stamp !== frameNo) { flush(); send(t, img); } // a canvas repainted every frame (reflections)
@@ -439,14 +473,15 @@ let verts = new Float32Array(6 * 3 * 256);
 /**
  * Light the frame and show it. `s` is:
  *   add: { data, x0, y0, x1, y1 }, RGBA pixels of the view (top row first) to add on top and the box that holds them, or null;
+ *   ss: how many picture pixels per game pixel (2 in the 3D view); everything below is in game pixels;
  *   cam: [x, y] of the view's top-left in the world; amb: { level, tint: [r,g,b], tintK };
  *   lights: [{ x, y, r, c: [r,g,b] 0..1, i, shadows }] and occluders: [{ x, y, w, h }], all in view pixels.
  */
 export function renderLight(s) {
-  const [w, h] = size, high = lightSettings.mode === "high", I = lightSettings.intensity;
+  const ss = s.ss ?? 1, [W, H] = size, w = W / ss, h = H / ss, high = lightSettings.mode === "high", I = lightSettings.intensity;
   flush(); curLayer = null;
   gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.viewport(0, 0, w, h);
+  gl.viewport(0, 0, W, H);
   layers.forEach((l, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, layerTex[i]); });
   // the effects' light: opaque where there is any, so it needs no alpha handling; nothing to send on most frames
   gl.activeTexture(gl.TEXTURE3);
@@ -498,7 +533,7 @@ export function renderLight(s) {
     gl.enable(gl.BLEND); gl.blendEquation(gl.FUNC_ADD); gl.blendFunc(gl.ONE, gl.ONE);
     gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, mask);
     gl.uniform1i(progLight.u.uMask, 6);
-    gl.uniform2f(progLight.u.uView, w, h);
+    gl.uniform2f(progLight.u.uView, w, h); gl.uniform1f(progLight.u.uSS, ss);
     gl.uniform3f(progLight.u.uLight, L.x, L.y, L.r);
     gl.uniform3f(progLight.u.uColor, L.c[0], L.c[1], L.c[2]);
     gl.uniform1f(progLight.u.uPow, L.i);
@@ -510,7 +545,7 @@ export function renderLight(s) {
   gl.disable(gl.BLEND);
   const P = progMix;
   gl.useProgram(P.p);
-  gl.uniform2f(P.u.uView, w, h);
+  gl.uniform2f(P.u.uView, w, h); gl.uniform1f(P.u.uSS, ss);
   gl.uniform2f(P.u.uCam, s.cam[0], s.cam[1]);
   ["uGround", "uSprites", "uOver", "uAdd"].forEach((n, i) => gl.uniform1i(P.u[n], i));
   gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, texLitS); gl.uniform1i(P.u.uLitS, 4);
