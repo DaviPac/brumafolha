@@ -2,6 +2,7 @@
 // the logo, and the menu. The first time the game is opened it plays an opening: a leaf falls through the dark,
 // turning over to show the silver underside the valley is named for, lands where the name will be, and the name
 // comes out of the mist letter by letter. After that first time, a short version. Any key or click skips it.
+import { sfx } from "./audio.js";
 import { GREEN, SILVER, paintLeaf } from "./art/appicon.js";
 import { openNotes } from "./update.js";
 import { VERSION } from "./version.js";
@@ -23,16 +24,25 @@ export function initTitle(on) {
   root = $("#title");
   const logo = $(".logo", root);
   logo.innerHTML = [...NAME].map((c, i) => `<span style="--i:${i}">${c}</span>`).join("");
-  $("#start").onclick = on.start;
-  $("#options").onclick = on.options;
-  $("#continue").onclick = on.cont;
-  $("#load").onclick = on.load;
-  $("#credits").onclick = () => showPanel(".credits", "#credits");
-  for (const b of root.querySelectorAll(".credits .back, .installios .back")) b.onclick = () => showPanel(null);
-  $("#install").onclick = install;
-  $("#newsTitle").onclick = () => openNotes();
+  const pick = (fn) => () => { sfx.menuConfirm?.(); fn?.(); };
+  $("#start").onclick = pick(on.start);
+  $("#options").onclick = pick(on.options);
+  $("#continue").onclick = pick(on.cont);
+  $("#load").onclick = pick(on.load);
+  $("#credits").onclick = pick(() => showPanel(".credits", "#credits"));
+  for (const b of root.querySelectorAll(".credits .back, .installios .back")) b.onclick = () => { sfx.menuBack?.(); showPanel(null); };
+  $("#install").onclick = pick(install);
+  $("#newsTitle").onclick = pick(() => openNotes());
   $("#titleVer").textContent = `v${VERSION}`;
   syncInstall();
+  // a harp note when the cursor or the keys reach a button (once per button, not on both hover and focus)
+  let last = null;
+  [...root.querySelectorAll(".menu button, .credits .back, .installios .back")].forEach((b, i) => {
+    const hover = () => { if (last === b || b.disabled || !finished) return; last = b; sfx.menuHover?.(i); };
+    b.addEventListener("mouseenter", hover);
+    b.addEventListener("focus", hover);
+    b.addEventListener("mouseleave", () => { if (last === b) last = null; });
+  });
   let first = true;
   try { first = !localStorage.getItem(SEEN); } catch { /* private mode: always the full opening */ }
   root.classList.add(first ? "first" : "short");
@@ -98,7 +108,7 @@ function showPanel(sel, from) {
 }
 /** Esc / B on the title closes the credits. */
 export function titleCancel() {
-  if ($(".menu", root).classList.contains("hidden")) showPanel(null);
+  if ($(".menu", root).classList.contains("hidden")) { sfx.menuBack?.(); showPanel(null); }
 }
 
 // ---------------------------------------------------------------- installing the game (it is a PWA: see sw.js)
@@ -118,6 +128,8 @@ async function install() {
     syncInstall();
   } else if (ios) showPanel(".installios", "#install");
 }
+/** main.js: the sound is on (the browser waits for a click or a key before it allows any). */
+export function titleAudioOn() { root?.classList.add("audio"); }
 
 // ---------------------------------------------------------------- the falling leaf
 // Two 16×16 frames drawn pixel by pixel (src/art/appicon.js, also the app icon): the green top and the silver

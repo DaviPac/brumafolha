@@ -560,6 +560,8 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 #saveBtn.off { opacity: 0.55; }
 #loaderr { position: absolute; left: 50%; bottom: 60rem; transform: translateX(-50%); max-width: 420rem; padding: 6rem 12rem 8rem; text-align: center; color: #e8dcc6; line-height: 16rem; }
 #loaderr .row { display: flex; gap: 6rem; justify-content: center; margin-top: 6rem; }
+#title .soundhint { position: absolute; right: 10rem; top: 8rem; margin: 0; color: var(--muted); opacity: 0; transition: opacity 0.6s steps(4) 0.8s; }
+#title.s4:not(.audio) .soundhint { opacity: 1; }
 
 /* ---- phones and tablets: touch, and the screen held upright (body.portrait) or sideways (body.short).
    --hbh is the action bar's height (main.js), so what sits above it moves when it wraps. */

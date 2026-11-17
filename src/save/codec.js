@@ -54,7 +54,10 @@ function warnOnce(msg) { if (!warned.has(msg)) { warned.add(msg); console.warn("
 
 /** Turn a value into JSON-safe data. `path` names functions met inside a baseline. */
 export function encode(v, path = "?", naming = false, seen = new Set(), entity = false) {
-  if (v === null || v === undefined) return v ?? null;
+  if (v === null) return null;
+  // undefined is kept apart from null: the game reads them differently (G.musicOverride: undefined is "the place's
+  // music", null is "silence"; a save that turned one into the other left the game mute after loading)
+  if (v === undefined) return { $undef: 1 };
   const t = typeof v;
   if (t === "number") return Number.isFinite(v) ? v : null;
   if (t === "string" || t === "boolean") return v;
@@ -96,6 +99,7 @@ export function decode(v) {
   if ("$u" in v) return units.get(v.$u) ?? null;
   if ("$o" in v) return objs.get(v.$o) ?? null;
   if ("$g" in v) return groups.get(v.$g) ?? [];
+  if ("$undef" in v) return undefined;
   if ("$fn" in v) { const f = fnByName.get(v.$fn); if (!f) warnOnce(`função "${v.$fn}" não existe nesta versão`); return f ?? null; }
   if ("$set" in v) return new Set(v.$set.map(decode));
   const out = {};
