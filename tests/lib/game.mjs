@@ -8,7 +8,9 @@ export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const SAVES = path.join(ROOT, "tests/saves");
 
 export async function launch() {
-  return chromium.launch({ headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
+  // PW_CHROMIUM: a Chromium installed elsewhere (a machine whose Playwright browsers are another version)
+  const exe = process.env.PW_CHROMIUM || (fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
+  return chromium.launch({ headless: true, executablePath: exe, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
 }
 
 /**
@@ -29,7 +31,8 @@ export async function newPage(browser, { seed = 7, context = null, notes = false
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(String(e.stack ?? e)));
-  page.on("console", (m) => { if (m.type() === "error") page.errors.push(m.text()); if (process.env.VERBOSE) console.log("[page]", m.text()); });
+  // the app's icons are drawn by the service worker, which the tests block: their 404 is expected
+  page.on("console", (m) => { if (m.type() === "error" && !/\/icons\//.test(m.location()?.url ?? "")) page.errors.push(m.text()); if (process.env.VERBOSE) console.log("[page]", m.text()); });
   return { ctx, page };
 }
 
@@ -53,7 +56,7 @@ const inScene = (page) => page.evaluate(async () => { const S = await import("/s
  * Stops when the game is back to `until` (default: exploring) with no conversation or scene. Throws if a question
  * comes up that the picks don't answer.
  */
-export async function play(page, picks = [], { until = ["explore"], timeout = 90000, endscreen = true, shots = null } = {}) {
+export async function play(page, picks = [], { until = ["explore"], timeout = 90000, endscreen = true, shots = null, auto = false } = {}) {
   const stopInDialogue = until.includes("dialogue");
   picks = [...picks];
   const t0 = Date.now();
@@ -84,6 +87,7 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
       if (i >= 0) picks.shift();
       else if (s.opts.length === 1 || s.opts.every((o) => /Continuar|\.\.\.|Voltar/.test(o))) i = 0;
       else if (s.opts.some((o) => /^\d?Continuar/.test(o))) i = s.opts.findIndex((o) => /^\d?Continuar/.test(o));
+      else if (auto) i = 0; // a tour: any answer will do
       else throw new Error(`pergunta sem resposta (${next ?? "nenhuma escolha"}): ${s.opts.join(" | ")}`);
       await page.evaluate((k) => document.querySelectorAll("#dialogue .opt")[k].click(), i);
       await sleep(120);
@@ -91,7 +95,7 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
       continue;
     }
     if (until.includes(s.mode) && !s.dlg && !(await inScene(page)) && !s.busy) {
-      if (++calm >= 4) { if (picks.length) throw new Error(`escolhas não usadas: ${picks.join(", ")}`); return; }
+      if (++calm >= 4) { if (picks.length && !auto) throw new Error(`escolhas não usadas: ${picks.join(", ")}`); return; }
     } else calm = 0;
     await sleep(150);
   }
