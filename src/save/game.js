@@ -109,7 +109,9 @@ export function restore(save) {
   for (const [id, m] of Object.entries(save.maps)) {
     const W = M.maps()[id];
     W.enemies.splice(0, W.enemies.length, ...m.enemies.map(C.unitById).filter(Boolean));
+    const residents = W.npcs.filter((u) => u.resident); // town.js: added after the save may have been written
     W.npcs.splice(0, W.npcs.length, ...m.npcs.map(C.unitById).filter(Boolean));
+    for (const u of residents) if (!W.npcs.includes(u)) W.npcs.push(u);
     const byId = new Map(W.objects.map((o) => [o.oid, o]));
     W.objects.splice(0, W.objects.length, ...m.objects.map((oid) => byId.get(oid)).filter(Boolean));
     for (const [i, v] of m.block) W.block[i] = v;

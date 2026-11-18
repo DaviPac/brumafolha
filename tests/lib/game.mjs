@@ -244,7 +244,7 @@ const SNAP_SRC = `window.__snapNow = ${(() => {
       party: G.party.map(unit), followers: G.followers.map((u) => u.uid), hero: G.hero.uid, mate: G.mate?.uid,
       f: JSON.parse(JSON.stringify(G.f)), items: G.items.map((i) => i.id ?? i.key ?? i.name).sort(), gold: G.gold, potions: G.potions,
       memories: G.memories.map((m) => ({ id: m.id, struck: !!m.struck })), approval: { ...G.approval },
-      npcs: G.npcs.map(unit), enemies: G.enemies.map(unit),
+      npcs: G.npcs.filter((u) => !u.resident).map(unit), enemies: G.enemies.map(unit), // residents walk their rounds (town.js)
       chests: G.chests.map((c) => !!c.open),
       objects: G.W.objects.filter((o) => o.id).map((o) => ({ id: o.id, kind: o.kind, open: !!o.open, hidden: !!o.hidden, lit: !!o.lit, out: !!o.out, empty: !!o.empty })),
       combat: G.combat ? { round: G.combat.round, active: G.combat.active?.uid, order: G.combat.order.map((u) => u.uid), hp: G.combat.order.map((u) => u.hp) } : null,

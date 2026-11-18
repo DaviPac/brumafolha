@@ -87,6 +87,8 @@ function place(b) {
   const [x, y] = worldToScreen(b.u.x, b.u.y - 40);
   b.el.style.left = x + "px"; b.el.style.top = y + "px";
 }
+/** How many lines are over heads right now (the town waits for quiet: one voice at a time). */
+export const bubbleCount = () => bubbles.length;
 export function clearBubbles() {
   for (const b of bubbles.splice(0)) { b.el.remove(); b.res?.(); }
 }
@@ -144,7 +146,7 @@ export function tickCompanions(dt) {
   if (!G.party.length || !G.W) return;
   if (!calm()) { if (talking) { talking = null; clearBubbles(); } walkT = Math.max(0, walkT - dt); return; }
   confrontTick();
-  if (talking) return;
+  if (talking || bubbles.length) return; // one voice at a time (the town talks too: town.js)
   if ((checkT -= dt) > 0) return;
   checkT = 0.5;
   const l = lead();

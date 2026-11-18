@@ -42,6 +42,7 @@ import { initLevelUp, openLevelUp, closeLevelUp, levelUpOpen, anyPending } from 
 import { pendingPicks } from "./rules.js";
 import { tickCompanions } from "./companions.js";
 import { addRelics } from "./relics.js";
+import { initTown, addResidents, tickTown } from "./town.js";
 import { initObjective, tickObjective, markPrefs, setMarkOn } from "./objective.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
@@ -96,6 +97,7 @@ async function boot() {
   spawnCompanions();
   S.init(E);
   initObjective(S);
+  initTown({ E, inScene: () => S.inScene() || !!S.storyBusy() });
   initGame(SAVE_ENGINE);
   initSaves(SAVE_ENGINE);
   // the valley's ground is most of the loading: painted in parallel, off the page, while the bar follows it
@@ -222,6 +224,7 @@ function buildMap(id) {
   idScope = ids.scope(id);
   S.populate(W);
   addRelics(W); // at the end of the chest list: the older chests keep their ids
+  addResidents(W); // at the end of the NPC list, for the same reason
   idScope = null;
   for (const o of W.objects) o.art = propArt(o);
   for (const c of W.chests) W.block[Math.floor((c.y - 1) / TILE) * MW + Math.floor(c.x / TILE)] = 1;
@@ -1360,6 +1363,7 @@ function update(dt) {
   S.update(dt);
   tickCompanions(dt);
   tickObjective(dt);
+  tickTown(dt);
   updateAudio(dt);
   // camera: in combat the player may look around freely until the next action
   if (G.mode !== "combat") { freeCam = false; drag = null; }
