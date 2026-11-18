@@ -697,3 +697,28 @@ body.short #creator header p { display: none; }
 #loading .label { color: #b8ac96; font: 13rem/15rem Bruma, ui-monospace, monospace; text-shadow: 1rem 1rem 0 #18121e; min-height: 15rem; }
 #loading .bar { width: 180px; height: 4px; background: #2a2436; box-shadow: 0 0 0 2px #18121e; }
 #loading .bar i { display: block; height: 100%; background: #a8c4e8; transform-origin: left; transform: scaleX(0.02); transition: transform 0.35s steps(6); }
+
+/* ---- level up (src/levelup.js) */
+#levelup { z-index: 44; }
+#levelup .box { width: min(560rem, 96vw); max-height: 94vh; overflow-y: auto; padding: 6rem 10rem 8rem; display: flex; flex-direction: column; gap: 5rem; }
+#levelup h1 { color: var(--gold); font-size: 22rem; line-height: 26rem; text-align: center; text-shadow: 2rem 2rem 0 var(--ink); }
+#levelup h1 .ico { vertical-align: -2rem; margin-right: 4rem; }
+#levelup h3 { color: var(--gold); margin-bottom: 3rem; }
+#levelup .lu-who { display: flex; gap: 3rem; flex-wrap: wrap; justify-content: center; }
+#levelup .lu-who button { display: flex; gap: 4rem; align-items: center; text-align: left; padding: 1rem 5rem 2rem 2rem; --img: var(--f-btnOff); color: var(--muted); font-weight: 400; }
+#levelup .lu-who button.on { --img: var(--f-btnHi); color: var(--text); }
+#levelup .lu-who canvas { width: 26rem; height: 24rem; image-rendering: pixelated; }
+#levelup .lu-who b { display: block; color: inherit; }
+#levelup .lu-who small { font-size: inherit; color: var(--teal); }
+#levelup .lu-body { display: grid; grid-template-columns: minmax(150rem, 0.8fr) 1.4fr; gap: 8rem; }
+#levelup dl { display: grid; grid-template-columns: max-content 1fr; gap: 2rem 8rem; margin: 0 0 5rem; }
+#levelup dt { color: var(--muted); } #levelup dd { margin: 0; color: var(--good); }
+#levelup .tabs { display: flex; gap: 2rem; border-bottom: 1rem solid #54486a; padding-bottom: 3rem; margin-bottom: 4rem; }
+#levelup .tabs button { flex: 1; padding: 1rem 2rem 2rem; --img: var(--f-btnOff); color: var(--muted); }
+#levelup .tabs button.on { --img: var(--f-btnHi); color: #fff2a0; }
+#levelup .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140rem, 1fr)); gap: 3rem; max-height: 52vh; overflow-y: auto; }
+#levelup .card small { display: block; line-height: 13rem; }
+#levelup .row { display: flex; gap: 6rem; justify-content: flex-end; }
+@media (max-width: 700px), (orientation: portrait) { #levelup .lu-body { grid-template-columns: 1fr; } }
+.pcard .lv.up { color: var(--ink); background: var(--gold); cursor: pointer; animation: lvup 1.2s steps(2) infinite; pointer-events: auto; }
+@keyframes lvup { 50% { box-shadow: 0 0 0 1rem var(--ink), 0 0 0 3rem var(--gold); } }

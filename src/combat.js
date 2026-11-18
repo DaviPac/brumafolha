@@ -57,6 +57,24 @@ export const ABILITIES = {
   produceflame: { name: "Criar Chama", icon: "palmflame", cost: "action", range: 6, kind: "bolt", dmg: "1d8", pal: "fire", desc: "Truque: uma chama na palma da mão, arremessada. 1d8 de dano de fogo, alcance 6." },
   entangle: { name: "Constrição", icon: "vine", cost: "action", range: 8, kind: "entangle", slot: true, desc: "Magia: raízes agarram um inimigo. Ele rola d20 + bônus contra a CD das suas magias; se falhar, perde o próximo turno." },
   flurry: { name: "Rajada de Golpes", icon: "fist", cost: "bonus", range: 1, kind: "flurry", desc: "Ação bônus, depois de atacar neste turno: dois golpes desarmados rápidos num inimigo adjacente." },
+  // learned at a level-up (rules.js LEVEL_POOL)
+  surge: { name: "Surto de Ação", icon: "bolt", cost: "free", range: 0, kind: "surge", per: "rest", desc: "Sem custo: você ganha mais uma ação neste turno. 1x por descanso." },
+  guard: { name: "Postura Defensiva", icon: "ac", cost: "bonus", range: 0, kind: "guard", amt: 2, desc: "Ação bônus: +2 de CA até o seu próximo turno." },
+  dodge: { name: "Esquiva Ardilosa", icon: "boot", cost: "bonus", range: 0, kind: "guard", amt: 3, desc: "Ação bônus: +3 de CA até o seu próximo turno. Bom para sair de perto depois de um ataque furtivo." },
+  arcshield: { name: "Escudo Arcano", icon: "ac", cost: "bonus", range: 0, kind: "guard", amt: 5, slot: true, desc: "Ação bônus, magia de 1º círculo: uma parede de força, +5 de CA até o seu próximo turno." },
+  reckless: { name: "Ataque Imprudente", icon: "rage", cost: "free", range: 0, kind: "reckless", per: "turn", desc: "Sem custo: seus ataques corpo a corpo neste turno rolam com vantagem, mas você fica com −2 de CA até o seu próximo turno." },
+  warcry: { name: "Grito de Guerra", icon: "mask", cost: "bonus", range: 0, kind: "warcry", per: "combat", desc: "Ação bônus: os inimigos a até 2 casas ficam abalados (−5 no próximo ataque). 1x por combate." },
+  bless: { name: "Bênção", icon: "sun", cost: "action", range: 0, kind: "bless", slot: true, desc: "Magia de 1º círculo: você e os aliados a até 6 casas somam 1d4 ao próximo ataque." },
+  command: { name: "Comando", icon: "word", cost: "action", range: 6, kind: "entangle", slot: true, note: "Obedece", verb: "obedece à palavra", desc: "Magia de 1º círculo: uma palavra de ordem. O alvo rola d20 + bônus contra a CD das suas magias; se falhar, perde o próximo turno." },
+  sleepword: { name: "Cantiga de Ninar", icon: "note", cost: "action", range: 6, kind: "entangle", slot: true, note: "Cochilando", verb: "cochila em pé", desc: "Magia de 1º círculo: uma cantiga baixinha. O alvo rola d20 + bônus contra a CD das suas magias; se falhar, perde o próximo turno." },
+  thunder: { name: "Onda Trovejante", icon: "cleave", cost: "action", range: 0, kind: "burst", slot: true, dmg: "2d8", pal: "arcane", desc: "Magia de 1º círculo: um trovão em volta de você. Cada inimigo adjacente rola contra a CD das suas magias: falhou, 2d8 de dano e é empurrado uma casa; passou, metade." },
+  hadar: { name: "Braços de Hadar", icon: "vine", cost: "action", range: 0, kind: "burst", slot: true, dmg: "2d6", pal: "arcane", desc: "Magia de 1º círculo: tentáculos de escuro saem de você. Cada inimigo adjacente rola contra a CD das suas magias: falhou, 2d6 de dano e perde a ação bônus; passou, metade." },
+  frostray: { name: "Raio de Gelo", icon: "missiles", cost: "action", range: 10, kind: "bolt", dmg: "1d8", pal: "arcane", effect: "slow", desc: "Truque: um raio branco de frio. 1d8 de dano, e o alvo anda só metade no próximo turno." },
+  chilltouch: { name: "Toque Gélido", icon: "orb", cost: "action", range: 12, kind: "bolt", dmg: "1d8", pal: "arcane", effect: "slow", desc: "Truque: uma mão de espectro agarra o alvo. 1d8 de dano, e ele anda só metade no próximo turno." },
+  volley: { name: "Disparo Duplo", icon: "bow", cost: "action", range: 10, kind: "volley", per: "combat", desc: "Dois disparos: no alvo e no inimigo mais perto dele (até 2 casas). 1x por combate. Precisa de arma à distância." },
+  aim: { name: "Mira Firme", icon: "target", cost: "bonus", range: 0, kind: "aim", desc: "Ação bônus, se ainda não andou: o próximo ataque rola com vantagem, e você não anda mais neste turno." },
+  stun: { name: "Golpe Atordoante", icon: "fist", cost: "action", range: 1, kind: "stun", per: "combat", desc: "Um golpe num ponto certo. Se acertar, o alvo rola contra a sua CD; se falhar, perde o próximo turno. 1x por combate." },
+  windstep: { name: "Passo do Vento", icon: "wind", cost: "bonus", range: 0, kind: "dash", desc: "Ação bônus: você ganha movimento extra igual ao seu deslocamento." },
   lampejo: { name: "Lampejo de Velmoor", icon: "leaf", cost: "free", range: 0, kind: "flash", per: "rest", desc: "Sem custo de ação: o próximo ataque do grupo rola o d20 duas vezes e fica com o melhor. 1x por descanso (o mesmo Lampejo que rerola testes)." },
 };
 
@@ -78,7 +96,10 @@ function canUse(u, ab) {
   if (ab.cost === "bonus" && !u.bonus) return false;
   if (ab.per === "combat" && u.used[ab.key]) return false;
   if (ab.per === "rest" && u.restUsed[ab.key]) return false;
+  if (ab.per === "turn" && u.turnUsed?.[ab.key]) return false;
   if (ab.slot && u.slots <= 0) return false;
+  if (ab.kind === "volley" && !u.bow) return false;
+  if (ab.kind === "aim" && u.moveLeft < u.move) return false;
   if (ab.kind === "potion" && G.potions <= 0) return false;
   if (ab.kind === "flurry" && !u.attackedThisTurn) return false;
   return true;
@@ -89,7 +110,10 @@ function whyNot(u, ab) {
   if (ab.cost === "bonus" && !u.bonus) return "Você já usou a ação bônus deste turno.";
   if (ab.per === "combat" && u.used[ab.key]) return "Já usado neste combate.";
   if (ab.per === "rest" && u.restUsed[ab.key]) return "Só volta depois de um descanso.";
+  if (ab.per === "turn" && u.turnUsed?.[ab.key]) return "Já usado neste turno.";
   if (ab.slot && u.slots <= 0) return "Sem espaços de magia.";
+  if (ab.kind === "volley" && !u.bow) return "Precisa de uma arma à distância equipada.";
+  if (ab.kind === "aim" && u.moveLeft < u.move) return "Só antes de andar neste turno.";
   if (ab.kind === "potion" && G.potions <= 0) return "Sem poções.";
   if (ab.kind === "flurry" && !u.attackedThisTurn) return "Ataque primeiro neste turno.";
   return "";
@@ -133,7 +157,7 @@ function checkEnd() {
     G.mode = "explore";
     G.combat = null;
     for (const p of G.party) if (p.hp <= 0) { p.hp = 1; floater(p.x, p.y - 36, "De pé!", "info"); }
-    for (const p of G.party) { p.raging = p.smiteNext = p.inspired = p.mocked = false; p.marked = null; }
+    for (const p of G.party) { p.raging = p.smiteNext = p.inspired = p.mocked = p.blessed = p.advOnce = p.advTurn = p.slowed = false; p.marked = null; if (p.guardAc) { p.ac -= p.guardAc; p.guardAc = 0; } }
     toast(`Vitória!  +${xp} XP`);
     sfx.victory();
     log(`Vitória. Cada um recebe ${xp} XP.`, "sys");
@@ -158,6 +182,10 @@ async function nextTurn() {
   if (C.idx <= prev || prev < 0) C.round++;
   const u = (C.active = C.order[C.idx]);
   u.moveLeft = u.move; u.action = 1; u.bonus = 1; u.sneakUsed = false; u.attackedThisTurn = false;
+  // what lasted "until your next turn" ends now
+  if (u.guardAc) { u.ac -= u.guardAc; u.guardAc = 0; }
+  u.advTurn = false; u.turnUsed = {};
+  if (u.slowed) { u.slowed = false; u.moveLeft = Math.floor(u.move / 2); floater(u.x, u.y - 40, "Lento", "info"); }
   C.ability = null;
   updateInitiative(); updateParty();
   // the story can step in at the start of a turn (allies arriving, a voice that stops time)
@@ -253,7 +281,7 @@ export function selectAbility(key) {
   const u = C.active, ab = abilityOf(u, key);
   sfx.select();
   if (!canUse(u, ab)) return;
-  if (["self", "dash", "flash", "rage", "smite"].includes(ab.kind)) { useAbility(u, ab, u); return; }
+  if (["self", "dash", "flash", "rage", "smite", "surge", "guard", "reckless", "warcry", "bless", "burst", "aim"].includes(ab.kind)) { useAbility(u, ab, u); return; }
   if (ab.kind === "cleave") { useAbility(u, ab, null); return; }
   C.ability = C.ability === key ? null : key;
   refreshCombatHotbar();
@@ -272,17 +300,18 @@ export function combatHover(tx, ty) {
     const d = cheb(u, target);
     const friendly = isFriendly(ab);
     if (friendly !== (target.team === "party")) { tooltip(null); return; }
-    if (ab.kind === "attack" || ab.kind === "bolt" || ab.kind === "shoot") {
-      const bonus = ab.kind === "shoot" ? u.bow.atk : ab.kind === "bolt" ? u.spellAtk ?? u.atk : u.atk;
+    if (["attack", "stun", "bolt", "shoot", "volley"].includes(ab.kind)) {
+      const ranged = ab.kind === "shoot" || ab.kind === "volley", melee = ab.kind === "attack" || ab.kind === "stun";
+      const bonus = ranged ? u.bow.atk : ab.kind === "bolt" ? u.spellAtk ?? u.atk : u.atk;
       const pct = hitChance(u, target, bonus);
       const inRange = d <= ab.range;
       let note = "";
-      if (!inRange && ab.kind === "attack") {
+      if (!inRange && melee) {
         const app = approachTile(u, target);
         note = app ? `<br>vai até ele (${app.path.length} de movimento)` : '<br><span class="bad">longe demais</span>';
         if (app) C.preview = { path: app.path };
       } else if (!inRange) note = '<br><span class="bad">fora de alcance</span>';
-      const dmg = ab.kind === "bolt" ? ab.dmg : ab.kind === "shoot" ? u.bow.dmg : u.dmg;
+      const dmg = ab.kind === "bolt" ? ab.dmg : ranged ? u.bow.dmg : u.dmg;
       tooltip(tipHTML({ icon: ab.icon, title: ab.name, sub: `em ${target.name}`, rows: [["Acerto", `<span class="pct">${pct}%</span>`], ["Dano", `${dmg}${u.marked === target ? " +1d6" : ""}`], ["Alvo", `PV ${target.hp}/${target.maxHp} · CA ${target.ac}`]], foot: tapNote(note.replace(/^<br>/, "") || null, !note.includes("bad")) }));
     } else {
       const far = d > ab.range ? `<span class="bad">fora de alcance</span>` : null;
@@ -335,7 +364,7 @@ export async function combatClick(tx, ty) {
     const friendly = isFriendly(ab);
     if (friendly !== (target.team === "party")) return;
     if (cheb(u, target) > ab.range) {
-      if (ab.kind !== "attack") { floater(u.x, u.y - 36, "Fora de alcance", "info"); return; }
+      if (ab.kind !== "attack" && ab.kind !== "stun") { floater(u.x, u.y - 36, "Fora de alcance", "info"); return; }
       const app = approachTile(u, target);
       if (!app) { floater(u.x, u.y - 36, "Longe demais", "info"); return; }
       C.busy = true; refreshCombatHotbar();
@@ -421,12 +450,13 @@ function heal(t, amount) {
   updateParty(); updateInitiative();
 }
 
-function attackRoll(u, t, bonus) {
+function attackRoll(u, t, bonus, melee = false) {
   let d = rollDie(20);
   if (d === 1 && u.lucky) { d = rollDie(20); floater(u.x, u.y - 46, "Sortudo!", "info"); }
   if (u.team === "party" && G.advNext) { G.advNext = false; const d2 = rollDie(20); if (d2 > d) d = d2; floater(u.x, u.y - 52, "Lampejo!", "crit"); }
+  else if (u.advOnce || (u.advTurn && melee)) { u.advOnce = false; const d2 = rollDie(20); if (d2 > d) d = d2; floater(u.x, u.y - 52, "Vantagem", "info"); }
   let total = d + bonus;
-  if (u.inspired) { u.inspired = false; const i = rollDie(6); total += i; floater(u.x, u.y - 52, `Inspiração +${i}`, "info"); }
+  if (u.inspired) { u.inspired = false; const i = rollDie(u.inspireDie ?? 6); u.inspireDie = 0; total += i; floater(u.x, u.y - 52, `${u.blessed ? "Bênção" : "Inspiração"} +${i}`, "info"); u.blessed = false; }
   if (u.mocked) { u.mocked = false; total -= 5; floater(u.x, u.y - 52, "Abalado −5", "info"); }
   const crit = d >= (u.critMin ?? 20), hit = crit || (d !== 1 && total >= t.ac);
   return { d, total, crit, hit };
@@ -463,7 +493,7 @@ async function meleeAttack(u, t, expr) {
   lunge(u, t);
   const flip = t.x < u.x;
   await sleep(120);
-  const r = attackRoll(u, t, u.atk);
+  const r = attackRoll(u, t, u.atk, true);
   G.fx.spawn(FX.swordSlash, { x: t.x + (flip ? 14 : -14), y: t.y + 2, flip, radius: 24, ...(u.slashPal ? { palette: u.slashPal } : {}) });
   sfx.swing();
   await sleep(110);
@@ -478,6 +508,7 @@ async function meleeAttack(u, t, expr) {
     log(`${u.name} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} vs CA ${t.ac} · errou`, "miss");
   }
   await sleep(380);
+  return r;
 }
 
 const soundKind = (palette) => (palette === PAL.fire ? "fire" : palette === PAL.arcane || palette === PAL.holy ? "arcane" : palette === PAL.wood ? "arrow" : "ember");
@@ -512,6 +543,7 @@ async function rangedSpell(u, t, expr, palette, label, bonus = u.atk, weapon = f
       if (!weapon && u.markSpells && u.marked === t) { const v = roll("1d6").total; ex.add += v; ex.note += ` [maldição +${v}]`; }
       if (!weapon && palette === PAL.fire && u.wfx?.fireBonus) { ex.add += u.wfx.fireBonus; ex.note += ` [cajado +${u.wfx.fireBonus}]`; }
       if (effect === "mock" && t.hp > 0) { t.mocked = true; setTimeout(() => floater(t.x, t.y - 50, "Zombado", "info"), 250); }
+      if (effect === "slow" && t.hp > 0) { t.slowed = true; setTimeout(() => floater(t.x, t.y - 50, "Lento", "info"), 250); }
       damage(t, dm.total + ex.add, r.crit, u, soundKind(palette));
       if (u.ranged?.forget && t.hp > 0 && !t.forgetWard) { t.forgotten = true; setTimeout(() => floater(t.x, t.y - 50, "Esquecido", "info"), 250); }
       log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${bonus}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total + ex.add}${ex.note}`, r.crit ? "crit" : "hit");
@@ -533,9 +565,10 @@ export async function useAbility(u, ab, target) {
   if (ab.cost === "bonus") u.bonus = 0;
   if (ab.per === "combat") u.used[ab.key] = true;
   if (ab.per === "rest") u.restUsed[ab.key] = true;
+  if (ab.per === "turn") (u.turnUsed ??= {})[ab.key] = true;
   if (ab.slot) u.slots--;
   // abilities that throw something follow the projectile themselves; the rest show whom they touch
-  watch(["bolt", "shoot", "missiles"].includes(ab.kind) ? u : target ?? u);
+  watch(["bolt", "shoot", "missiles", "volley"].includes(ab.kind) ? u : target ?? u);
   switch (ab.kind) {
     case "attack": await meleeAttack(u, target, u.dmg); break;
     case "bolt": await rangedSpell(u, target, ab.dmg, PAL[ab.pal ?? "fire"], ab.name, u.spellAtk ?? u.atk, false, ab.effect); break;
@@ -585,8 +618,9 @@ export async function useAbility(u, ab, target) {
       sfx.cast("arcane");
       await sleep(450);
       const dc = 8 + (u.spellAtk ?? 4), save = rollDie(20) + Math.max(0, (target.atk ?? 3) - 2);
-      if (save < dc) { target.skip = (target.skip ?? 0) + 1; target.skipNote = "Enredado"; floater(target.x, target.y - 40, "Enredado!", "crit"); log(`Raízes prendem ${target.name} (${save} vs CD ${dc}): perde o próximo turno.`, "hit"); }
-      else { floater(target.x, target.y - 40, "Se soltou", "miss"); log(`${target.name} arrebenta as raízes (${save} vs CD ${dc}).`, "miss"); }
+      const note = ab.note ?? "Enredado";
+      if (save < dc) { target.skip = (target.skip ?? 0) + 1; target.skipNote = note; floater(target.x, target.y - 40, note + "!", "crit"); log(ab.verb ? `${target.name} ${ab.verb} (${save} vs CD ${dc}): perde o próximo turno.` : `Raízes prendem ${target.name} (${save} vs CD ${dc}): perde o próximo turno.`, "hit"); }
+      else { floater(target.x, target.y - 40, `Resistiu (${save} vs CD ${dc})`, "miss"); log(ab.verb ? `${target.name} resiste (${save} vs CD ${dc}).` : `${target.name} arrebenta as raízes (${save} vs CD ${dc}).`, "miss"); }
       await sleep(350);
       break;
     }
@@ -602,6 +636,105 @@ export async function useAbility(u, ab, target) {
       log(`${u.name} acende o Lampejo: o próximo ataque do grupo rola com vantagem.`, "sys");
       sfx.cast("arcane");
       await sleep(400);
+      break;
+    }
+    case "surge": {
+      u.action = 1;
+      G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2, palette: PAL.ember });
+      floater(u.x, u.y - 40, "Mais uma ação!", "crit");
+      log(`${u.name} respira fundo e ganha mais uma ação.`, "sys");
+      sfx.breath();
+      await sleep(350);
+      break;
+    }
+    case "guard": {
+      u.guardAc = (u.guardAc ?? 0) + ab.amt; u.ac += ab.amt;
+      G.fx.spawn(FX.hitSpark, { x: u.x, y: u.y - 18, palette: ab.slot ? PAL.arcane : PAL.gold });
+      floater(u.x, u.y - 40, `CA +${ab.amt}`, "heal");
+      log(`${u.name}: ${ab.name}, CA ${u.ac} até o próximo turno.`, "sys");
+      ab.slot ? sfx.cast("arcane") : sfx.swing();
+      await sleep(300);
+      break;
+    }
+    case "reckless": {
+      u.advTurn = true; u.guardAc = (u.guardAc ?? 0) - 2; u.ac -= 2;
+      floater(u.x, u.y - 40, "Imprudente!", "crit");
+      log(`${u.name} ataca sem se guardar: vantagem corpo a corpo neste turno, CA ${u.ac} até o próximo.`, "sys");
+      sfx.swing(true);
+      await sleep(300);
+      break;
+    }
+    case "aim": {
+      u.advOnce = true; u.moveLeft = 0;
+      G.fx.spawn(FX.hitSpark, { x: u.x, y: u.y - 20, palette: PAL.gold });
+      floater(u.x, u.y - 40, "Mira firme", "info");
+      log(`${u.name} firma a mira: vantagem no próximo ataque.`, "sys");
+      await sleep(300);
+      break;
+    }
+    case "warcry": {
+      u.pose = "attack"; u.poseT = 0.5;
+      sfx.swing(true);
+      const near = G.enemies.filter((e) => e.hp > 0 && !e.gone && cheb(u, e) <= 2);
+      for (const e of near) { e.mocked = true; floater(e.x, e.y - 40, "Abalado", "info"); }
+      floater(u.x, u.y - 46, "GRITO!", "crit");
+      log(`${u.name} grita: ${near.length ? near.map((e) => e.name).join(", ") + " ficam abalados (−5 no próximo ataque)" : "ninguém perto o bastante para ouvir"}.`, "sys");
+      G.shake = 0.2;
+      await sleep(450);
+      break;
+    }
+    case "bless": {
+      u.pose = "cast"; u.poseT = 0.6;
+      sfx.cast("arcane");
+      const who = G.party.filter((p) => p.hp > 0 && cheb(u, p) <= 6);
+      for (const p of who) { p.inspired = true; p.inspireDie = 4; p.blessed = true; G.fx.spawn(FX.hitSpark, { x: p.x, y: p.y - 18, palette: PAL.holy }); floater(p.x, p.y - 40, "Abençoado", "heal"); }
+      log(`${u.name} abençoa ${who.map((p) => p.name).join(", ")}: +1d4 no próximo ataque.`, "sys");
+      await sleep(500);
+      break;
+    }
+    case "burst": {
+      u.pose = "cast"; u.poseT = 0.6;
+      const pal = PAL[ab.pal ?? "arcane"];
+      G.fx.spawn(FX.bloom, { x: u.x, y: u.y + 2, palette: pal });
+      sfx.cast("arcane"); G.shake = 0.25;
+      await sleep(250);
+      const adj = G.enemies.filter((e) => e.hp > 0 && !e.gone && cheb(u, e) <= 1);
+      if (!adj.length) floater(u.x, u.y - 36, "Ninguém ao redor", "info");
+      const dc = 8 + (u.spellAtk ?? 4);
+      for (const t of adj) {
+        const save = rollDie(20) + Math.max(0, (t.atk ?? 3) - 2), ok = save >= dc;
+        const r = roll(ab.dmg), amt = ok ? Math.max(1, r.total >> 1) : r.total;
+        G.fx.spawn(FX.hitSpark, { x: t.x, y: t.y - 14, palette: pal });
+        damage(t, amt, false, u, "arcane");
+        if (!ok && t.hp > 0) {
+          if (ab.key === "hadar") { t.forgotten = true; floater(t.x, t.y - 50, "Sem ação bônus", "info"); }
+          else {
+            // pushed one tile away, if the tile is free
+            const [ux, uy] = tileOf(u), [tx, ty] = tileOf(t), nx = tx + Math.sign(tx - ux), ny = ty + Math.sign(ty - uy);
+            if (!blockedFor(t)(nx, ny)) { [t.x, t.y] = tileCenter(nx, ny); floater(t.x, t.y - 50, "Empurrado", "info"); }
+          }
+        }
+        log(`${ab.name} → ${t.name}: ${save} vs CD ${dc} · ${ok ? "resistiu, metade" : "falhou"} · ${amt}`, ok ? "miss" : "hit");
+        await sleep(120);
+      }
+      await sleep(350);
+      break;
+    }
+    case "volley": {
+      if (!u.bow) break;
+      const second = G.enemies.filter((e) => e !== target && e.hp > 0 && !e.gone && cheb(e, target) <= 2).sort((a, b) => cheb(a, target) - cheb(b, target))[0];
+      await rangedSpell(u, target, u.bow.dmg, PAL.wood, u.bow.name, u.bow.atk, true);
+      if (G.combat && second && second.hp > 0) await rangedSpell(u, second, u.bow.dmg, PAL.wood, u.bow.name, u.bow.atk, true);
+      break;
+    }
+    case "stun": {
+      const r = await meleeAttack(u, target, u.dmg);
+      if (r?.hit && target.hp > 0) {
+        const dc = 8 + 2 + Math.max(0, u.atk - 2), save = rollDie(20) + Math.max(0, (target.atk ?? 3) - 2);
+        if (save < dc) { target.skip = (target.skip ?? 0) + 1; target.skipNote = "Atordoado"; floater(target.x, target.y - 50, "Atordoado!", "crit"); log(`${target.name} fica atordoado (${save} vs CD ${dc}): perde o próximo turno.`, "hit"); }
+        else { floater(target.x, target.y - 50, `Resistiu (${save} vs CD ${dc})`, "miss"); log(`${target.name} sacode a cabeça (${save} vs CD ${dc}).`, "miss"); }
+        await sleep(250);
+      }
       break;
     }
     case "dash": {

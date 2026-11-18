@@ -71,8 +71,10 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
         opts: dlg ? [...dlg.querySelectorAll(".opt")].map((o) => o.textContent) : [],
         end: end && !end.classList.contains("hidden"),
         busy: !!window.G.combat?.busy,
+        lu: !document.querySelector("#levelup")?.classList.contains("hidden"),
       };
     });
+    if (s.lu) { await levelUp(page); calm = 0; continue; }
     if (s.dice) { if (s.diceReady) await page.evaluate(() => document.querySelector("#dice").onclick()); await sleep(150); calm = 0; continue; }
     if (shots && (s.dlg || s.end)) {
       // pictures of the scenes: when a line containing a key is on screen, once (a click shows the whole line at once)
@@ -102,8 +104,32 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
   throw new Error(`tempo esgotado jogando (modo ${await page.evaluate(() => window.G.mode)})`);
 }
 
+/**
+ * The level-up screen, if it is open: every choice made (the hero takes the first option offered, companions keep
+ * their suggestion) and confirmed, as a player would. Returns what was chosen.
+ */
+export async function levelUp(page) {
+  const chosen = [];
+  for (let i = 0; i < 12 && (await page.evaluate(() => !document.querySelector("#levelup").classList.contains("hidden"))); i++) {
+    const c = await page.evaluate(() => {
+      const r = document.querySelector("#levelup"), ok = r.querySelector("[data-ok]");
+      if (ok.disabled) { const o = r.querySelector(".lu-opt"); o.click(); return o.dataset.k; }
+      ok.click(); return null;
+    });
+    if (c) chosen.push(c);
+    await sleep(150);
+  }
+  return chosen;
+}
+/** Whatever screen a calm moment may open by itself (the level-up) is dealt with first. */
+export async function settle(page) {
+  await sleep(50);
+  if (await page.evaluate(() => !document.querySelector("#levelup")?.classList.contains("hidden"))) await levelUp(page);
+}
+
 /** Put the party's leader on a tile (as if it had walked there) and let the story's per-frame checks see it. */
 export async function goTo(page, tx, ty) {
+  await settle(page);
   await page.evaluate(([tx, ty]) => {
     const G = window.G, l = G.party[G.leader];
     l.x = tx * 32 + 16; l.y = ty * 32 + 26; l.path = [];
@@ -113,6 +139,7 @@ export async function goTo(page, tx, ty) {
 }
 /** Walk next to whoever is called `name` (an NPC, or a clickable thing) and press E. */
 export async function interact(page, name) {
+  await settle(page);
   const where = await page.evaluate(async (name) => {
     const G = window.G;
     const n = G.npcs.find((u) => !u.gone && (u.name === name || u.label === name));
@@ -273,7 +300,9 @@ export async function keepPlaying(page, snap) {
     await waitFor(page, (b) => !window.G.combat || window.G.combat.idx !== b.idx || window.G.combat.round !== b.round, before, 20000);
     if (await page.evaluate(() => window.G.mode === "combat")) { await winFight(page); await play(page); }
   }
-  // walking: hold a key, the leader moves
+  // walking: hold a key, the leader moves (after the level-up screen a loaded save may open: an old save's characters
+  // above level 1 have their choices waiting)
+  await sleep(1600); await settle(page);
   const a = await page.evaluate(() => { const l = window.G.party[window.G.leader]; return [l.x, l.y]; });
   await page.keyboard.down("d"); await sleep(500); await page.keyboard.up("d");
   await page.keyboard.down("s"); await sleep(400); await page.keyboard.up("s");

@@ -132,7 +132,11 @@ export function updateParty() {
     el.querySelector(".hp i").style.width = (100 * Math.max(0, p.hp)) / p.maxHp + "%";
     el.querySelector(".hpv").innerHTML = `${icon("hp", "sm")} ${Math.max(0, p.hp)}/${p.maxHp}`;
     el.querySelector(".xp i").style.width = Math.min(100, (100 * p.xp) / p.nextXp) + "%";
-    el.querySelector(".lv").textContent = p.level;
+    const lv = el.querySelector(".lv"), up = G.hooks.pendingPicks?.(p) > 0;
+    lv.textContent = up ? `${p.level}+` : p.level;
+    lv.classList.toggle("up", up);
+    lv.title = up ? "Subiu de nível: clique para escolher" : "";
+    lv.onclick = up ? (e) => { e.stopPropagation(); G.hooks.levelUp?.(p); } : null;
     el.querySelector(".ac").innerHTML = `${icon("ac", "sm")} ${p.ac}`;
     const active = G.mode === "combat" ? G.combat?.active === p : i === G.leader;
     el.classList.toggle("active", active);

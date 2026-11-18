@@ -38,6 +38,8 @@ import { Input, pollInput, key, focusDefault, activeLayer, isTouch } from "./inp
 import { initUpdates, tickUpdate, showNewNotes, openNotes, closeNotes, newsOpen } from "./update.js";
 import { VERSION } from "./version.js";
 import { diceReroll } from "./dialogue.js";
+import { initLevelUp, openLevelUp, closeLevelUp, levelUpOpen, anyPending } from "./levelup.js";
+import { pendingPicks } from "./rules.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
 import { P as PV, frame as pvFrame, project, unproject, rowToFlat, mouseRel, setPersp } from "./persp.js";
@@ -492,6 +494,14 @@ G.hooks.equip = (u, slot, item) => {
   exploreHotbar();
 };
 G.hooks.regear = regear;
+// the level-up screen (levelup.js): it opens by itself at the first calm moment, unless the player left it for later
+let luLater = false, luT = 0;
+initLevelUp({ regear, closed: () => { luLater = anyPending(); UI.buildParty(selectLeader); exploreHotbar(); } });
+G.hooks.levelUp = (u) => { if (G.mode === "explore") openLevelUp(u); };
+function levelUpTick(dt) {
+  if (!anyPending() || levelUpOpen() || luLater || G.mode !== "explore" || G.paused || S.inScene() || S.storyBusy() || journalOpen()) { luT = 0; return; }
+  if ((luT += dt) > 1.2) { luT = 0; openLevelUp(); }
+}
 
 // ---------------------------------------------------------------- the engine, as the story sees it
 const sleep = (ms) => new Promise((r) => {
@@ -559,6 +569,7 @@ const SAVE_ENGINE = {
   },
   unstick(u) { const [tx, ty] = tileOf(u); const [x, y] = freeAround(tx, ty, 1)[0]; [u.x, u.y] = tileCenter(x, y); },
   afterLoad() {
+    if (G.hero?.build) G.build = G.hero.build; // one sheet for the hero: the level-up choices are written on it
     setupMenu();
     G.camFocus = null; G.focus = null; G.paused = false;
     E.partyChanged();
@@ -627,6 +638,7 @@ G.hooks.focus = (u) => { G.focus = u; freeCam = false; if (cursor.on) [cursor.tx
 G.hooks.watch = (o) => { G.focus = o; freeCam = false; };
 G.hooks.afterDialogue = () => exploreHotbar();
 G.hooks.hint = hint;
+G.hooks.pendingPicks = pendingPicks;
 G.hooks.gainXp = (p, xp) => {
   if (p.ai) return; // allies who only fight alongside for a moment
   p.xp += xp;
@@ -637,7 +649,8 @@ G.hooks.gainXp = (p, xp) => {
     if (p.build) regear(p, false);
     else if (p.role === "martial") { p.atk++; if (p.bow) p.bow.atk++; }
     p.slots = p.maxSlots ?? 0;
-    setTimeout(() => { UI.toast(`${p.name} alcançou o nível ${p.level}!`); sfx.levelUp(); G.fx.spawn(FX.bloom, { x: p.x, y: p.y + 2, palette: PAL.holy }); }, 1800);
+    luLater = false; // a new level: the screen opens again by itself, even if the last one was left for later
+    setTimeout(() => { UI.toast(`${p.name} alcançou o nível ${p.level}! Há uma escolha a fazer.`); sfx.levelUp(); G.fx.spawn(FX.bloom, { x: p.x, y: p.y + 2, palette: PAL.holy }); UI.updateParty(); }, 1800);
   }
   UI.updateParty();
 };
@@ -675,7 +688,7 @@ G.hooks.lampejo = {
 
 // ---------------------------------------------------------------- try a lost fight again
 let checkpoint = null;
-const UNIT_KEYS = ["x", "y", "hp", "maxHp", "slots", "maxSlots", "level", "xp", "nextXp", "atk", "dir", "gone", "skip", "forgotten", "ai", "alpha", "bonusAtk", "slotBonus", "raging", "smiteNext", "inspired", "mocked", "marked"];
+const UNIT_KEYS = ["x", "y", "hp", "maxHp", "slots", "maxSlots", "level", "xp", "nextXp", "atk", "dir", "gone", "skip", "forgotten", "ai", "alpha", "bonusAtk", "slotBonus", "raging", "smiteNext", "inspired", "mocked", "marked", "guardAc", "advTurn", "advOnce", "slowed", "blessed", "inspireDie", "ac"];
 function snapshot() {
   const units = [...new Set([...G.party, ...G.enemies, ...G.npcs, ...G.followers])];
   return {
@@ -924,6 +937,7 @@ Input.onCancel = (layer) => {
   if (layer === "title") { titleCancel(); return; }
   if (layer === "pause") setPaused(false);
   else if (layer === "journal") closeJournal();
+  else if (layer === "levelup") closeLevelUp();
   else if (layer === "dice") document.getElementById("dice").click();
 };
 canvas.addEventListener("mousemove", setMouse);
@@ -1017,6 +1031,7 @@ addEventListener("keydown", (e) => {
   if (k === "h") document.querySelector("#hint:not(.hidden) .ok")?.click();
   if (G.mode === "title" || G.mode === "over" || G.mode === "end") return;
   if (journalOpen()) { if (k === "escape" || k === "i" || k === "j") closeJournal(); return; }
+  if (levelUpOpen()) { if (k === "escape") closeLevelUp(); G.keys.delete(k); return; }
   // Esc first cancels a chosen combat action; otherwise it (or P) opens and closes the menu
   if (k === "escape" && !G.paused && G.combat?.ability) { G.combat.ability = null; return; }
   if (k === "escape" || k === "p") { setPaused(!G.paused); return; }
@@ -1272,6 +1287,7 @@ function update(dt) {
   }
   if (!G.party.length) return;
   tickSaves(dt);
+  levelUpTick(dt);
   const l = lead();
   if (G.mode === "explore") {
     // keyboard walking
@@ -1282,6 +1298,7 @@ function update(dt) {
     if (G.keys.has("d") || G.keys.has("arrowright")) mx++;
     if (!mx && !my) { mx = Input.axis.x; my = Input.axis.y; }
     if (!mx && !my) { const st = touchSteer(); if (st) [mx, my] = st; }
+    if (levelUpOpen()) mx = my = 0; // the keys are walking the level-up screen
     if (mx || my) {
       l.path = []; pending = null;
       const k = Math.min(88, G.speedCap ?? 88) * dt / Math.max(1, Math.hypot(mx, my));

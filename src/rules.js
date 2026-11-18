@@ -193,6 +193,45 @@ CLASSES.druida.profs.extra = ["cimitarra"];
 CLASSES.bardo.profs.extra = CLASSES.ladino.profs.extra = ["espadaCurta", "cimitarra"];
 CLASSES.monge.profs.extra = ["espadaCurta"];
 
+// ---------------------------------------------------------------- levelling up
+// Every level after the first brings one choice (src/levelup.js): a new ability of the class (each taken once), +2 to
+// an ability score (20 at most), or proficiency in a new skill. The order of each pool is the suggestion for a
+// companion. The choices are kept on the build: extraAbilities, asi, extraSkills, and picks (the record of them).
+export const LEVEL_POOL = {
+  guerreiro: ["surge", "guard"], barbaro: ["reckless", "warcry"], paladino: ["bless", "guard"],
+  patrulheiro: ["volley", "entangle"], ladino: ["aim", "dodge"], monge: ["stun", "windstep"],
+  bardo: ["thunder", "sleepword", "heal"], mago: ["thunder", "frostray", "arcshield"], bruxo: ["hadar", "chilltouch"],
+  clerigo: ["bless", "command"], druida: ["thunder", "healword"],
+};
+/** The attribute a companion or a fresh suggestion raises: the one the class lives on. */
+export const MAIN_ABIL = { guerreiro: "FOR", barbaro: "FOR", paladino: "FOR", patrulheiro: "DES", ladino: "DES", monge: "DES", bardo: "CAR", mago: "INT", bruxo: "CAR", clerigo: "SAB", druida: "SAB" };
+export const MAX_ASI_SCORE = 20;
+/** How many level-up choices this unit still has to make (old saves: one per level above the first, none made yet). */
+export const pendingPicks = (u) => (u.build && !u.ai ? Math.max(0, (u.level ?? 1) - 1 - (u.build.picks?.length ?? 0)) : 0);
+/** The choices open to a build at a level-up: { abilities: [key], abils: [k], skills: [name] }. */
+export function levelOptions(b, have = []) {
+  const sc = finalScores(b), prof = new Set([...CLASSES[b.cls].skills, ...RACES[b.race].skills, ...(b.extraSkills ?? [])]);
+  return {
+    abilities: (LEVEL_POOL[b.cls] ?? []).filter((k) => !have.includes(k) && !(b.extraAbilities ?? []).includes(k)),
+    abils: ABILS.filter((k) => sc[k] + 2 <= MAX_ASI_SCORE),
+    skills: Object.keys(SKILLS).filter((s) => !prof.has(s)),
+  };
+}
+/** The suggestion for a level-up: the next ability of the class, else +2 to its main score. */
+export function suggestPick(b, have = []) {
+  const o = levelOptions(b, have);
+  if (o.abilities.length) return { kind: "ability", key: o.abilities[0] };
+  const m = MAIN_ABIL[b.cls];
+  return o.abils.includes(m) ? { kind: "asi", key: m } : { kind: "skill", key: o.skills[0] };
+}
+/** Put a choice on a build (the unit is recomputed by the caller). */
+export function applyPick(b, pick, level) {
+  if (pick.kind === "ability") b.extraAbilities = [...(b.extraAbilities ?? []), pick.key];
+  else if (pick.kind === "asi") b.asi = { ...(b.asi ?? {}), [pick.key]: (b.asi?.[pick.key] ?? 0) + 2 };
+  else if (pick.kind === "skill") b.extraSkills = [...(b.extraSkills ?? []), pick.key];
+  b.picks = [...(b.picks ?? []), { lv: level, kind: pick.kind, key: pick.key }];
+}
+
 /** Gendered display names. */
 export const className = (cls, g) => (g === "f" && CLASSES[cls].nameF) || CLASSES[cls].name;
 export const raceName = (race, g) => (g === "f" && RACES[race].nameF) || RACES[race].name;
@@ -226,7 +265,7 @@ export function applyDefaultLook(b, what = "all") {
 
 export function finalScores(b) {
   const bonus = RACES[b.race].bonus, out = {};
-  for (const k of ABILS) out[k] = b.base[k] + (bonus[k] ?? 0);
+  for (const k of ABILS) out[k] = b.base[k] + (bonus[k] ?? 0) + (b.asi?.[k] ?? 0); // asi: the level-up choices
   return out;
 }
 
