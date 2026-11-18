@@ -176,9 +176,14 @@ export async function importAndLoad(page, base, file) {
   // the start screen, under it the menu: the Load screen opens from there
   await waitFor(page, () => window.G?.mode === "title" && document.querySelector("#loading").classList.contains("hidden"), null, 90000);
   await page.evaluate(async () => (await import("/src/save/saves.js")).openSaves("load"));
+  // wait for this import to be stored (the list may already show an earlier one from the same profile)
+  const imports = () => page.evaluate(async () => (await (await import("/src/save/store.js")).listSaves()).filter((m) => m.id.endsWith("-imp")).length);
+  const before = await imports();
   await page.setInputFiles("#saves input[type=file]", file);
+  for (let t = Date.now(); (await imports()) <= before; ) { if (Date.now() - t > 30000) throw new Error("o save importado não apareceu"); await sleep(100); }
   await page.waitForSelector("#saves [data-load]");
-  const id = await page.evaluate(async () => (await (await import("/src/save/store.js")).listSaves()).find((m) => m.id.endsWith("-imp")).id);
+  // the save just imported: the newest import (an earlier one in the same browser profile has an older stamp)
+  const id = await page.evaluate(async () => (await (await import("/src/save/store.js")).listSaves()).filter((m) => m.id.endsWith("-imp")).sort((a, b) => parseInt(b.id.split("-")[1], 36) - parseInt(a.id.split("-")[1], 36))[0].id);
   await Promise.all([page.waitForEvent("load"), page.click(`#saves [data-load="${id}"]`)]);
   await waitLoaded(page);
   return id;

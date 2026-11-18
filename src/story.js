@@ -78,10 +78,26 @@ export function loadState(raw) {
   for (const t of d.timers ?? []) if (LATER[t.kind]) timers.push({ t: t.t, fn: LATER[t.kind], kind: t.kind });
   for (const t of d.tweens ?? []) if (TWEENS[t.name]) tweens.push({ t: t.t, sec: t.sec, fn: TWEENS[t.name], name: t.name, res: () => {} });
   relicGroup = groupById("story:relic") ?? null;
+  repair();
   // the story's named units: those made by a scene (allies, Sister Cendra) were not put in `cast` by a map
   for (const u of allUnits().values()) if (u.key && !cast[u.key]) cast[u.key] = u;
 }
 let afterJournal = null;
+
+/**
+ * A save made in a state the story could no longer leave (docs/fluxo-historia.md, "becos") is set free on load. Each
+ * repair only adds what the fix of that dead end would have given; nothing that was true is undone.
+ */
+export function repair() {
+  // sent Tomé home before he showed the door: nobody could open the slab. Now he has told where it is.
+  if (F.tome_home && !F.trapdoor_open && !F.escape) F.tome_told = true;
+  // the fight in the Relicário won before the Echo spoke
+  if (!F.echo && F.relic_collapse && !F.act1) {
+    const lateEcho = () => { if (F.echo) return; if (G.mode === "explore") scene(echoMoment); else timers.push({ t: 1, fn: lateEcho, kind: "cosmetic" }); };
+    timers.push({ t: 1, fn: lateEcho, kind: "cosmetic" });
+  }
+  if (!F.echo && F.act1) { F.echo = "refused"; G.hero.glow ??= { r: 30, c: [160, 200, 255], a: 0.35, h: 18 }; }
+}
 
 /** One question, many answers: resolves with the chosen option's value (or pass/fail for checks). */
 function ask(who, text, opts, node = {}) {
@@ -221,7 +237,7 @@ export function quests({ all } = {}) {
   const o = [];
   o.push(["Siga a trilha ao norte, até as Ruínas de Velmoor", !!F.ruins_entered]);
   if (F.ruins_entered) o.push([F.clan === "infiltrated" ? "Lide com o clã goblin (entrou escondido)" : "Lide com o clã goblin das ruínas", !!F.clan]);
-  if (F.clan || F.tome_met) o.push(["Ache o caminho para baixo das ruínas", !!F.trapdoor_open]);
+  if (F.clan || F.tome_met || F.tome_told || F.column_try != null) o.push(["Ache o caminho para baixo das ruínas", !!F.trapdoor_open]);
   if (F.trapdoor_open) o.push(["Desça ao Relicário, sob a coluna partida", !!F.relic_entered]);
   if (F.relic_entered) o.push([`Acenda as três Lumes das estátuas (${litCount()}/3)`, !!F.door_open]);
   if (F.door_open) o.push(["Descubra o que dorme no coração do Relicário", !!F.echo]);
@@ -761,7 +777,14 @@ function murtaTalk() {
 // ---------------------------------------------------------------- Tomé and the trapdoor
 function tomeTree() {
   const t = cast.tome;
-  if (F.tome_home && G.W.id === "vale") return { start: { text: "A vó disse que eu não posso mais sair de perto do cais. ...Mas a moça lá de baixo ainda fala comigo, sabia? Baixinho.", options: [{ label: "Fique com a sua avó.", to: "end" }] } };
+  // sent home before he showed the door: he still tells where it is (otherwise nobody would, and the prologue stops here)
+  if (F.tome_home && G.W.id === "vale") return {
+    start: { text: "A vó disse que eu não posso mais sair de perto do cais. ...Mas a moça lá de baixo ainda fala comigo, sabia? Baixinho.", options: [
+      { if: () => !F.trapdoor_open, label: "Onde fica aquela porta, Tomé?", do: () => { F.tome_told = true; UI.updateQuest(); }, to: "where" },
+      { label: "Fique com a sua avó.", to: "end" },
+    ] },
+    where: { text: "No pé da coluna partida, nas ruínas. Tem que raspar a terra com o pé, que ela tá enterrada. É uma laje com a minha cara. (ele abaixa a voz) Não conta pra vó que eu falei.", options: [{ label: "Não conto.", to: "end" }] },
+  };
   if (F.tome_with) return { start: { text: "Eu fico atrás de você. Prometo.", options: [{ label: "Fique perto.", to: "end" }] } };
   if (F.tome_met) return { start: { text: "A porta tá ali, ó. Debaixo da coluna.", options: [
     { label: "Vá pra casa, Tomé. Sua avó está esperando.", do: tomeHome, to: "bye" },
@@ -785,7 +808,29 @@ function tomeTree() {
     come: { text: "Eu sabia que vocês eram legais!", options: [{ label: "Fique perto.", to: "end" }] },
   };
 }
+/**
+ * The broken column, for whoever looks without Tomé there. Once Tomé has said where the slab is (or the hero met him
+ * and he pointed at it), it is found for sure; otherwise a roll, once: a failure leaves the boy as the way to find it.
+ */
+async function columnLook() {
+  if (F.trapdoor_open) return;
+  const knows = F.tome_told || F.tome_met;
+  if (!knows && F.column_try === false) return say(null, "A coluna partida, coberta de fuligem e de raiz. Se há alguma coisa aqui, é preciso saber onde procurar. Talvez o menino que rondava as ruínas saiba.");
+  await scene(async () => {
+    const v = await ask(null, "Uma coluna partida ao meio, o pé dela enterrado em terra solta e fuligem. Em volta, a terra foi pisada por pés pequenos.", [
+      knows ? { label: "Raspar a terra no pé da coluna, onde Tomé disse.", tag: "Tomé contou", v: "ok" }
+        : { label: "Procurar alguma coisa no pé da coluna.", check: { skill: ["Investigação", "Percepção"], dc: 12 }, pass: "ok", fail: "bad" },
+      { label: "Deixar a coluna em paz.", v: "no" },
+    ]);
+    if (v === "no") return;
+    if (v === "bad") { F.column_try = false; return say(null, "Terra, fuligem, cacos de telha. Nada que pareça uma porta. Mas alguém pequeno andou muito por aqui."); }
+    F.column_try = true;
+    await say(null, "Debaixo de um palmo de terra, uma laje branca, lisa demais para ser pedra de muro. Entalhado nela, o rosto de um menino sorrindo.");
+    openTrapdoor();
+  });
+}
 function openTrapdoor() {
+  if (F.trapdoor_open) return;
   F.trapdoor_open = true;
   const o = E.obj("trapdoor", E.map("vale"));
   o.hidden = false; o.open = true; E.refresh(o);
@@ -1082,7 +1127,7 @@ async function echoMoment() {
   sfx.bells?.();
   const prevFocus = G.camFocus;
   G.camFocus = { x: G.hero.x, y: G.hero.y - 10, speed: 3 };
-  await say(null, "O tempo para. A poeira fica suspensa no ar. As chamas das magias congelam no meio do caminho. Só a voz dela se mexe.");
+  await say(null, G.combat ? "O tempo para. A poeira fica suspensa no ar. As chamas das magias congelam no meio do caminho. Só a voz dela se mexe." : "O tempo para. A poeira da luta fica suspensa no ar, e ninguém respira. Só a voz dela se mexe.");
   const v = await ask(ARQ, "Eu posso ajudar. Só me deixe entrar. Não vai doer. Eu só preciso de um pouco de espaço.", [
     { label: "Aceitar.", v: "accepted" },
     { label: "Recusar.", v: "refused" },
@@ -1145,6 +1190,8 @@ async function relicAftermath() {
   const allies = G.party.filter((p) => p.ai);
   await E.sleep(900);
   await scene(async () => {
+    // a fight won before the fourth round with nobody down never gave the Echo its moment: it comes now, before the walls go
+    if (!F.echo) await echoMoment();
     if (allies.length) {
       await say(allies[0], "Vai! O branco vem! Goblin segura lá em cima!");
       G.party = G.party.filter((p) => !p.ai);
@@ -1436,6 +1483,7 @@ export function interactables() {
       out.push({ x: mk.x, y: mk.y, name: "Marco de pedra", r: 14, act: markerStone });
     }
     if (F.trapdoor_open && !F.escape) at(24, 11, "Alçapão (descer)", trapdoorUse, { h: 24 });
+    else if (!F.escape && (F.ruins_entered || F.tome_told)) at(24, 11, "Coluna partida", columnLook, { h: 60 });
   }
   if (W.id === "relicario") {
     at(9, 28, "Inscrição", () => say(null, "Letras finas, gravadas na pedra branca: \"Tudo o que existe é lembrado por alguém. O que ninguém lembra, a Bruma leva.\""), { reach: 56 });

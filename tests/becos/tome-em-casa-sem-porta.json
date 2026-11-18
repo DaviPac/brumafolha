@@ -1,0 +1,17 @@
+{
+ "version": "0.9.0",
+ "mapa": "vale",
+ "f": {
+  "clan": "truce",
+  "ruins_entered": true,
+  "gorza_met": true,
+  "heard_smoke": true,
+  "awake": true,
+  "dream_done": true,
+  "sunup": true,
+  "tome_met": true,
+  "tome_home": true,
+  "tome_with": false,
+  "tome_alive": true
+ }
+}

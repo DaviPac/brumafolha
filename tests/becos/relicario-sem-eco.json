@@ -1,0 +1,22 @@
+{
+ "version": "0.9.0",
+ "mapa": "relicario",
+ "f": {
+  "clan": "truce",
+  "ruins_entered": true,
+  "gorza_met": true,
+  "tome_met": true,
+  "trapdoor_open": true,
+  "awake": true,
+  "dream_done": true,
+  "sunup": true,
+  "relic_entered": true,
+  "atrium": true,
+  "door_open": true,
+  "heart_seen": true,
+  "arq_talk": true,
+  "cendra_choice": "fight",
+  "relic_collapse": true,
+  "relicFog": 25.166999999999895
+ }
+}
