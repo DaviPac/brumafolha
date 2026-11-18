@@ -10,9 +10,13 @@ import { icon } from "./art/icons.js";
 import { sfx } from "./audio.js";
 import { isTouch } from "./input.js";
 
+// how fast fights play: the option "Combate rápido", or Shift held down (the waits of a turn are halved)
+export const combatPace = { fast: (() => { try { return localStorage.getItem("brumafolha.fast") === "1"; } catch { return false; } })() };
+export function setFastCombat(on) { combatPace.fast = on; try { localStorage.setItem("brumafolha.fast", on ? "1" : "0"); } catch { /* */ } }
+const paceK = () => (combatPace.fast || G.keys?.has("shift") ? 0.45 : 1);
 // waits that stand still while the game is paused, so a turn never plays out behind the menu
 const sleep = (ms) => new Promise((r) => {
-  let left = ms, last = performance.now();
+  let left = ms * paceK(), last = performance.now();
   const tick = () => { const now = performance.now(); if (!G.paused) left -= now - last; last = now; left <= 0 ? r() : setTimeout(tick, Math.min(left, 50)); };
   setTimeout(tick, Math.min(ms, 50));
 });
@@ -89,7 +93,38 @@ export function abilitiesOf(u) {
   return u.abilities.map((k) => abilityOf(u, k));
 }
 
+/** What is on someone right now, to show over their head, on the initiative strip and in the tooltip. */
+export function conditionsOf(u) {
+  const out = [], C = (icon, name, desc, bad) => out.push({ icon, name, desc, bad });
+  if (u.forgotten) C("leaf", "Esquecido", "Esqueceu o que ia fazer: perde a ação bônus no próximo turno.", true);
+  if (u.skip > 0) C("vine", u.skipNote ?? "Preso", "Perde o próximo turno.", true);
+  if (u.mocked) C("mask", "Abalado", "−5 no próximo ataque.", true);
+  if (u.slowed) C("boot", "Lento", "Anda só metade no próximo turno.", true);
+  if (G.party.some((p) => p.marked === u)) C("target", "Marcado", "Os ataques de quem marcou causam +1d6.", true);
+  if (u.inspired) C("note", u.blessed ? "Abençoado" : "Inspirado", `+1d${u.inspireDie || 6} no próximo ataque.`, false);
+  if (u.guardAc > 0) C("ac", "Em guarda", `+${u.guardAc} de CA até o próximo turno.`, false);
+  if (u.guardAc < 0) C("ac", "Desguardado", `${u.guardAc} de CA até o próximo turno.`, true);
+  if (u.raging) C("rage", "Fúria", "+2 de dano corpo a corpo, metade do dano de armas.", false);
+  if (u.smiteNext) C("bolt", "Arma brilhando", "O próximo acerto corpo a corpo causa +2d8 radiante.", false);
+  if (u.forgetWard && u.team === "party") C("smoke", "Protegido", "Não pode ficar Esquecido nesta luta.", false);
+  return out;
+}
+
 export const isFriendly = (ab) => ["heal", "potion", "layhands", "inspire"].includes(ab.kind);
+
+/**
+ * What a click on an enemy does when no ability is chosen: next to it, the weapon; farther, a caster's cantrip or a
+ * bow if it reaches (a wizard doesn't walk up to swing a staff); otherwise walk up and strike.
+ */
+export function defaultAbility(u, target) {
+  const d = cheb(u, target), caster = u.role === "caster";
+  const ranged = u.abilities.map((k) => abilityOf(u, k)).filter((ab) => (ab.kind === "bolt" && !ab.slot) || ab.kind === "shoot");
+  const fits = ranged.filter((ab) => canUse(u, ab) && d <= ab.range);
+  if (d <= (u.reach ?? 1) && !caster) return "attack";
+  const cantrip = fits.find((ab) => ab.kind === "bolt"), bow = fits.find((ab) => ab.kind === "shoot");
+  if (caster) return (cantrip ?? bow)?.key ?? "attack";
+  return (bow ?? cantrip)?.key ?? "attack";
+}
 
 function canUse(u, ab) {
   if (ab.cost === "action" && !u.action) return false;
@@ -293,7 +328,7 @@ export function combatHover(tx, ty) {
   if (!C || C.busy || C.active?.team !== "party") { C && (C.preview = null); return; }
   const u = C.active;
   const target = [...G.enemies, ...G.party].find((e) => e.hp > 0 && tileOf(e)[0] === tx && tileOf(e)[1] === ty);
-  const abKey = C.ability ?? (target && target.team === "enemy" ? "attack" : null);
+  const abKey = C.ability ?? (target && target.team === "enemy" ? defaultAbility(u, target) : null);
   C.preview = null;
   if (abKey && target) {
     const ab = abilityOf(u, abKey);
@@ -321,7 +356,8 @@ export function combatHover(tx, ty) {
     return;
   }
   tooltip(target ? tipHTML({ icon: target.team === "enemy" ? "skull" : "hp", title: target.name, sub: target.team === "enemy" ? "hostil" : "aliado",
-    body: `<div class="hpbar"><i style="width:${(100 * target.hp) / target.maxHp}%"></i></div>`, rows: [["PV", `${target.hp}/${target.maxHp}`], ["CA", target.ac]] }) : null);
+    body: `<div class="hpbar"><i style="width:${(100 * target.hp) / target.maxHp}%"></i></div>` + conditionsOf(target).map((c) => `<div class="cond ${c.bad ? "bad" : "good"}">${icon(c.icon, "sm")} <b>${c.name}</b>: ${c.desc}</div>`).join(""),
+    rows: [["PV", `${target.hp}/${target.maxHp}`], ["CA", target.ac]] }) : null);
   if (C.ability) return;
   const [ux, uy] = tileOf(u);
   const reach = reachable(blockedFor(u), ux, uy, u.moveLeft);
@@ -357,7 +393,7 @@ export async function combatClick(tx, ty) {
   if (!C || C.busy || C.active?.team !== "party") return;
   const u = C.active;
   const target = [...G.enemies, ...G.party].find((e) => e.hp > 0 && tileOf(e)[0] === tx && tileOf(e)[1] === ty);
-  const abKey = C.ability ?? (target && target.team === "enemy" ? "attack" : null);
+  const abKey = C.ability ?? (target && target.team === "enemy" ? defaultAbility(u, target) : null);
   if (abKey && target) {
     const ab = abilityOf(u, abKey);
     if (!canUse(u, ab)) { floater(u.x, u.y - 36, ab.cost === "bonus" ? "Sem ação bônus" : "Sem ação", "info"); return; }
@@ -462,6 +498,9 @@ function attackRoll(u, t, bonus, melee = false) {
   return { d, total, crit, hit };
 }
 
+/** Why an attack missed, on the field: the roll against the armour (a natural 1 says so). */
+const missText = (r, t) => (r.d === 1 ? "Errou: 1 natural" : `Errou: ${r.total} contra CA ${t.ac}`);
+
 function rollDmg(expr, crit) {
   const r = roll(expr);
   if (crit) { const r2 = roll(expr.replace(/[+-]\d+$/, "")); r.total += r2.total; r.rolls.push(...r2.rolls); }
@@ -503,7 +542,7 @@ async function meleeAttack(u, t, expr) {
     damage(t, dm.total + ex.add, r.crit, u);
     log(`${u.name} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total + ex.add} (${fmtRoll(dm)})${ex.note}`, r.crit ? "crit" : "hit");
   } else {
-    floater(t.x, t.y - 34, "Errou", "miss");
+    floater(t.x, t.y - 34, missText(r, t), "miss");
     sfx.miss();
     log(`${u.name} → ${t.name}: d20 ${r.d}+${u.atk}=${r.total} vs CA ${t.ac} · errou`, "miss");
   }
@@ -545,11 +584,14 @@ async function rangedSpell(u, t, expr, palette, label, bonus = u.atk, weapon = f
       if (effect === "mock" && t.hp > 0) { t.mocked = true; setTimeout(() => floater(t.x, t.y - 50, "Zombado", "info"), 250); }
       if (effect === "slow" && t.hp > 0) { t.slowed = true; setTimeout(() => floater(t.x, t.y - 50, "Lento", "info"), 250); }
       damage(t, dm.total + ex.add, r.crit, u, soundKind(palette));
-      if (u.ranged?.forget && t.hp > 0 && !t.forgetWard) { t.forgotten = true; setTimeout(() => floater(t.x, t.y - 50, "Esquecido", "info"), 250); }
+      if (u.ranged?.forget && t.hp > 0) {
+        if (t.forgetWard) setTimeout(() => floater(t.x, t.y - 50, "Protegido do Esquecimento", "heal"), 250);
+        else { t.forgotten = true; setTimeout(() => floater(t.x, t.y - 50, "Esquecido: sem ação bônus", "info"), 250); G.hooks.hint?.("forgotten"); }
+      }
       log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${bonus}=${r.total} vs CA ${t.ac} · <b>${r.crit ? "CRÍTICO" : "acerto"}</b> ${dm.total + ex.add}${ex.note}`, r.crit ? "crit" : "hit");
     } else {
-      floater(t.x, t.y - 34, "Errou", "miss");
-    sfx.miss();
+      floater(t.x, t.y - 34, missText(r, t), "miss");
+      sfx.miss();
       log(`${u.name} — ${label} → ${t.name}: d20 ${r.d}+${bonus}=${r.total} · errou`, "miss");
     }
   });
@@ -809,7 +851,7 @@ export async function useAbility(u, ab, target) {
       for (const t of adj) {
         const r = attackRoll(u, t, u.atk);
         if (r.hit) { const dm = rollDmg(u.dmg, r.crit); G.fx.spawn(FX.hitSpark, { x: t.x, y: t.y - 14, flip: t.x < u.x }); damage(t, dm.total, r.crit, u); log(`Golpe Giratório → ${t.name}: ${dm.total}`, "hit"); }
-        else { floater(t.x, t.y - 34, "Errou", "miss"); log(`Golpe Giratório → ${t.name}: errou`, "miss"); }
+        else { floater(t.x, t.y - 34, missText(r, t), "miss"); log(`Golpe Giratório → ${t.name}: errou`, "miss"); }
         await sleep(120);
       }
       await sleep(350);

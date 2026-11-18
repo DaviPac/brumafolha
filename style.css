@@ -741,3 +741,23 @@ body.short #creator header p { display: none; }
 #journal .bond small { font-size: inherit; color: var(--teal); }
 #journal .bond.t-2 p, #journal .bond.t-1 p { color: #e0a090; }
 #journal .bond.t1 p, #journal .bond.t2 p { color: var(--good); }
+
+/* ---- combat reading: conditions, who acts next */
+#initiative .ini { position: relative; }
+#initiative .ini.next { outline: 1rem dashed var(--gold); outline-offset: 1rem; }
+#initiative .under { position: absolute; left: 50%; top: calc(100% + 3rem); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+#initiative .nextlbl { white-space: nowrap; color: var(--gold); font-size: 11rem; line-height: 11rem; text-shadow: 1rem 1rem 0 var(--ink), -1rem 0 0 var(--ink), 1rem 0 0 var(--ink), 0 -1rem 0 var(--ink); }
+#initiative .conds { display: flex; gap: 1rem; justify-content: center; }
+#initiative .conds span { background: var(--ink); box-shadow: 0 0 0 1rem #54486a; line-height: 0; }
+#initiative .conds span.bad { box-shadow: 0 0 0 1rem #a04a3a; }
+#tooltip .cond { margin-top: 2rem; color: var(--muted); }
+#tooltip .cond b { color: var(--text); }
+#tooltip .cond.bad b { color: #e0a090; } #tooltip .cond.good b { color: var(--good); }
+
+/* ---- the next step's mark (src/objective.js) */
+#objmark { position: absolute; pointer-events: none; transform: translate(-50%, -50%); z-index: 3; }
+#objmark .dia { display: block; width: 7rem; height: 7rem; transform: rotate(45deg); background: var(--gold); box-shadow: 0 0 0 1rem var(--ink), 0 0 0 2rem #fff4; animation: objbob 1.6s steps(4) infinite; opacity: 0.85; }
+#objmark .arrow { display: none; }
+#objmark.edge .dia { display: none; }
+#objmark.edge .arrow { display: block; transform: rotate(var(--a, 0rad)); opacity: 0.85; filter: drop-shadow(1rem 1rem 0 var(--ink)); }
+@keyframes objbob { 50% { transform: translateY(-3rem) rotate(45deg); } }

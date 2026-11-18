@@ -153,6 +153,9 @@ function fire(name, down, now, repeats) {
   else if (repeats && now >= repeatAt[name]) { repeatAt[name] = now + 110; act(name); }
 }
 
+/** Is a pad button held right now (by its action name: "cancel" is B)? */
+export const padHeld = (name) => !!held[name];
+
 /** Call every frame. */
 export function pollInput(now = performance.now()) {
   const pad = [...(navigator.getGamepads?.() ?? [])].find((p) => p && p.connected);

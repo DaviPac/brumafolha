@@ -241,12 +241,17 @@ export function updateInitiative() {
   el.innerHTML = "";
   if (!C) return;
   el.insertAdjacentHTML("beforeend", `<div class="round">Rodada<br>${Math.max(1, C.round)}</div>`);
+  // who acts after the one acting now (the living, in order)
+  const alive = C.order.filter((u) => !u.gone && u.hp > 0), ai = alive.indexOf(C.active);
+  const next = alive.length > 1 && ai >= 0 ? alive[(ai + 1) % alive.length] : null;
   C.order.forEach((u) => {
     if (u.gone) return;
     const d = document.createElement("div");
-    d.className = `ini ${u.team === "party" ? "party" : "enemy"} ${u === C.active ? "now" : ""} ${u.hp <= 0 ? "dead" : ""}`;
+    d.className = `ini ${u.team === "party" ? "party" : "enemy"} ${u === C.active ? "now" : ""} ${u === next ? "next" : ""} ${u.hp <= 0 ? "dead" : ""}`;
     d.appendChild(face(u));
-    d.insertAdjacentHTML("beforeend", `<div class="hp"><i style="width:${(100 * Math.max(0, u.hp)) / u.maxHp}%"></i></div>`);
+    const conds = G.hooks.conditionsOf?.(u) ?? [];
+    d.insertAdjacentHTML("beforeend", `<div class="hp"><i style="width:${(100 * Math.max(0, u.hp)) / u.maxHp}%"></i></div>`
+      + (conds.length || u === next ? `<div class="under">${conds.length ? `<div class="conds">${conds.map((c) => `<span class="${c.bad ? "bad" : "good"}">${icon(c.icon, "sm")}</span>`).join("")}</div>` : ""}${u === next ? `<div class="nextlbl">a seguir</div>` : ""}</div>` : ""));
     el.appendChild(d);
   });
 }

@@ -20,7 +20,7 @@ import { initAudio, playMusic, updateAmbience, audioState, sfx, settings as audi
 import { openCreator } from "./creator.js";
 import { CLASSES, newBuild, heroDef, specOf, combatStats, weaponProficient, armorAllowed, shieldAllowed } from "./rules.js";
 import { WEAPONS, ARMORS, gearItem } from "./items.js";
-import { startCombat, combatClick, combatHover, endTurn, selectAbility, abilitiesOf, abilityOf, tileOf, tileCenter, blockedFor, refreshCombatHotbar } from "./combat.js";
+import { startCombat, combatClick, combatHover, endTurn, selectAbility, abilitiesOf, abilityOf, tileOf, tileCenter, blockedFor, refreshCombatHotbar, conditionsOf, combatPace, setFastCombat } from "./combat.js";
 import { hint, setTutorial } from "./tutorial.js";
 import { toggleJournal, closeJournal, journalOpen, refreshJournal } from "./journal.js";
 import * as S from "./story.js";
@@ -31,16 +31,17 @@ import { ids, baseline, encode } from "./save/codec.js";
 import { initGame, collect } from "./save/game.js";
 import { initSaves, tickSaves, requestSave, autoSave, bootLoad, openSaves, closeSaves, savesOpen, newestSave, loadSave, saveBlock } from "./save/saves.js";
 import { listSaves } from "./save/store.js";
-import { icon, installIcons } from "./art/icons.js";
+import { icon, installIcons, iconCanvas } from "./art/icons.js";
 import { installFont } from "./art/font.js";
 import { installFrames } from "./art/frames.js";
-import { Input, pollInput, key, focusDefault, activeLayer, isTouch } from "./input.js";
+import { Input, pollInput, key, focusDefault, activeLayer, isTouch, padHeld } from "./input.js";
 import { initUpdates, tickUpdate, showNewNotes, openNotes, closeNotes, newsOpen } from "./update.js";
 import { VERSION } from "./version.js";
 import { diceReroll } from "./dialogue.js";
 import { initLevelUp, openLevelUp, closeLevelUp, levelUpOpen, anyPending } from "./levelup.js";
 import { pendingPicks } from "./rules.js";
 import { tickCompanions } from "./companions.js";
+import { initObjective, tickObjective, markPrefs, setMarkOn } from "./objective.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
 import { P as PV, frame as pvFrame, project, unproject, rowToFlat, mouseRel, setPersp } from "./persp.js";
@@ -93,6 +94,7 @@ async function boot() {
   await loadStep(loading ? null : "Chamando os companheiros...", 0.25);
   spawnCompanions();
   S.init(E);
+  initObjective(S);
   initGame(SAVE_ENGINE);
   initSaves(SAVE_ENGINE);
   // the valley's ground is most of the loading: painted in parallel, off the page, while the bar follows it
@@ -641,6 +643,7 @@ G.hooks.watch = (o) => { G.focus = o; freeCam = false; };
 G.hooks.afterDialogue = () => exploreHotbar();
 G.hooks.hint = hint;
 G.hooks.pendingPicks = pendingPicks;
+G.hooks.conditionsOf = conditionsOf;
 G.hooks.gainXp = (p, xp) => {
   if (p.ai) return; // allies who only fight alongside for a moment
   p.xp += xp;
@@ -822,8 +825,12 @@ function onClick() {
     return;
   }
   pending = null;
-  if (walkTo(l, G.mouse.wx, G.mouse.wy)) clickMark = { x: G.mouse.wx, y: G.mouse.wy, t: 0.5 };
+  // a second click on the ground soon after the first: run there
+  const now = performance.now(), dbl = now - lastGroundClick < 380;
+  lastGroundClick = now;
+  if (walkTo(l, G.mouse.wx, G.mouse.wy)) { clickMark = { x: G.mouse.wx, y: G.mouse.wy, t: 0.5 }; l.runPath = dbl; }
 }
+let lastGroundClick = 0, walkedT = 0;
 let clickMark = null;
 
 // ---------------------------------------------------------------- input
@@ -1175,6 +1182,8 @@ function setupMenu(corner = true) {
   pOn.checked = PV.on; tilt.value = PV.tilt; showTilt();
   document.getElementById("tiltRow").classList.toggle("off", !PV.on);
   pOn.onchange = () => setView(pOn.checked);
+  const fast = document.getElementById("fastOn"); fast.checked = combatPace.fast; fast.onchange = () => setFastCombat(fast.checked);
+  const mark = document.getElementById("markOn"); mark.checked = markPrefs.on; mark.onchange = () => setMarkOn(mark.checked);
   tilt.oninput = () => { showTilt(); setView(PV.on, +tilt.value); };
   const box = document.getElementById("vols");
   box.innerHTML = "";
@@ -1302,14 +1311,17 @@ function update(dt) {
     if (!mx && !my) { mx = Input.axis.x; my = Input.axis.y; }
     if (!mx && !my) { const st = touchSteer(); if (st) [mx, my] = st; }
     if (levelUpOpen()) mx = my = 0; // the keys are walking the level-up screen
+    // running: Shift, the pad's B held, or a double click on the ground (G.speedCap still rules in the escape)
+    const run = G.keys.has("shift") || padHeld("cancel") || l.runPath;
+    if ((mx || my || l.path.length) && (walkedT += dt) > 15) hint("run"); // after a first long walk: running exists
     if (mx || my) {
-      l.path = []; pending = null;
-      const k = Math.min(88, G.speedCap ?? 88) * dt / Math.max(1, Math.hypot(mx, my));
+      l.path = []; pending = null; l.runPath = false;
+      const k = Math.min(run ? 150 : 88, G.speedCap ?? 150) * dt / Math.max(1, Math.hypot(mx, my));
       if (canStand(l.x + mx * k, l.y)) l.x += mx * k;
       if (canStand(l.x, l.y + my * k)) l.y += my * k;
       l.dir = Math.abs(mx) >= Math.abs(my) ? (mx < 0 ? 1 : 2) : my < 0 ? 3 : 0;
       l.moving = true;
-    } else stepAlongPath(l, dt);
+    } else { l.speed = Math.min(run ? 150 : 90, G.speedCap ?? 150); stepAlongPath(l, dt); if (!l.path.length) l.runPath = false; }
     if (pending && !l.path.length) { if (dist(pending.x, pending.y, l.x, l.y) < (pending.reach ?? 56) + 8) pending.act(); pending = null; }
     followTrail(dt);
     // enemies that aren't held back by the story notice you
@@ -1344,6 +1356,7 @@ function update(dt) {
   }
   S.update(dt);
   tickCompanions(dt);
+  tickObjective(dt);
   updateAudio(dt);
   // camera: in combat the player may look around freely until the next action
   if (G.mode !== "combat") { freeCam = false; drag = null; }
@@ -1408,6 +1421,8 @@ function drawUnit(u, cx, cy) {
   }
 }
 
+const condIcons = new Map();
+const condArt = (k) => { if (!condIcons.has(k)) condIcons.set(k, iconCanvas(k)); return condIcons.get(k); };
 function drawBars(cx, cy) {
   if (G.mode !== "combat") return;
   for (const u of [...G.enemies, ...G.party]) {
@@ -1417,6 +1432,9 @@ function drawBars(cx, cy) {
       ctx.fillStyle = "#120e16"; ctx.fillRect(x - 1, y - 1, 20, 4);
       ctx.fillStyle = "#3a1414"; ctx.fillRect(x, y, 18, 2);
       ctx.fillStyle = u.team === "enemy" ? "#e0402a" : u.ai ? "#e8c06a" : "#6ad04a"; ctx.fillRect(x, y, Math.ceil((18 * u.hp) / u.maxHp), 2);
+      // what is on them (Esquecido, Abalado, Marcado...): small icons over the bar
+      const cs = conditionsOf(u);
+      cs.forEach((c, i) => ctx.drawImage(condArt(c.icon), x + 9 - cs.length * 4.5 + i * 9, y - 10, 8, 8));
     });
   }
 }
