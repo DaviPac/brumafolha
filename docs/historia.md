@@ -803,3 +803,12 @@ Uma regra só, para o jogador ler sem explicação (o renderizador da caixa apli
   que pode voltar depois de falhar leva `retry: true`, para a auditoria saber que é de propósito.
 - Toda recompensa (XP, ouro, poção, item, lembrança, aprovação) sai uma vez: a opção que dá a recompensa liga a flag
   que a esconde. `tests/audit.test.mjs` procura as que não ligam.
+
+### 9.3 Ordem
+
+- O jogador faz as coisas em qualquer ordem. Uma fala que depende de algo que pode ou não ter acontecido lê a flag
+  (o neto de Maren já em casa; Hulda já no grupo quando a Madre a oferece; os soldados que foram embora sem briga).
+- Um nó que pode ser visitado duas vezes na mesma conversa, ou que muda conforme as escolhas, é uma função
+  (`start: () => ({ ... })`): o texto e as opções são lidos na hora, não quando a conversa abriu. Apresentar-se só na
+  primeira vez.
+- Falas ao herói respeitam o gênero dele (`gword`): "cansada/cansado", "a senhora/o senhor", "Obrigada/Obrigado".

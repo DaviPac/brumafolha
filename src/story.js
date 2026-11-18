@@ -565,7 +565,7 @@ function marenTree() {
         }, to: "heirloom" },
         { if: () => F.heard_smoke && !F.maren_smoke, label: "Os goblins não estão roubando à toa. Eles queimam suas coisas.", do: () => { F.maren_smoke = true; }, to: "smoke" },
         { if: () => F.maren_met && F.paid_try == null, label: "Um trabalho desses merece pagamento adiantado.", check: { skill: "Persuasão", dc: 12 }, pass: () => { F.paid_try = true; G.potions += 2; UI.toast("+2 Poções de cura"); }, fail: () => { F.paid_try = false; }, passTo: "paid", failTo: "notpaid" },
-        { if: () => F.maren_met && F.grandson == null, label: "Você está escondendo alguma coisa.", check: { skill: "Intuição", dc: 10 }, pass: () => { F.grandson = true; }, fail: () => { F.grandson = false; }, passTo: "secret", failTo: "nosecret" },
+        { if: () => F.maren_met && F.grandson == null, label: "Você está escondendo alguma coisa.", check: { skill: "Intuição", dc: 10 }, pass: () => { F.grandson = true; tomeReward(); }, fail: () => { F.grandson = false; }, passTo: "secret", failTo: "nosecret" },
         { if: () => F.maren_met && F.maren_history == null, label: "O que você sabe das ruínas?", check: { skill: "História", dc: 13 }, pass: () => { F.maren_history = true; soon(() => reward(50, "Uma pista sobre Velmoor"), 300); }, fail: () => { F.maren_history = false; }, passTo: "history", failTo: "nohistory" },
         { if: () => F.maren_met && !F.maren_mist, label: "Essa névoa que desce do norte...", do: () => { F.maren_mist = true; }, to: "mist" },
         { if: () => F.pact_proposed && !F.goblin_pact && !F.pact_refused && F.returned_heirloom, label: "Os goblins só queriam fumaça. Coisas velhas, como a cadeira guardava o Otávio. Eles trocariam trabalho por elas.", tag: "Ela confia em vocês", do: makePact, to: "pactyes" },
@@ -575,11 +575,12 @@ function marenTree() {
         { label: "Até mais, Maren.", to: "end" },
       ],
     }),
-    accept: { text: "Que os deuses guiem vocês. A estrada ao norte leva direto às ruínas, e vi uma patrulha deles rondando a trilha. Se acharem a minha rede... e a cadeira do meu Otávio... tragam de volta. O resto eles podem levar.", options: [{ label: "Mais uma pergunta.", to: "start" }, { label: "Até mais.", to: "end" }] },
+    accept: () => ({ text: `Que os deuses guiem vocês. A estrada ao norte leva direto às ruínas${F.patrol ? "" : ", e vi uma patrulha deles rondando a trilha"}. Se acharem a minha rede... e a cadeira do meu Otávio... tragam de volta. O resto eles podem levar.`, options: [{ label: "Mais uma pergunta.", to: "start" }, { label: "Até mais.", to: "end" }] }),
     ruins: { text: "As ruínas? Só tem pedra velha e goblin lá em cima. ...Mas se vão subir, façam uma velha feliz: me tragam a minha rede. E a cadeira de balanço do meu marido.", options: [{ label: "Mais uma pergunta.", to: "start" }, { label: "Até mais.", to: "end" }] },
     paid: { text: "Hmpf... justo. Tomem, duas poções do meu estoque. Mas eu quero aqueles goblins longe das minhas redes!", options: [{ label: "Combinado.", to: "start" }] },
     notpaid: { text: "Adiantado? Ha! Paguem-se com o que os goblins roubaram de mim, se acharem.", options: [{ label: "Justo.", to: "start" }] },
-    secret: { text: "...Meu neto, Tomé. Foi atrás das redes e não voltou. Se o virem nas ruínas, por favor... tragam ele de volta.", options: [{ label: "Vamos encontrá-lo.", to: "start" }] },
+    secret: () => (F.tome_home ? { text: "...O meu neto. O Tomé. Foi atrás das redes e eu achei que não ia voltar. (ela olha para o cais, onde ele está) E vocês trouxeram ele, sem eu nem pedir. Era isso que eu escondia: medo.", options: [{ label: "Continuar", to: "start" }] }
+      : { text: "...Meu neto, Tomé. Foi atrás das redes e não voltou. Se o virem nas ruínas, por favor... tragam ele de volta.", options: [{ label: "Vamos encontrá-lo.", to: "start" }] }),
     nosecret: { text: "Escondendo? Só o cheiro de peixe, criança. Hah!", options: [{ label: "Certo...", to: "start" }] },
     count: { text: "Uns quatro ou cinco nas ruínas, fora os pequenos. Um deles mexe com fogo, um xamã. Se fosse eu, derrubava esse primeiro.", options: [{ label: "Bom saber.", to: "start" }] },
     heirloom: { text: "(Ela segura a cadeira com as duas mãos e chora em silêncio.) ...Ele levou um inverno inteiro pra entalhar isso. Dizia que era pra quando eu ficasse velha. Fiquei. Ele não viu. Tomem, uma poção. E levem a besta dele, que ninguém aqui sabe armar. Obrigada.", options: [{ label: "Continuar", to: "start" }] },
@@ -730,7 +731,7 @@ async function gorzaScene(caught) {
         else { F.lyra_offered = true; fireFlare(); await say(G.mate, "(Lyra tira uma fita do cabelo e joga no fogo sem olhar. A fumaça sobe azulada.) Tenho trezentos anos de coisas, meu bem. Uma fita não faz falta."); }
       }
     } while (w !== "done");
-    await say(gorza, "Pode andar. Não mexe na fogueira. E tem filhote de humano escondido atrás da coluna. Gorza não come filhote. Leva embora.");
+    await say(gorza, F.tome_met ? "Pode andar. Não mexe na fogueira." : "Pode andar. Não mexe na fogueira. E tem filhote de humano escondido atrás da coluna. Gorza não come filhote. Leva embora.");
     reward(250, "Trégua com o clã Dente-de-Musgo");
   });
 }
@@ -844,7 +845,13 @@ function tomeHome() {
   if (!G.W.npcs.includes(t) && G.W.id === "vale") G.W.npcs.push(t);
   G.fx.spawn(FX.poof, { x: t.x, y: t.y });
   E.place(t, 37, 27, 0);
-  if (F.grandson) soon(() => reward(50, "Tomé voltou para a avó"), 500);
+  tomeReward();
+}
+/** Tomé home, and Maren had asked for him (in either order): once. */
+function tomeReward() {
+  if (!F.tome_home || !F.grandson || F.tome_rewarded) return;
+  F.tome_rewarded = true;
+  soon(() => reward(50, "Tomé voltou para a avó"), 500);
 }
 function tomeCome() {
   const t = cast.tome;
@@ -896,7 +903,7 @@ async function atriumScene() {
       { label: "Sentir a magia das paredes.", check: { skill: "Arcanismo", dc: 13 }, pass: "ok", fail: "bad" },
       { label: "Seguir em frente.", v: "no" },
     ]);
-    if (v === "ok") { F.atrium_read = true; await say(null, "Você entende: os relevos não foram esculpidos para vocês. Eles mudam para mostrar quem entra. Este lugar quer que você se sinta esperado."); reward(50, "O Átrio dos Rostos"); }
+    if (v === "ok") { F.atrium_read = true; await say(null, `Você entende: os relevos não foram esculpidos para vocês. Eles mudam para mostrar quem entra. Este lugar quer que você se sinta ${gword(G.hero.gender, "esperada", "esperado", "esperade")}.`); reward(50, "O Átrio dos Rostos"); }
     if (v === "bad") await say(null, "São só pedras. Pedras que sabem a sua cara.");
   });
 }
@@ -1067,7 +1074,7 @@ async function cendraScene() {
       F.silas_try = true;
       if (v === "silas") {
         F.silas_doubt = true;
-        await lines([[silas, "(Silas olha para a criança, para os Esvaídos, para você.) ...Que a Madre me perdoe."], [cendra, "Silas!"]]);
+        await lines([[silas, F.tome_with ? "(Silas olha para a criança, para os Esvaídos, para você.) ...Que a Madre me perdoe." : "(Silas olha para os Esvaídos, para a Lume, para você.) ...Que a Madre me perdoe."], [cendra, "Silas!"]]);
         W.enemies.splice(W.enemies.indexOf(silas), 1);
         silas.team = "npc";
         W.npcs.push(silas);
@@ -1447,7 +1454,7 @@ function endScreen() {
     ["O clã Dente-de-Musgo", F.goblin_pact ? clan.pact : clan[F.clan] ?? "seguiu queimando as suas coisas velhas."],
     ["A Avó Fuligem", F.avo_dead ? "morreu perto do fogo. A neta dela decorou o seu rosto." : F.smoke_out ? "foi embora com o clã." : "ficou nas ruínas, alimentando a fogueira até o fim."],
     ["Maren", F.maren_aboard ? (F.maren_lucid ? "lembra de cada ano no lago, e está no barco." : "está no barco, sem saber quem é.") : "ficou no cais, esperando um barco que não vem."],
-    ["Tomé", F.tome_alive ? "está vivo, no barco." : "..."],
+    ["Tomé", F.tome_alive ? "está vivo, no barco." : "ficou nas ruínas quando a Bruma subiu. Ninguém o tinha visto."],
     ["Otávio", F.otavio_found ? "foi encontrado entre os Esvaídos da Ordem." : "continua jogando a rede, em algum lugar sob a névoa."],
     ["Irmão Silas", F.silas_doubt ? "duvidou, e foi embora antes da luta." : "lutou ao lado de Cendra."],
     ["O Eco", F.echo === "accepted" ? "foi aceito. Você tem o Lampejo de Velmoor." : "entrou mesmo assim. Ela pediu desculpas."],

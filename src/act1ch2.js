@@ -35,6 +35,7 @@ const inParty = (key) => G.party.some((p) => p.key === key && !p.ai);
 const mate = () => G.mate;
 const kael = () => mateIs("kael");
 const HU = () => cast.hulda;
+const g = (f, m, n) => gword(G.hero.gender, f, m, n);
 const lostMemory = () => (F.eco_trade && F.eco_trade !== "refused" ? G.memories.find((m) => m.id === F.eco_trade) : null);
 
 const ITEMS = {
@@ -171,9 +172,11 @@ export function quests({ all } = {}) {
   if (F.c2_arrived) {
     o.push(["Ache a parte do Mosteiro que não se mostra a visitantes", !!F.c2_altar]);
     o.push(["Encontre L.", !!F.c2_sabia]);
-    o.push(["Liberte a anã que a Ordem está \"acalmando\"", !!F.hulda_joined]);
+    if (F.c2_hulda_known || F.c2_altar || F.hulda_joined) o.push(["Liberte a anã que a Ordem está \"acalmando\"", !!F.hulda_joined]);
   }
   if (F.hulda_joined) o.push(["Decida o que fazer com o Mosteiro", !!F.c2_choice]);
+  // once the choice is made the chapter has moved on: what was left undone is no longer something to do
+  if (F.c2_choice) for (let i = o.length - 1; i >= 0; i--) if (!o[i][1] && !o[i][0].startsWith("Continua")) o.splice(i, 1);
   if (F.ch2_done) o.push(["Continua: o Bosque de Lethiel", false]);
   const notes = [];
   if (F.c2_madre) notes.push({ shaken: "A Madre hesitou. Uma vez. Ela mesma pareceu surpresa.", even: "A Madre ouviu tudo e não mudou de ideia. Você também não. Ela agradeceu a conversa.", swayed: "A Madre falou de paz, e por um momento você não lembrou por que tinha vindo." }[F.c2_madre]);
@@ -183,7 +186,7 @@ export function quests({ all } = {}) {
   if (F.c2_slept) notes.push("Vocês dormiram no Mosteiro. De manhã, havia uma linha a menos no seu Diário, e ninguém pediu.");
   out.push({ title: F.ch2_done ? "A Procissão Branca" : "O Véu Sereno", objs: trim(o), desc: "L. foi \"convidado a descansar\" no Mosteiro do Véu Sereno. Odara disse: pelo sul do bosque, e não durmam lá.", notes });
   if (F.q_pipa) out.push({ title: "O passarinho de Pipa", side: true,
-    objs: trim([["Leve o passarinho de madeira a Pipa, no Mosteiro", !!F.pipa_bird], ["Conte a Abel como está a filha", !!F.pipa]]),
+    objs: trim([...(F.pipa && !F.pipa_bird ? [] : [["Leve o passarinho de madeira a Pipa, no Mosteiro", !!F.pipa_bird]]), ["Conte a Abel como está a filha", !!F.pipa]]),
     desc: "Abel, o lenhador, deixou a filha no Mosteiro no inverno, quando não tinha o que pôr na mesa. Quando a visita, ela sorri para ele como se sorri para um estranho.",
     notes: F.pipa === "home" ? ["Pipa voltou para casa, assobiando como sabiá."] : F.pipa === "lie" ? ["Você disse a Abel que ela está feliz. Ela está."] : [] });
   if (!all) return out.filter((q, i) => i === 0 || q.objs.some(([, d]) => !d));
@@ -193,9 +196,10 @@ export function quests({ all } = {}) {
 // ---------------------------------------------------------------- the woods: Abel and his daughter
 function abelTree() {
   const A = cast.abel;
+  if (F.pipa_follow && !F.pipa) { pipaHome(); return null; }
   if (F.pipa) return { start: { text: { home: "(Pipa está sentada no toco, assobiando para o passarinho de madeira. Abel não para de olhar para ela.) Ela errou meu nome duas vezes hoje. Eu nunca fui tão feliz de ser chamado errado.", lie: "Feliz. Você disse feliz. Eu fico repetindo a palavra enquanto racho lenha.", bird: "Você deixou o passarinho com ela. Então tem um pedaço de mim lá dentro. Dá pra dormir com isso." }[F.pipa] ?? "...", options: [{ label: "...", to: "end" }] } };
   return {
-    start: { text: F.q_pipa ? (F.pipa_bird ? "E então? Ela... pegou o passarinho?" : "O Mosteiro fica no fim da trilha. Você vai ver: as crianças andam de branco. A minha tem o cabelo da cor do meu.") : "(Um homem ruivo, de machado no ombro, olha para vocês e depois para a trilha que vai ao Mosteiro.) Mais gente indo descansar? Vocês não têm cara de quem quer esquecer nada.",
+    start: () => ({ text: F.q_pipa ? (F.pipa_bird ? "E então? Ela... pegou o passarinho?" : "O Mosteiro fica no fim da trilha. Você vai ver: as crianças andam de branco. A minha tem o cabelo da cor do meu.") : A.label === "Abel" ? "Mais alguma coisa? A lenha não se racha sozinha." : "(Um homem ruivo, de machado no ombro, olha para vocês e depois para a trilha que vai ao Mosteiro.) Mais gente indo descansar? Vocês não têm cara de quem quer esquecer nada.",
       options: [
         { label: "Quem é você?", to: "who", if: () => !F.q_pipa },
         { label: "Ela pegou. Ela assobiou como sabiá.", if: () => F.pipa_bird && !F.pipa && !F.pipa_follow, do: () => pipaEnd("bird"), to: "end" },
@@ -203,8 +207,8 @@ function abelTree() {
         { label: "O que você sabe do Mosteiro?", to: "monastery", once: true },
         { label: "As fitas brancas na trilha.", to: "ribbons", once: true },
         { label: "Até mais.", to: "end" },
-      ] },
-    who: { text: "Abel. Lenhador, enquanto tiver bosque. (ele aponta a cabana) Minha mulher morreu no inverno da febre. Eu fiquei com uma menina de oito anos e uma panela vazia. As monjas vieram com pão e com conversa boa.", options: [{ label: "Continuar", to: "who2" }] },
+      ] }),
+    who: () => ({ text: (A.label = "Abel") && "Abel. Lenhador, enquanto tiver bosque. (ele aponta a cabana) Minha mulher morreu no inverno da febre. Eu fiquei com uma menina de oito anos e uma panela vazia. As monjas vieram com pão e com conversa boa.", options: [{ label: "Continuar", to: "who2" }] }),
     who2: { text: "Pipa. Eu deixei a Pipa com elas. Vou lá todo domingo. Ela me sorri. É um sorriso educado, de quem recebe visita. (ele mostra um passarinho entalhado) Eu fiz isso pra ela. Ela dormia mordendo o bico. Esqueceu lá em casa.", options: [
       { label: "Eu levo para ela.", do: () => { F.q_pipa = true; giveItem(ITEMS.bird); UI.toast("Na bolsa: Passarinho de madeira", 2400); UI.updateQuest(); }, to: "who3" },
       { label: "Por que você mesmo não leva?", to: "why" },
@@ -216,6 +220,24 @@ function abelTree() {
     monastery: { text: "Gente boa. É isso que me dá medo. Gente ruim a gente sabe o que quer. (cospe) À noite sai de lá uma fila de branco, pro norte, cantando. Eu fecho a janela. Uma vez eu contei os que voltaram: nenhum.", options: [{ label: "Voltar.", to: "start" }] },
     ribbons: { text: "Uma fita por aldeia. A monja de lanterna amarra na ida. Ninguém desamarra na volta, que não tem volta. Se você contar as fitas, sabe quantas aldeias o mundo perdeu esse ano.", options: [{ label: "Voltar.", to: "start" }] },
   };
+}
+/** Pipa, brought to her father before the choice of the Monastery: the reunion happens where he is, once. */
+async function pipaHome() {
+  const P = cast.pipa, Ab = cast.abel;
+  await scene(async () => {
+    F.pipa = "home";
+    G.followers = G.followers.filter((u) => u !== P);
+    P.gone = true;
+    E.face(Ab, lead());
+    await lines([
+      [null, "Abel larga o machado. Pipa solta a sua mão e para, a três passos dele, olhando o cabelo dele, que é da cor do dela."],
+      [null, "Pipa assobia duas notas para o pai, uma alta e uma baixa. Ele responde do mesmo jeito. Ela erra o nome dele duas vezes. Ele não corrige."],
+    ]);
+    reward(250, "O passarinho de Pipa");
+    approve("kael", 1); approve("lyra", 1);
+    remember("pipa_home", "Abel de joelhos na trilha, e Pipa assobiando duas notas como sabiá.");
+    UI.updateQuest();
+  });
 }
 function pipaEnd(how) {
   F.pipa = how;
@@ -309,20 +331,20 @@ function claraTree() {
       options: [
         { label: "Uma xícara de chá.", if: () => !F.c2_tea, to: "tea" },
         { label: "Procuramos um velho que chegou há uns dias. De cinza.", to: "old", once: true },
-        { label: "Dizem que há uma anã aqui.", to: "dwarf", once: true },
+        { label: "Dizem que há uma anã aqui.", to: "dwarf", once: true, if: () => !F.hulda_joined },
         { label: "O que tem do outro lado do portão de ferro, ao norte?", to: "north", once: true },
         { label: "Até mais.", to: "end" },
       ] },
     tea: { text: "(Ela serve de um bule branco. O chá é claro como água, e cheira a chuva.) Chá do jardim. A folha cresce perto do muro norte, onde a névoa encosta. Acalma. Ninguém aqui dorme mal.", options: [
       { label: "Beber.", do: () => drinkTea("drank"), to: "drank" },
       { label: "Fingir que bebe, e despejar no canteiro.", check: { skill: "Prestidigitação", dc: 11 }, pass: () => drinkTea("poured"), fail: () => drinkTea("drank"), passTo: "poured", failTo: "drank" },
-      { label: "\"Obrigado, não.\"", do: () => { F.c2_tea = "refused"; }, to: "refused" },
+      { label: g("Obrigada, não.", "Obrigado, não.", "Agradeço, não."), do: () => { F.c2_tea = "refused"; }, to: "refused" },
     ] },
     drank: { text: "(Ela sorri.) Viu? Às vezes a gente só precisa de um pouco menos de peso. Volte quando quiser mais.", options: [{ label: "...", to: "end" }] },
     poured: { text: "(Ela não vê. O canteiro bebe o chá sem reclamar.) Volte quando quiser mais.", options: [{ label: "...", to: "end" }] },
     refused: { text: "Claro. Ninguém aqui é obrigado a nada. É a primeira regra da casa, e a única.", options: [{ label: "Voltar.", to: "start" }] },
     old: { text: "O irmão Sabiá? Ele está descansando. Chegou muito cansado, coitado. A Madre cuida dele pessoalmente. (o sorriso não muda) Visitas, só com a bênção dela.", options: [{ label: "Voltar.", to: "start" }] },
-    dwarf: { text: "A senhora Hulda. (ela suspira) Ela grita com um deus que ninguém lembra, a noite inteira. Assusta as crianças. A Madre achou melhor que ela ficasse num lugar mais quieto, até se acalmar.", options: [{ label: "Voltar.", to: "start" }] },
+    dwarf: () => ({ text: (F.c2_hulda_known = true) && "A senhora Hulda. (ela suspira) Ela grita com um deus que ninguém lembra, a noite inteira. Assusta as crianças. A Madre achou melhor que ela ficasse num lugar mais quieto, até se acalmar.", options: [{ label: "Voltar.", to: "start" }] }),
     north: { text: "O caminho de quem já está pronto. A gente abre o portão quando alguém pede para ir. (ela olha para o portão com carinho) Ninguém nunca pediu para voltar.", options: [{ label: "Voltar.", to: "start" }] },
   };
 }
@@ -411,8 +433,10 @@ async function madreFirst() {
     if (F.c2_madre === "shaken") {
       await lines([
         [O, "(Ela guarda a tesoura no bolso do avental.) Você me fez lembrar que eu já tive dúvida. Faz anos. Eu tinha esquecido como era. (ela ri, baixo) Não é agradável."],
-        [O, "A anã. Hulda. Ela não descansa, e não deixa ninguém descansar. Se vocês quiserem levá-la, levem. Digam à Irmã Sálvia que a Madre permitiu. É verdade, e eu não digo o que não é verdade."],
+        F.hulda_joined ? [O, "(Ela olha para Hulda, que bufa.) A anã já está com vocês, eu vejo. Eu não vou pedir de volta. Ela não descansava, e não deixava ninguém descansar."]
+          : [O, "A anã. Hulda. Ela não descansa, e não deixa ninguém descansar. Se vocês quiserem levá-la, levem. Digam à Irmã Sálvia que a Madre permitiu. É verdade, e eu não digo o que não é verdade."],
       ]);
+      F.c2_hulda_known = true;
       reward(250, "A Madre hesitou");
     } else if (F.c2_madre === "even") {
       await say(O, "Vocês são bem-vindos aqui, como todos. Há uma cama na hospedaria. Fiquem a noite. (ela se levanta) Amanhã a gente conversa de novo, se ainda houver o que conversar.");
@@ -420,7 +444,7 @@ async function madreFirst() {
     } else {
       await lines([
         [O, "(Ela põe a mão no seu ombro, de leve.) Fique a noite. Durma. Não precisa decidir nada hoje. Ninguém aqui decide nada com pressa."],
-        [null, "Por um momento, você não lembra por que veio. Só lembra que está cansado. Muito."],
+        [null, `Por um momento, você não lembra por que veio. Só lembra que está ${g("cansada", "cansado", "cansade")}. Muito.`],
         [A, "(só você ouve, alto, quase gritando) L.! Hulda! Você veio buscar os dois! (mais baixo) Não me faça lembrar por você. Eu não sei se eu vou devolver."],
       ]);
       approve("kael", -1); approve("lyra", -1);
@@ -443,26 +467,26 @@ function odiliaTalk() {
     hand: { who: O, text: "Paz. Para todo mundo, de uma vez. (ela fala como quem diz a hora) O que você carrega já fez isso uma vez, há mil anos, pela metade. Uma cidade inteira descansou numa noite. Eu gostaria de terminar o que ela começou. Sem guerra, sem dor. Eu não vou tirar à força. Eu nunca tiro à força.", options: [{ label: "Voltar.", to: "start" }] },
     sabia: { who: O, text: "Ele lembra demais. Lembra de tudo o que leu, de tudo o que perdeu, e não dorme. Eu lhe ofereço chá todos os dias. Às vezes ele aceita. (ela ri) Ontem ele recitou para mim, inteira, uma canção de ninar de uma cidade que não existe mais.", options: [{ label: "Voltar.", to: "start" }] },
     kids: { who: O, text: "Porque as crianças da fronteira já perderam tudo, e ninguém quer ficar com elas. A Coroa as \"tributa\". As aldeias não têm pão. Nós temos pão, cama, e ninguém aqui bate em criança. (ela olha o pátio) O que você ofereceria a elas?", options: [{ label: "Voltar.", to: "start" }] },
-    permit: { who: O, text: "Diga à Irmã Sálvia que a Madre permitiu. Ela fica na ala atrás da capela. (uma pausa) Você vai precisar encontrar a porta sozinho. Eu permito, mas não ajudo.", options: [{ label: "Voltar.", to: "start" }] },
+    permit: { who: O, text: `Diga à Irmã Sálvia que a Madre permitiu. Ela fica na ala atrás da capela. (uma pausa) Você vai precisar encontrar a porta ${g("sozinha", "sozinho", "sem ajuda")}. Eu permito, mas não ajudo.`, options: [{ label: "Voltar.", to: "start" }] },
   };
 }
 
 // ---------------------------------------------------------------- the garden: brother Tadeu and the Blank Page
 function tadeuTree() {
   return {
-    start: { text: F.c2_tadeu ? "Atrás do véu do altar. Terceiro castiçal da esquerda. E não me olhe assim quando passar por mim: eu sou só um velho que cuida de planta." : "(Um monge velho, de barba branca, arranca erva daninha dos canteiros de chá.) Essa folha só cresce onde a névoa encosta. Pálida, macia, e boa pra esquecer. Eu planto há vinte anos e nunca tomei uma xícara.",
+    start: () => ({ text: F.c2_tadeu ? "Atrás do véu do altar. Terceiro castiçal da esquerda. E não me olhe assim quando passar por mim: eu sou só um velho que cuida de planta." : F.c2_tadeu_asked ? "(Ele arranca mais uma erva, sem levantar a cabeça.) Ainda aqui, viajante?" : "(Um monge velho, de barba branca, arranca erva daninha dos canteiros de chá.) Essa folha só cresce onde a névoa encosta. Pálida, macia, e boa pra esquecer. Eu planto há vinte anos e nunca tomei uma xícara.",
       options: [
         { label: "Por que nunca tomou?", to: "why", if: () => !F.c2_tadeu },
-        { label: "Mostrar o sinete dos Lembradores.", tag: "Sinete", if: () => !F.c2_tadeu && F.c2_tadeu_asked && hasItem("seal"), do: () => { F.c2_tadeu = true; UI.updateQuest(); }, to: "seal" },
+        { label: "Mostrar o sinete dos Lembradores.", tag: "Sinete", if: () => !F.c2_tadeu && F.c2_tadeu_asked && hasItem("seal"), do: () => { F.c2_tadeu = true; reward(120, "Pena e torre"); UI.updateQuest(); }, to: "seal" },
         { label: "Até mais.", to: "end" },
-      ] },
+      ] }),
     why: { text: "(Ele limpa a terra das mãos devagar.) Porque eu ainda estou lendo uma coisa. Faz vinte anos. (ele baixa a voz) Diga, viajante: você já leu a Página em Branco?", options: [
       { label: "Não. Mas trago uma pena e uma torre.", if: () => hasItem("seal"), do: () => { F.c2_tadeu_asked = true; }, to: "start" },
       { label: "Que página?", do: () => { F.c2_tadeu_asked = true; }, to: "blank" },
     ] },
     blank: { text: "Os três séculos que faltam em todos os livros de história. (ele volta para a erva daninha) Esquece. Coisa de velho.", options: [{ label: "...", to: "end" }] },
-    seal: { text: "(Ele olha o sinete por um bom tempo, e depois para os dois lados.) Pena e torre. Faz vinte anos que eu planto chá esperando alguém aparecer com isso. O Sabiá está na Ala do Silêncio, com a anã, atrás da capela. A porta fica atrás do véu do altar: empurre o terceiro castiçal da esquerda.", options: [{ label: "Continuar", to: "seal2" }] },
-    seal2: { text: "Quem guarda a ala é a Irmã Sálvia, com dois irmãos de véu. Ela mesma prepara o chá deles na cozinha. (ele sorri sem dentes) A Joana cozinha melhor, mas quem escolhe a chaleira é a Sálvia. Agora vai, antes que alguém veja um jardineiro conversando.", options: [{ label: "...", do: () => { reward(120, "Pena e torre"); }, to: "end" }] },
+    seal: () => ({ text: (F.c2_hulda_known = true) && "(Ele olha o sinete por um bom tempo, e depois para os dois lados.) Pena e torre. Faz vinte anos que eu planto chá esperando alguém aparecer com isso. O Sabiá está na Ala do Silêncio, com a anã, atrás da capela. A porta fica atrás do véu do altar: empurre o terceiro castiçal da esquerda.", options: [{ label: "Continuar", to: "seal2" }] }),
+    seal2: { text: "Quem guarda a ala é a Irmã Sálvia, com dois irmãos de véu. Ela mesma prepara o chá deles na cozinha. (ele sorri sem dentes) A Joana cozinha melhor, mas quem escolhe a chaleira é a Sálvia. Agora vai, antes que alguém veja um jardineiro conversando.", options: [{ label: "...", to: "end" }] },
   };
 }
 
@@ -471,13 +495,13 @@ function pipaTalk() {
   const P = cast.pipa;
   if (F.pipa_follow) return { start: { text: "A gente vai ver meu pai? Eu não lembro a cara dele direito. Mas eu lembro o assobio.", options: [{ label: "...", to: "end" }] } };
   return {
-    start: { text: F.pipa_bird ? "(Ela segura o passarinho de madeira com as duas mãos, e morde o bico de vez em quando, sem perceber.)" : "Você tem cara de quem veio de longe. A Madre diz que longe é onde as coisas doem. Eu sou daqui. Eu acho.",
+    start: () => ({ text: F.pipa_bird ? "(Ela segura o passarinho de madeira com as duas mãos, e morde o bico de vez em quando, sem perceber.)" : "Você tem cara de quem veio de longe. A Madre diz que longe é onde as coisas doem. Eu sou daqui. Eu acho.",
       options: [
         { label: "Mostrar o passarinho de madeira.", tag: "Passarinho", if: () => hasItem("bird") && !F.pipa_bird, to: "bird" },
         { label: "Quer ir ver o seu pai?", if: () => F.pipa_bird && !F.pipa && F.pipa_ask == null, check: { skill: "Persuasão", dc: 12 }, pass: () => { F.pipa_ask = true; pipaFollow(); }, fail: () => { F.pipa_ask = false; }, passTo: "come", failTo: "nocome" },
         { label: "Qual é o seu nome?", to: "name", once: true },
         { label: "Até mais.", to: "end" },
-      ] },
+      ] }),
     name: { text: "Pipa. A Madre disse que é um nome bonito. Ela disse que eu posso trocar, se quiser. Lia trocou. Antes ela era outra coisa.", options: [{ label: "Voltar.", to: "start" }] },
     bird: { text: "(Ela pega o passarinho. Vira na mão. Põe o bico na boca, sem pensar, e morde.) ...Isso é meu. (ela não sabe por que disse isso) Isso é meu! Tinha um homem que fazia assim, ó.", options: [{ label: "Continuar", do: () => birdGiven(), to: "bird2" }] },
     bird2: { text: "(Ela assobia: duas notas, uma alta e uma baixa, como sabiá de manhã.) Ele fazia assim de manhã, pra eu acordar. Ele tinha o cabelo da minha cor. (ela franze a testa) Por que eu não lembrava disso ontem?", options: [{ label: "Voltar.", to: "start" }] },
@@ -505,13 +529,13 @@ function pipaFollow() {
 // ---------------------------------------------------------------- Silas, by the kitchen door
 function silasTree() {
   return {
-    start: { text: F.c2_silas ? "A Sálvia faz a ronda com o chá nas horas pares. Se ela beber do próprio bule, dorme como pedra. Eu nunca disse isso." : "(Irmão Silas, sentado num caixote ao lado da porta da cozinha, descascando batatas.) Vocês vieram. Pela porta da cozinha, como eu pedi. (ele não levanta os olhos) Ninguém olha para a porta da cozinha.",
+    start: () => ({ text: F.c2_silas ? "A Sálvia faz a ronda com o chá nas horas pares. Se ela beber do próprio bule, dorme como pedra. Eu nunca disse isso." : F.silas_promise ? "(Silas descasca mais uma batata.) Ainda aqui? Ninguém olha para a porta da cozinha, mas uma hora alguém olha." : "(Irmão Silas, sentado num caixote ao lado da porta da cozinha, descascando batatas.) Vocês vieram. Pela porta da cozinha, como eu pedi. (ele não levanta os olhos) Ninguém olha para a porta da cozinha.",
       options: [
         { label: "Onde está o Sabiá?", to: "where", if: () => !F.c2_silas },
-        { label: "Você vem com a gente?", to: "come", once: true },
+        { label: "Você vem com a gente?", to: "come", if: () => !F.silas_promise },
         { label: "Até mais.", to: "end" },
-      ] },
-    where: { text: "Na Ala do Silêncio, atrás da capela. Com a anã. A porta é atrás do véu do altar. (ele corta uma batata ao meio) A Irmã Sálvia guarda a ala e prepara o chá dos guardas aqui, nesta cozinha. Se o chá deles estiver forte demais, ninguém vai culpar a cozinheira.", options: [{ label: "Continuar", to: "where2" }] },
+      ] }),
+    where: () => ({ text: (F.c2_hulda_known = true) && "Na Ala do Silêncio, atrás da capela. Com a anã. A porta é atrás do véu do altar. (ele corta uma batata ao meio) A Irmã Sálvia guarda a ala e prepara o chá dos guardas aqui, nesta cozinha. Se o chá deles estiver forte demais, ninguém vai culpar a cozinheira.", options: [{ label: "Continuar", to: "where2" }] }),
     where2: { text: "E há o livro. O livro com os nomes de quem descansou. Fica na ala também. (ele finalmente olha para você) Eu quero que alguém leia esse livro em voz alta, um dia. Não precisa ser hoje.", options: [{ label: "...", do: () => { F.c2_silas = true; reward(100, "Pela porta da cozinha"); UI.updateQuest(); }, to: "end" }] },
     come: { text: "Ainda não. Se eu for, a Madre sabe que alguém de dentro duvidou, e procura os outros. Há outros. (ele volta para as batatas) Na lua nova eu estou na procissão de Vau-de-Cardo. Do lado de quem eu estiver, até lá.", options: [{ label: "Voltar.", do: () => { F.silas_promise = true; }, to: "start" }] },
   };
@@ -523,11 +547,11 @@ function joanaTree() {
     start: { text: "Fome? Sempre tem pão. A Madre diz que ninguém esquece de comer, nem os que esquecem de tudo. (ela ri) É verdade. Eu já vi.",
       options: [
         { label: "Para quem é aquela chaleira separada?", to: "kettle", once: true },
-        { label: "Um pedaço de pão.", to: "bread", once: true },
+        { label: "Um pedaço de pão.", to: "bread", if: () => !F.c2_bread },
         { label: "Até mais.", to: "end" },
       ] },
     kettle: { text: "Da Irmã Sálvia. Ela mesma prepara, pra ronda da noite. Forte que nem cavalo. (ela baixa a voz) Uma xícara daquilo e eu esqueço onde guardei o sal por uma semana.", options: [{ label: "Voltar.", to: "start" }] },
-    bread: { text: "(Ela embrulha um pão ainda quente num pano.) Leva. A fome não pergunta de que lado você está.", options: [{ label: "Voltar.", do: () => { G.potions += 0; for (const p of G.party) p.hp = Math.min(p.maxHp, p.hp + 4); UI.toast("O grupo come. +4 PV"); }, to: "start" }] },
+    bread: { text: "(Ela embrulha um pão ainda quente num pano.) Leva. A fome não pergunta de que lado você está.", options: [{ label: "Voltar.", do: () => { F.c2_bread = true; for (const p of G.party) p.hp = Math.min(p.maxHp, p.hp + 4); UI.toast("O grupo come. +4 PV"); }, to: "start" }] },
   };
 }
 async function kettle() {
@@ -547,6 +571,7 @@ async function kettle() {
   });
 }
 function betoTalk() {
+  if (night()) F.c2_hulda_known = true;
   return { start: { text: night() ? "(Um menino sentado na cama, de olhos bem abertos.) Eu não bebo o chá. Eu cuspo no penico. Aí eu ouço a anã cantando atrás da parede da capela. Ela canta com raiva. Eu gosto." : "Eu não gosto de dormir de dia. Mas aqui todo mundo dorme de dia. Eu fico contando as camas. Tinha mais ontem.", options: [{ label: "...", to: "end" }] } };
 }
 
@@ -727,6 +752,13 @@ function sabiaTalk() {
     come: { who: S, text: "Se eu sair, a Madre muda a data, e eu não vou saber qual é. Aqui dentro eu sei. (ele bate na têmpora) Além do mais, eu sou um velho. Velho que foge cai. Velho que fica, escuta.", options: [{ label: "Voltar.", to: "start" }] },
   };
 }
+/** How many the Sabiá hears breathing: the party and whoever walks with it ("um é baixinho" if someone is small). */
+function breaths() {
+  const who = [...G.party.filter((p) => !p.ai), ...G.followers];
+  const word = (n) => ["nenhum", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito"][n] ?? String(n);
+  const small = who.some((u) => u.small || ["halfling", "gnomo"].includes(u.build?.race));
+  return small && who.length > 1 ? `${word(who.length - 1)}. Não, ${word(who.length)}, um é baixinho` : word(who.length);
+}
 async function sabiaFirst() {
   F.c2_sabia = true;
   const S = cast.sabia, A = ARQ();
@@ -735,7 +767,7 @@ async function sabiaFirst() {
     S.name = "O Velho Sabiá";
     await lines([
       [null, "Um velho magro, careca, de barba branca até o peito, sentado numa cadeira de frente para a janela gradeada. Uma xícara de chá pela metade na mão. Ele não se vira."],
-      [S, "Pela respiração, quatro. Não, cinco, um é baixinho. (ele sorri para a janela) E um deles não respira, mas está aqui. (ele finalmente se vira, e olha direto para a sua mão) Olá, Arquivista. Faz tempo."],
+      [S, `Pela respiração, ${breaths()}. (ele sorri para a janela) E um deles não respira, mas está aqui. (ele finalmente se vira, e olha direto para a sua mão) Olá, Arquivista. Faz tempo.`],
       [A, "(só você ouve, e a voz dela é muito fina, muito cuidadosa) ...Eu não conheço esse homem."],
       [S, "Ela diz que não me conhece. Eu sei. Eu também não a conheço. Eu só li sobre ela. Muito. (ele se volta para você) E você é quem aceitou o contrato. Trezentas peças. Eu devo duzentas. Sinto muito por tudo o resto."],
     ]);
@@ -793,6 +825,7 @@ async function lectern() {
 
 // ---------------------------------------------------------------- sleeping where you were told not to
 async function sleepHere() {
+  if (F.c2_slept) return scene(() => say(mate(), kael() ? "(Kael fica na frente da porta.) Uma vez já foi demais. Hoje a gente dorme no bosque, nem que eu tenha que te carregar." : "(Lyra segura o seu braço.) Não. Uma linha a menos no seu Diário já é uma linha a mais do que eu aguento. No bosque."));
   await scene(async () => {
     const v = await ask(null, "A hospedaria tem camas limpas, de lençol branco, que cheiram a lavanda. Odara disse: não durmam no Mosteiro, por mais gentil que seja a cama.", [
       { label: "Dormir aqui.", v: "yes" },
@@ -815,7 +848,7 @@ async function sleepHere() {
     await UI.fade(0, 1200);
     E.partyChanged();
     await lines([
-      [null, "Você acorda descansado como não acordava há meses. Há uma xícara vazia na mesinha ao lado da cama. Você não lembra de ter bebido."],
+      [null, `Você acorda ${g("descansada", "descansado", "descansade")} como não acordava há meses. Há uma xícara vazia na mesinha ao lado da cama. Você não lembra de ter bebido.`],
       [null, m ? "No Diário de Lembranças, uma linha riscada que não estava riscada ontem. Não foi a Arquivista: a letra do risco é redonda, de monja." : "O Diário está na mesinha, fechado com cuidado, com a fita no lugar errado."],
       [ARQ(), "(só você ouve, e ela está com raiva, pela primeira vez) Alguém entrou. Alguém mexeu nas minhas prateleiras enquanto você dormia. Com uma xícara e um pano. (um silêncio frio) E ela viu a sua mão. A palma inteira."],
     ]);
@@ -846,7 +879,7 @@ async function choice() {
       look(4, 15, 2);
       await lines([
         [null, "No portão, vocês param. Atrás, o pátio, o poço, as crianças de branco brincando de procissão. O sino toca. Ninguém veio atrás de vocês. Ninguém precisa."],
-        [Hd, "Bom. Eu estou solta, o velho escolheu ficar, e esta casa continua aqui, servindo chá e levando aldeias para o branco. (ela bate o martelo na palma) Alguém vai dizer o que a gente faz, ou eu decido sozinha?"],
+        [Hd, F.c2_sabia ? "Bom. Eu estou solta, o velho escolheu ficar, e esta casa continua aqui" : "Bom. Eu estou solta, o velho da cela ao lado continua lá roncando, e esta casa continua aqui, servindo chá e levando aldeias para o branco. (ela bate o martelo na palma) Alguém vai dizer o que a gente faz, ou eu decido sozinha?"],
       ]);
       if (kael()) await say(mate(), "A guarnição de Vau-de-Cardo pagaria caro por esse livro. E mandaria cinquenta homens. Eu sei o que cinquenta homens da Coroa fazem num lugar cheio de criança. Eu estava lá, das outras vezes.");
       else await say(mate(), "Se a Coroa souber, ela vem. Com fogo e frasco. As crianças viram Tributo. (ela olha o pátio) E se ninguém souber, na lua nova Vau-de-Cardo inteira vai cantar até a Bruma.");
@@ -924,11 +957,11 @@ async function aftermath() {
     await lines([
       [null, "De manhã, o Mosteiro está como sempre: o sino toca uma vez, sem pressa, e o vento traz cheiro de pão e de hortelã."],
       [null, "Amarrada na alça da sua bolsa, uma fita branca que não estava lá quando você dormiu. Bordado nela, com letra redonda de monja: \"Lua nova. Vau-de-Cardo. Venha cantar conosco.\""],
-      [Ab, F.pipa_follow ? "(Abel aparece na trilha e para. Pipa solta a sua mão e corre. Ele cai de joelhos para pegar a filha, e não fala nada por um bom tempo.)" : "(Abel aparece na trilha, com o machado no ombro.) Domingo eu vou lá de novo. Ela vai sorrir pra mim. Educada. (ele dá de ombros, um ombro só) Eu vou de novo no outro domingo."],
+      [Ab, F.pipa === "home" ? "(Abel aparece na trilha com Pipa nos ombros. Ela assobia duas notas para você, uma alta e uma baixa.) Domingo eu não vou mais lá. (ele sorri, meio sem jeito) Ela errou meu nome de novo hoje." : F.pipa_follow ? "(Abel aparece na trilha e para. Pipa solta a sua mão e corre. Ele cai de joelhos para pegar a filha, e não fala nada por um bom tempo.)" : "(Abel aparece na trilha, com o machado no ombro.) Domingo eu vou lá de novo. Ela vai sorrir pra mim. Educada. (ele dá de ombros, um ombro só) Eu vou de novo no outro domingo."],
     ]);
     await say(Hd, "Uma fita. Ela marca a gente como marca as aldeias. (Hulda tenta desamarrar, e o nó não cede) Ah, Ormun. Até a seda dela é teimosa.");
   }
-  if (F.pipa_follow) {
+  if (F.pipa_follow && F.pipa !== "home") {
     F.pipa = "home";
     const P = cast.pipa;
     G.followers = G.followers.filter((u) => u !== P);
@@ -1033,6 +1066,7 @@ export function update() {
   const [tx, ty] = tileNow(l);
   if (W.id === "bosque") {
     if (tx <= 0) toMap("travessia", 47, 15, 1);
+    else if (tx >= 47 && F.c2_choice === "crown") { lead().x -= TILE; lead().path = []; if (!F.c2_smoke_seen) { F.c2_smoke_seen = true; scene(() => say(null, "A trilha para o Mosteiro acaba em fumaça. Não há mais nada lá para ver.")); } }
     else if (tx >= 47) toMap("mosteiro", ...MOST.gate, 2, () => { if (!F.c2_arrived) return arrive(); });
     else if (!F.c2_moths && near(l, ...BOSQ.moths, 5.2)) mothsScene();
     if (near(l, ...BOSQ.camp, 3)) hint("rest");

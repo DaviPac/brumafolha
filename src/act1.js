@@ -74,7 +74,7 @@ export function populate(W) {
     npc("guard", { key: "olmo", name: "Sargento Olmo", tx: 34, ty: 6, dir: 0, talk: olmoTalk });
     npc("dario", { key: "dario", name: "Dário Venn, Coletor", tx: 7, ty: 19, dir: 1, talk: () => (tribute(), null) });
     npc("iara", { key: "iara", name: "Iara", tx: 6, ty: 19, dir: 2, talk: iaraTalk });
-    npc("beni", { key: "beni", name: "Beni", tx: 5, ty: 20, dir: 2, small: true, talk: () => ({ start: { text: F.iara === "forgot" ? "A mãe tá esquisita. Ela me chamou de \"menino\". Eu tenho nome." : "Você tem uma espada de verdade? O moço de capa vermelha tem uma maça. Eu não gosto dele.", options: [{ label: "...", to: "end" }] } }) });
+    npc("beni", { key: "beni", name: "Beni", tx: 5, ty: 20, dir: 2, small: true, talk: () => ({ start: { text: F.iara === "forgot" ? "A mãe tá esquisita. Ela me chamou de \"menino\". Eu tenho nome." : F.iara ? "O moço de capa vermelha foi embora. A mãe ficou rindo sozinha depois. Ela não ria fazia tempo." : "Você tem uma espada de verdade? O moço de capa vermelha tem uma maça. Eu não gosto dele.", options: [{ label: "...", to: "end" }] } }) });
     npc("refugee", { name: "Velho do norte", tx: 12, ty: 19, dir: 1, talk: () => ({ start: { text: "Eu sou de Pedra-Alta. Ou era. Pergunte a qualquer um aqui onde fica Pedra-Alta. Ninguém sabe. Eu mesmo já não sei desenhar o caminho.", options: [{ label: "...", to: "end" }] } }) });
     npc("refugee", { name: "Vendedora", tx: 17, ty: 11, dir: 0, talk: () => ({ start: { text: "Nabo, cebola e o que sobrou de uma vida. Não aceito lembrança, só moeda. Já me pagaram com um aniversário uma vez. Não era nem meu.", options: [{ label: "...", to: "end" }] } }) });
     const nix = E.companion(NIX, "nix", { team: "npc", tx: 24, ty: 11 });
@@ -154,7 +154,7 @@ export async function begin() {
       [null, "Vau-de-Cardo. Lanternas em cada poste, como se a vila tivesse medo do escuro. Do lado de dentro, mais gente do que casas."],
     ]);
     if (mateIs("kael")) await say(G.mate, "Paliçada nova, soldado no portão, refugiado dormindo na praça. Já vi essa cidade umas dez vezes, com dez nomes. (olha a sua mão) Guarda isso no bolso.");
-    else await say(G.mate, "Tanta lanterna. Eles acham que a Bruma tem medo de luz. (baixinho) Tem medo é de gente lembrando. Esconda a mão, querido.");
+    else await say(G.mate, "Tanta lanterna. Eles acham que a Bruma tem medo de luz. (baixinho) Tem medo é de gente lembrando. Esconda a mão, meu bem.");
     if (F.maren_aboard && F.maren_lucid) await say(cast.maren1, "Vão, vão cuidar do que vieram cuidar. Eu fico com o povo da fogueira. Velha de lago sempre acha uma rede pra remendar.");
     else if (F.maren_aboard) await say(null, "Maren desce do barco agradecendo a viagem a quem passa. Alguém a leva pela mão até a fogueira dos refugiados. Ela vai, sorrindo, sem perguntar para onde.");
     if (F.tome_alive) await say(cast.tome1, F.maren_aboard && !F.maren_lucid ? "(Tomé não solta a mão da avó. Ela deixa, como deixaria a de qualquer criança.)" : "Aqui tem muro! Lá em casa não tinha muro. (pausa) Lá em casa não tem mais nada, né?");
@@ -211,8 +211,9 @@ function rosalvaTree() {
   F.rosalva_met = true;
   const give = () => { F.note = true; giveItem(ITEMS.note); UI.toast("Na bolsa: Recado de L.", 2600); };
   const room = (cost) => () => { G.gold -= cost; later(0.3, () => nightRest("tavern")); };
+  let greeted = !first;
   return {
-    start: { text: first ? "Cheio. Chão cheio, celeiro cheio, até o telhado tem gente. Se é quarto, eu dou risada. Se é sopa, senta ali fora. (ela repara na sua mão fechada) ...E se é outra coisa, fala baixo." : "Fala baixo, que a guarnição bebe aqui.",
+    start: () => ({ text: !greeted && (greeted = true) ? "Cheio. Chão cheio, celeiro cheio, até o telhado tem gente. Se é quarto, eu dou risada. Se é sopa, senta ali fora. (ela repara na sua mão fechada) ...E se é outra coisa, fala baixo." : F.note ? "Mais alguma coisa? Fala baixo, que a guarnição bebe aqui." : "Fala baixo, que a guarnição bebe aqui.",
       options: [
         { label: "Procuro alguém que assina \"L.\".", to: F.note ? "after" : "L", if: () => !F.note },
         { label: "Mostrar a Carta do Contrato.", tag: "Carta", if: () => !F.note && hasItem("letter"), do: give, to: "letter" },
@@ -221,7 +222,7 @@ function rosalvaTree() {
         { label: "Você não é só taverneira.", check: { skill: "Intuição", dc: 13 }, if: () => F.rosalva_lembradora == null, pass: () => { F.rosalva_lembradora = true; }, fail: () => { F.rosalva_lembradora = false; }, passTo: "lemb", failTo: "nolemb" },
         { label: "Preciso de um lugar para dormir.", to: "room" },
         { label: "Até mais.", to: "end" },
-      ] },
+      ] }),
     // each way of asking is tried once; showing the mark always works (what it costs is being known)
     L: () => ({ text: F.rosalva_ask === false ? "(Ela não para de enxugar a caneca.) Já disse. Quem vem de verdade, vem com a carta. Ou com outra coisa que não dê pra inventar." : "(Ela enxuga uma caneca que já estava seca.) Muita gente assina com uma letra só. Quem pergunta?", options: [
       { if: () => F.rosalva_ask == null, label: "Quem recebeu trezentas peças de promessa e uma carta com lacre de torre.", check: { skill: "Persuasão", dc: 12 }, pass: () => { F.rosalva_ask = true; give(); }, fail: () => { F.rosalva_ask = false; }, passTo: "letter", failTo: "wary" },
@@ -235,7 +236,7 @@ function rosalvaTree() {
     letter: { text: "(Ela olha o lacre, depois a porta, depois você.) Há três dias uma mulher de capa cinza deixou isto \"pra quem viesse do norte com cara de quem não dormiu\". E saiu pelos fundos, que a frente já tinha soldado.", options: [{ label: "Continuar", to: "after" }] },
     after: { text: "Não li. (pausa) Li. Todo mundo aqui lê tudo, é o costume da casa. O portão leste só abre com o sol, e a Travessia não é estrada pra se andar de noite. Durmam.", options: [{ label: "Voltar.", to: "start" }] },
     poster: { text: "Duzentas peças. Sabe quanto é isso aqui? É uma família inteira sem pagar Tributo por dez anos. Eu não culparia quem te entregasse. (ela empurra um par de luvas velhas pelo balcão) Eu só não vou ser eu.", options: [{ label: "Pegar as luvas.", if: () => !hasItem("gloves"), do: () => giveItem(ITEMS.gloves), to: "start" }, { label: "Voltar.", to: "start" }] },
-    refugees: { text: "Do norte. Cada semana de uma aldeia que eu nunca ouvi falar. E o pior, forasteiro, é que eles também não lembram direito o nome. Chegam dizendo \"lá de cima\". Só isso. Lá de cima.", options: [{ label: "Voltar.", to: "start" }] },
+    refugees: { text: `Do norte. Cada semana de uma aldeia que eu nunca ouvi falar. E o pior, ${gword(G.hero.gender, "forasteira", "forasteiro", "forasteire")}, é que eles também não lembram direito o nome. Chegam dizendo "lá de cima". Só isso. Lá de cima.`, options: [{ label: "Voltar.", to: "start" }] },
     lemb: { text: "(Ela vira o livro de contas para você. Não são contas. São nomes, aldeias, datas, canções pela metade.) A gente escreve tudo. Um dia alguém vai precisar ler. Me chamam de Lembradora. Eu chamo de teimosia.", options: [{ label: "L. é um de vocês?", to: "lemb2" }] },
     lemb2: { text: "L. é o motivo de existir um \"vocês\". E é tudo o que eu digo com a guarnição a duas mesas. O quarto dos fundos é seu. Não me pague.", options: [
       { if: () => !F.note, label: "Ele deixou alguma coisa para mim?", do: give, to: "lembnote" },
@@ -243,10 +244,10 @@ function rosalvaTree() {
     ] },
     lembnote: { text: "(Ela tira um papel de dentro do livro de nomes, onde estava marcando uma página.) Deixou. Uma mulher de capa cinza trouxe há três dias. Eu ia te dar de qualquer jeito. Eu só queria ver se você era de perguntar.", options: [{ label: "Continuar", to: "after" }] },
     nolemb: { text: "Sou taverneira, cozinheira, parteira e, às terças, juíza de briga de galo. Chega?", options: [{ label: "Voltar.", to: "start" }] },
-    room: { text: F.rosalva_lembradora ? "O quarto dos fundos. Não range, não tem janela pra rua, e a porta tranca por dentro." : "Tem um canto no celeiro, atrás das sacas. Cinco peças, e eu não vi vocês.", options: [
+    room: () => ({ text: F.rosalva_lembradora ? "O quarto dos fundos. Não range, não tem janela pra rua, e a porta tranca por dentro." : G.gold >= 5 ? "Tem um canto no celeiro, atrás das sacas. Cinco peças, e eu não vi vocês." : "Tem um canto no celeiro, atrás das sacas. Cinco peças. (ela olha a sua bolsa) ...A fogueira dos refugiados, na praça, é de graça. E esquenta igual.", options: [
       F.rosalva_lembradora ? { label: "Dormir até de manhã.", do: room(0), to: "end" } : { label: "Pagar 5 peças e dormir até de manhã.", if: () => G.gold >= 5, do: room(5), to: "end" },
       { label: "Agora não.", to: "start" },
-    ] },
+    ] }),
   };
 }
 
@@ -416,17 +417,18 @@ async function tribute() {
       { label: "Pagar as trinta peças.", tag: "30 de ouro", if: () => G.gold >= 30, v: "paid" },
       { label: kael ? "Kael, qual é a cláusula que ele está pulando?" : "O Tributo é por lar. Ela não tem lar. Mostre a ordem que manda cobrar de quem dorme no chão.", check: { skill: "Persuasão", dc: kael ? 11 : 14 }, pass: "talked", fail: "fail" },
       { label: "Encoste nela e você vai precisar de um frasco maior.", check: { skill: "Intimidação", dc: 15 }, pass: "scared", fail: "fail" },
-      { label: "Mostrar o cartaz: \"O comandante quer todo Coletor na guarnição. Agora.\"", tag: "Cartaz", if: () => hasItem("poster"), check: { skill: "Enganação", dc: 12 }, pass: "talked", fail: "fail" },
+      { label: "Mostrar o cartaz — O comandante quer todo Coletor na guarnição. Agora.", tag: "Cartaz", if: () => hasItem("poster"), check: { skill: "Enganação", dc: 12 }, pass: "poster", fail: "fail" },
       { label: "Não se meter.", v: "forgot" },
     ]);
-    let r = v;
+    let r = v === "poster" ? "talked" : v;
     if (v === "fail") {
       await say(D, "Bonito. Agora são trinta peças dela e a minha paciência, que também tem preço.");
       r = await ask(null, "Dário destampa o frasco.", [{ label: "Pagar as trinta peças.", tag: "30 de ouro", if: () => G.gold >= 30, v: "paid" }, { label: "Deixar acontecer.", v: "forgot" }]);
     }
     F.iara = r;
-    if (r === "paid") { G.gold -= 30; await say(D, "(Ele conta duas vezes.) A Coroa agradece. O senhor acabou de comprar três luas para uma desconhecida. Na quarta eu volto."); }
-    if (r === "talked") await say(D, kael && v !== "forgot" ? "(Kael recita, de cor, o artigo sobre refugiados sem domicílio. Dário fecha o frasco.) ...Você sempre decorou o livro. Era por isso que eu não gostava de você." : "(Ele guarda o frasco, devagar.) Vou conferir. E vou lembrar do seu rosto. Eu sou pago pra isso.");
+    if (r === "paid") { G.gold -= 30; await say(D, `(Ele conta duas vezes.) A Coroa agradece. ${gword(G.hero.gender, "A senhora", "O senhor", "Você")} acabou de comprar três luas para uma desconhecida. Na quarta eu volto.`); }
+    if (v === "poster") await say(D, "(Ele lê o cartaz, de cima a baixo, e depois o selo. Não sabe ler direito, e não vai admitir.) ...O comandante. Agora. (ele guarda o frasco) Na volta eu cobro em dobro.");
+    else if (r === "talked") await say(D, kael ? "(Kael recita, de cor, o artigo sobre refugiados sem domicílio. Dário fecha o frasco.) ...Você sempre decorou o livro. Era por isso que eu não gostava de você." : "(Ele guarda o frasco, devagar.) Vou conferir. E vou lembrar do seu rosto. Eu sou pago pra isso.");
     if (r === "scared") { await say(D, "(Ele recua um passo, e depois outro, e finge que era o que ia fazer.) Isso vai para o relatório."); F.guard_alert = true; }
     if (r === "forgot") {
       await lines([
@@ -449,20 +451,21 @@ async function tribute() {
 
 // ---------------------------------------------------------------- side quest: Nix and the commander's Lume
 function nixTree() {
-  const N = cast.nix, known = F.q_nix;
+  const N = cast.nix;
+  let met = !!N.label && N.label !== "Mulher de capa rubra";
   if (F.nix_joined) return null;
   if (F.lume_got && !F.lume_done) { lumeChoice(); return null; }
   if (F.lume_done) return { start: { text: F.lume_done === "people" ? "Você deu uma fortuna a quem não pode pagar. (ela sorri torto) Eu ainda não decidi se isso me irrita ou me interessa." : "Negócio fechado é negócio esquecido. É o lema da Feira.", options: [{ label: "...", to: "end" }] } };
   N.label = "Nix";
   return {
-    start: { text: known ? "E então? O cofre não vai se abrir de saudade." : "(Uma tiferina de capa rubra examina uma maçã como quem avalia uma joia.) Você anda como quem esconde uma coisa na mão direita. Relaxa. Eu vivo de reparar, não de contar. Nix. \"Pena-Rubra\", pra quem deve dinheiro.", options: [
+    start: () => ({ text: F.q_nix ? "E então? O cofre não vai se abrir de saudade." : met ? "Mais alguma coisa? As maçãs não se avaliam sozinhas." : (met = true) && "(Uma tiferina de capa rubra examina uma maçã como quem avalia uma joia.) Você anda como quem esconde uma coisa na mão direita. Relaxa. Eu vivo de reparar, não de contar. Nix. \"Pena-Rubra\", pra quem deve dinheiro.", options: [
       { label: "O que você quer?", to: "job", if: () => !F.q_nix },
       { label: "Como eu abro o cofre?", to: "how", if: () => !!F.q_nix },
       { label: "O que é uma Lume, pra você?", to: "lume", once: true },
-      ...(mateIs("kael") && !F.nix_kael ? [{ label: "(Kael e ela se encaram.)", to: "kael" }] : []),
+      { if: () => mateIs("kael") && !F.nix_kael, label: "Olhar de Kael para ela, e esperar.", to: "kael" },
       { label: "Tem luvas pra vender?", to: "gloves", if: () => !hasItem("gloves") },
       { label: "Até mais.", to: "end" },
-    ] },
+    ] }),
     job: { text: "Atrás da guarnição tem um cofre de ferro. Dentro, uma Lume que o comandante tomou de uma velha na fila da sopa: \"contrabando de memória\". Eu quero a Lume. Eu sou boa de fechadura e péssima de sargento. Você tem cara de quem resolve sargento.", options: [
       { label: "Fechado.", do: () => { F.q_nix = true; }, to: "how" }, { label: "Vou pensar.", do: () => { F.q_nix = true; }, to: "end" },
     ] },
@@ -646,10 +649,11 @@ async function procession() {
 
 // ---------------------------------------------------------------- the ford: the Dente-de-Musgo clan
 function gorzaTalk() {
-  return { start: { text: F.hunters === "won" ? "Soldado de capa azul correu que nem coelho. Goblin riu. Faz tempo que goblin não ria." : "Humano do vale! Gorza guarda o rio agora. Humano de Maren manda peixe, goblin manda fumaça. Troca boa. (ele aponta o outro lado com o queixo) Tem soldado lá. Quatro. Amarraram uma humana de cinza. Se briga começar, goblin atravessa.", options: [{ label: "...", to: "end" }] } };
+  return { start: { text: F.hunters === "won" ? "Soldado de capa azul correu que nem coelho. Goblin riu. Faz tempo que goblin não ria." : F.hunters && F.hunters !== "met" && F.hunters !== "fight" ? "Soldado foi embora sem briga. Goblin queria briga. (ele dá de ombros) Goblin pesca, então." : "Humano do vale! Gorza guarda o rio agora. Humano de Maren manda peixe, goblin manda fumaça. Troca boa. (ele aponta o outro lado com o queixo) Tem soldado lá. Quatro. Amarraram uma humana de cinza. Se briga começar, goblin atravessa.", options: [{ label: "...", to: "end" }] } };
 }
 function murtaFriend() {
-  return { start: { text: "A Avó ficou. Ela disse que fogo velho não muda de lugar. (Murta aperta a corda do arco) Um dia Murta volta lá dentro e traz a Avó. Você tem a moça de prata na mão. A moça sabe andar no branco. Quando você for, Murta vai.", options: [{ label: "\"Combinado.\"", do: () => { F.murta_promise = true; }, to: "end" }, { label: "...", to: "end" }] } };
+  if (F.murta_promise) return { start: { text: "(Murta aponta o norte com o queixo.) Combinado é combinado. Murta lembra.", options: [{ label: "...", to: "end" }] } };
+  return { start: { text: "A Avó ficou. Ela disse que fogo velho não muda de lugar. (Murta aperta a corda do arco) Um dia Murta volta lá dentro e traz a Avó. Você tem a moça de prata na mão. A moça sabe andar no branco. Quando você for, Murta vai.", options: [{ label: "Combinado.", do: () => { F.murta_promise = true; }, to: "end" }, { label: "...", to: "end" }] } };
 }
 async function murtaToll() {
   if (F.toll) return;
