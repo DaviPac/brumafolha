@@ -800,6 +800,7 @@ function rest() {
   UI.updateParty();
   exploreHotbar();
   S.onRest();
+  S.campfire(); // only if the rest had no scene of its own
 }
 
 function nearestInteractable() {

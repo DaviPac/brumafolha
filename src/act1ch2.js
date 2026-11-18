@@ -844,7 +844,8 @@ async function sleepHere() {
     await E.sleep(2600);
     UI.cine("");
     // in the night someone came with a cup and a cloth, and took the edge off one memory: not the Echo, the house
-    const m = [...G.memories].reverse().find((x) => !x.struck && !x.origin);
+    // a memory anchored at a campfire (told out loud) holds; the tea takes the newest one that isn't
+    const m = [...G.memories].reverse().find((x) => !x.struck && !x.origin && !x.anchored) ?? [...G.memories].reverse().find((x) => !x.struck && !x.origin);
     if (m) { m.struck = true; m.lost = m.text; m.by = "cha"; m.text = "— — — — — — — —"; F.c2_tea_memory = m.id; K.refreshJournal(); }
     F.c2_madre_saw = true;
     G.clock = 7.4; G.clockTarget = 10;

@@ -16,6 +16,7 @@ import { openJournal, refreshJournal } from "./journal.js";
 import { refreshCombatHotbar } from "./combat.js";
 import * as A1 from "./act1.js";
 import { initCompanions, approve as companionApprove } from "./companions.js";
+import { initCampfire, campfire as campfireTalk } from "./campfire.js";
 import { ids, nameFn, encode, decode, groupById, allUnits } from "./save/codec.js";
 
 let E;
@@ -35,6 +36,7 @@ export function init(engine) {
   G.hooks.itemRead = itemRead;
   G.hooks.journalClosed = () => { const f = afterJournal; afterJournal = null; f?.(); };
   A1.init({ E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint, refreshJournal });
+  initCampfire({ F, scene, lines, ask, say, remember, refreshJournal });
   initCompanions({ F, scene, lines, ask, say, inScene, busy: storyBusy, interactables, zone: () => E.zoneName(), look: () => { G.camFocus = null; } });
 }
 
@@ -442,6 +444,8 @@ async function deerTalk() {
   });
 }
 
+/** After a rest with no scene of its own: the campfire of stories (campfire.js). */
+export function campfire() { if (!inScene() && !storyBusy()) campfireTalk(); }
 export function onRest() {
   if (F.act1) return A1.onRest();
   if (G.W.id !== "vale" || F.rested_story || !F.awake) return;

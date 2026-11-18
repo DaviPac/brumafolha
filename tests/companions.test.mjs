@@ -107,3 +107,34 @@ test("comentários: nunca durante uma luta nem uma conversa; cada um uma vez; fi
     assert.deepEqual(page.errors, []);
   } finally { await ctx.close(); }
 });
+
+test("fogueira de histórias: escolher com quem conversar, a história vira lembrança; contar uma lembrança a ancora", async () => {
+  const { ctx, page } = await T.newPage(browser);
+  try {
+    await T.openDev(page, srv.url, ACT1 + ",rested1");
+    await T.play(page); await T.settle(page);
+    const rest = async () => {
+      await page.evaluate(() => { const G = window.G; G.clock = 12; G.f.tribute_seen = true; G.f.iara = "forgot"; const f = G.W.objects.find((o) => o.kind === "campfire"); const l = G.party[G.leader]; l.x = f.x; l.y = f.y - 28; l.path = []; });
+      await T.sleep(300);
+      await page.keyboard.press("e");
+      await T.waitFor(page, () => [...document.querySelectorAll("#dialogue:not(.hidden) .opt")].some((o) => /Dormir/.test(o.textContent)), null, 8000);
+    };
+    await rest();
+    await page.screenshot({ path: path.join(OUT, "fogueira.jpg"), type: "jpeg", quality: 80 });
+    await T.play(page, ["Sentar perto de Kael", "E você? Ainda lê?"]);
+    const s = await page.evaluate(() => ({ f: window.G.f.fire_k1, mem: window.G.memories.some((m) => m.id === "fire_k1"), ap: window.G.approval.kael }));
+    assert.deepEqual(s, { f: true, mem: true, ap: 1 });
+    // the next one, in order; the personal talk after it needs more trust: he says so, and it isn't told
+    await rest();
+    await T.play(page, ["Sentar perto de Kael", "Pão não paga lembrança."]);
+    assert.equal(await page.evaluate(() => window.G.f.fire_k2), true);
+    await rest();
+    await T.play(page, ["Sentar perto de Kael"]);
+    assert.equal(await page.evaluate(() => window.G.f.fire_k3), undefined, "a conversa pessoal espera aprovação alta");
+    // the hero tells a memory: it is anchored, and the Monastery's tea won't take it
+    await rest();
+    await T.play(page, ["Contar uma lembrança sua", "Contar: \"Kael, na fogueira"]);
+    assert.ok(await page.evaluate(() => window.G.memories.find((m) => m.id === "fire_k1").anchored), "ancorada");
+    assert.deepEqual(page.errors, []);
+  } finally { await ctx.close(); }
+});
