@@ -15,14 +15,17 @@ export async function launch() {
  * A fresh browser profile (its own saves) and a page. Dice are made repeatable: Math.random follows a fixed seed, so
  * the same script rolls the same numbers every time.
  */
-export async function newPage(browser, { seed = 7, context = null, notes = false } = {}) {
+export async function newPage(browser, { seed = 7, context = null, notes = false, dice = null } = {}) {
   const ctx = context ?? (await browser.newContext({ viewport: { width: 1280, height: 720 }, acceptDownloads: true, serviceWorkers: "block" }));
-  await ctx.addInitScript(([s, notes]) => {
+  // dice: "fail" makes every roll a 1 (every check fails), "pass" every roll a 20
+  await ctx.addInitScript(([s, notes, dice]) => {
     let a = s >>> 0;
     Math.random = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    if (dice === "fail") Math.random = () => 0;
+    if (dice === "pass") Math.random = () => 0.9999;
     // the menu's long opening and the "what's new" window are for people, not for scripts
     try { localStorage.setItem("brumafolha.opening", "1"); if (!notes && !localStorage.getItem("brumafolha.version")) localStorage.setItem("brumafolha.version", "999.0.0"); } catch { /* */ }
-  }, [seed, notes]);
+  }, [seed, notes, dice]);
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(String(e.stack ?? e)));

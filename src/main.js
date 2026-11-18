@@ -2000,5 +2000,5 @@ initUpdates({
 });
 
 window.G = G; // handy from the console
-window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]), audio: audioState }; // and for the save tests
+window.brumaSave = { collect, quickSave: () => quickSave(), saveBlock, fight: (name) => E.fight(G.groups[name]), audio: audioState, engine: E }; // and for the save tests
 boot();

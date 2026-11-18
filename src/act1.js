@@ -127,6 +127,9 @@ export function populate(W) {
   }
 }
 
+/** The conversation trees of the act, for the audit (tests/audit.test.mjs). */
+export const TREES = () => ({ rosalva: rosalvaTree, guard: guardTalk, iara: iaraTalk, nix: nixTree, olmo: olmoTalk, maren1: marenTalk, tome1: tomeTalk, silas1: silasTalk, gorza1: gorzaTalk, murta1: murtaFriend, odara: odaraTalk, ...CH2.TREES() });
+
 // ---------------------------------------------------------------- arrival
 export async function begin() {
   G.mode = "cutscene";

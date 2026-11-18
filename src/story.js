@@ -44,7 +44,9 @@ const tweens = [], timers = [];
 let soonN = 0;
 const tween = (sec, fn, name) => new Promise((res) => tweens.push({ t: 0, sec, fn, res, name }));
 const later = (sec, fn, kind) => timers.push({ t: sec, fn, kind });
-const soon = (fn, ms) => { soonN++; setTimeout(() => { soonN--; fn(); }, ms); };
+// G.audit (tests/audit.test.mjs only): the conversations are walked without playing them, so "soon" is now and
+// scenes don't run
+const soon = (fn, ms) => { if (G.audit) return fn(); soonN++; setTimeout(() => { soonN--; fn(); }, ms); };
 const LATER = {
   greenFireOut: () => { if (G.W.id === "vale") { fireOut(); UI.toast("A fogueira verde se apagou. A névoa branca começa a escorrer pelos muros.", 4500); } else fireOut(); },
   goblinFireOut: (o) => { o.out = true; if (o.fxe) { o.fxe.keep = false; o.fxe.fx.stop(); } },
@@ -123,6 +125,7 @@ const say = (who, text, last) => lines([[who, text]], last);
 let sceneDepth = 0;
 /** Run a scripted moment: no player control until it's done (unless it starts a fight). */
 async function scene(fn) {
+  if (G.audit) return;
   sceneDepth++;
   if (G.mode !== "combat") G.mode = "cutscene";
   const l = lead(); if (l) l.path = [];
@@ -228,6 +231,9 @@ export function populate(W) {
     g.glow = { r: 44, c: [170, 200, 255], a: 0.12, h: 30 };
   }
 }
+
+/** Every conversation tree of the story, for the audit (tests/audit.test.mjs). */
+export const TREES = () => ({ maren: marenTree, tome: tomeTree, elder: elderTalk, kid: kidTalk, murta: murtaTalk, otavio: otavioTree, kaelOpening, lyraOpening, ...A1.TREES() });
 
 // ---------------------------------------------------------------- the quest log
 export function quests({ all } = {}) {

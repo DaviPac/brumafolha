@@ -123,6 +123,9 @@ export function populate(W) {
   }
 }
 
+/** The conversation trees of the chapter, for the audit (tests/audit.test.mjs). */
+export const TREES = () => ({ abel: abelTree, ilsa: ilsaTalk, clara: claraTree, odilia: odiliaTalk, tadeu: tadeuTree, pipa: pipaTalk, silas2: silasTree, joana: joanaTree, beto: betoTalk, hulda: huldaTalk, sabia: sabiaTalk });
+
 // ---------------------------------------------------------------- the way there
 /** From the Travessia (or the end of chapter one): south of the woods, as Odara said. */
 export async function begin() {
