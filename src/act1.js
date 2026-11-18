@@ -218,23 +218,30 @@ function rosalvaTree() {
         { label: "Mostrar a Carta do Contrato.", tag: "Carta", if: () => !F.note && hasItem("letter"), do: give, to: "letter" },
         { label: "O que é aquele cartaz no portão?", to: "poster", if: () => F.poster_seen },
         { label: "De onde vem tanta gente?", to: "refugees", once: true },
-        { label: "Você não é só taverneira.", check: { skill: "Intuição", dc: 13 }, if: () => !F.rosalva_lembradora, pass: () => { F.rosalva_lembradora = true; }, passTo: "lemb", failTo: "nolemb" },
+        { label: "Você não é só taverneira.", check: { skill: "Intuição", dc: 13 }, if: () => F.rosalva_lembradora == null, pass: () => { F.rosalva_lembradora = true; }, fail: () => { F.rosalva_lembradora = false; }, passTo: "lemb", failTo: "nolemb" },
         { label: "Preciso de um lugar para dormir.", to: "room" },
         { label: "Até mais.", to: "end" },
       ] },
-    L: { text: "(Ela enxuga uma caneca que já estava seca.) Muita gente assina com uma letra só. Quem pergunta?", options: [
-      { label: "Quem recebeu trezentas peças de promessa e uma carta com lacre de torre.", check: { skill: "Persuasão", dc: 12 }, pass: give, passTo: "letter", failTo: "wary" },
-      { label: "Um amigo antigo. Ele me deve dinheiro.", check: { skill: "Enganação", dc: 14 }, pass: give, passTo: "lied", failTo: "wary" },
+    // each way of asking is tried once; showing the mark always works (what it costs is being known)
+    L: () => ({ text: F.rosalva_ask === false ? "(Ela não para de enxugar a caneca.) Já disse. Quem vem de verdade, vem com a carta. Ou com outra coisa que não dê pra inventar." : "(Ela enxuga uma caneca que já estava seca.) Muita gente assina com uma letra só. Quem pergunta?", options: [
+      { if: () => F.rosalva_ask == null, label: "Quem recebeu trezentas peças de promessa e uma carta com lacre de torre.", check: { skill: "Persuasão", dc: 12 }, pass: () => { F.rosalva_ask = true; give(); }, fail: () => { F.rosalva_ask = false; }, passTo: "letter", failTo: "wary" },
+      { if: () => F.rosalva_ask == null, label: "Um amigo antigo. Ele me deve dinheiro.", check: { skill: "Enganação", dc: 14 }, pass: () => { F.rosalva_ask = true; give(); }, fail: () => { F.rosalva_ask = false; }, passTo: "lied", failTo: "wary" },
+      { label: "Abrir a mão no balcão e mostrar a marca.", do: () => { F.rosalva_mark = true; give(); }, to: "mark" },
       { label: "Deixa pra lá.", to: "start" },
-    ] },
-    wary: { text: "Então pergunta de novo quando tiver uma resposta melhor. Ou a carta. Quem vem de verdade, vem com a carta.", options: [{ label: "Voltar.", to: "start" }] },
+    ] }),
+    wary: { text: "Resposta errada. (ela não se mexe) Quem vem de verdade, vem com a carta. Ou com alguma coisa que não dê pra inventar.", options: [{ label: "Voltar.", to: "L" }] },
+    mark: { text: "(Ela olha a palma por um segundo só, e cobre a sua mão com um pano de prato.) Guarda isso. Aqui dentro bebe a guarnição. (por baixo do pano, um papel passa para os seus dedos) Uma mulher de capa cinza deixou isto há três dias, pra quem viesse do norte com essa mão.", options: [{ label: "Continuar", to: "after" }] },
     lied: { text: "(Ela não acredita, e entrega mesmo assim.) Mentiroso ruim é gente honesta com pressa. Toma. Deixaram isso há três dias.", options: [{ label: "Continuar", to: "after" }] },
     letter: { text: "(Ela olha o lacre, depois a porta, depois você.) Há três dias uma mulher de capa cinza deixou isto \"pra quem viesse do norte com cara de quem não dormiu\". E saiu pelos fundos, que a frente já tinha soldado.", options: [{ label: "Continuar", to: "after" }] },
     after: { text: "Não li. (pausa) Li. Todo mundo aqui lê tudo, é o costume da casa. O portão leste só abre com o sol, e a Travessia não é estrada pra se andar de noite. Durmam.", options: [{ label: "Voltar.", to: "start" }] },
     poster: { text: "Duzentas peças. Sabe quanto é isso aqui? É uma família inteira sem pagar Tributo por dez anos. Eu não culparia quem te entregasse. (ela empurra um par de luvas velhas pelo balcão) Eu só não vou ser eu.", options: [{ label: "Pegar as luvas.", if: () => !hasItem("gloves"), do: () => giveItem(ITEMS.gloves), to: "start" }, { label: "Voltar.", to: "start" }] },
     refugees: { text: "Do norte. Cada semana de uma aldeia que eu nunca ouvi falar. E o pior, forasteiro, é que eles também não lembram direito o nome. Chegam dizendo \"lá de cima\". Só isso. Lá de cima.", options: [{ label: "Voltar.", to: "start" }] },
     lemb: { text: "(Ela vira o livro de contas para você. Não são contas. São nomes, aldeias, datas, canções pela metade.) A gente escreve tudo. Um dia alguém vai precisar ler. Me chamam de Lembradora. Eu chamo de teimosia.", options: [{ label: "L. é um de vocês?", to: "lemb2" }] },
-    lemb2: { text: "L. é o motivo de existir um \"vocês\". E é tudo o que eu digo com a guarnição a duas mesas. O quarto dos fundos é seu. Não me pague.", options: [{ label: "Voltar.", to: "start" }] },
+    lemb2: { text: "L. é o motivo de existir um \"vocês\". E é tudo o que eu digo com a guarnição a duas mesas. O quarto dos fundos é seu. Não me pague.", options: [
+      { if: () => !F.note, label: "Ele deixou alguma coisa para mim?", do: give, to: "lembnote" },
+      { label: "Voltar.", to: "start" },
+    ] },
+    lembnote: { text: "(Ela tira um papel de dentro do livro de nomes, onde estava marcando uma página.) Deixou. Uma mulher de capa cinza trouxe há três dias. Eu ia te dar de qualquer jeito. Eu só queria ver se você era de perguntar.", options: [{ label: "Continuar", to: "after" }] },
     nolemb: { text: "Sou taverneira, cozinheira, parteira e, às terças, juíza de briga de galo. Chega?", options: [{ label: "Voltar.", to: "start" }] },
     room: { text: F.rosalva_lembradora ? "O quarto dos fundos. Não range, não tem janela pra rua, e a porta tranca por dentro." : "Tem um canto no celeiro, atrás das sacas. Cinco peças, e eu não vi vocês.", options: [
       F.rosalva_lembradora ? { label: "Dormir até de manhã.", do: room(0), to: "end" } : { label: "Pagar 5 peças e dormir até de manhã.", if: () => G.gold >= 5, do: room(5), to: "end" },
@@ -474,27 +481,36 @@ async function strongbox() {
   const box = E.obj("strongbox"), O = cast.olmo;
   if (F.lume_got) return say(null, "O cofre está aberto e vazio, tirando uma lista de \"bens apreendidos\": uma Lume, dois brinquedos, um xale.");
   if (!F.q_nix) return say(null, "Um cofre de ferro, com um cadeado do tamanho de um punho. O sargento ao lado pigarreia.");
-  if (F.box_tries >= 2 && !night()) return say(O, "De novo você? Mais um passo e eu chamo a guarda.");
+  // each way past the sergeant is tried once (by day or by night: he sleeps standing up at night, and that is the
+  // only difference). The purse always works, for whoever has the gold. The lock: tried once, then Nix does it.
   await scene(async () => {
     const hard = F.guard_alert ? 2 : 0, dark = night() ? -3 : 0;
-    const v = await ask(null, night() ? "O sargento Olmo cochila em pé, a três passos do cofre. As lanternas da guarnição deixam uma faixa de sombra atrás das caixas." : "O sargento Olmo vigia o cofre com a atenção de quem não tem mais nada para fazer. De dia, não há sombra onde se esconder.", [
-      { label: "Ir por trás das caixas, sem barulho.", check: { skill: "Furtividade", dc: 14 + hard + dark }, pass: "ok", fail: "bad" },
-      { label: "\"Sargento! Tem um Coletor apanhando no acampamento!\"", check: { skill: "Enganação", dc: 13 + hard }, pass: "ok", fail: "bad" },
-      { label: "Deixar uma bolsa \"cair\" perto da bota dele.", tag: "25 de ouro", if: () => G.gold >= 25, v: "bribe" },
-      { label: "Voltar mais tarde.", v: "no" },
-    ]);
-    if (v === "no" || v == null) return;
-    if (v === "bad") {
-      F.box_tries = (F.box_tries ?? 0) + 1;
-      await say(O, "Ei! Mão longe do ferro! (ele bate a lança no chão) Some, antes que eu lembre do seu rosto.");
-      return;
+    if (!F.box_past) {
+      const tried = F.box_sneak != null && F.box_lie != null;
+      const v = await ask(null, tried ? "O sargento Olmo já conhece o seu rosto. Não vai cair na mesma conversa, nem olhar de novo para as caixas. Sobra a moeda." : night() ? "O sargento Olmo cochila em pé, a três passos do cofre. As lanternas da guarnição deixam uma faixa de sombra atrás das caixas." : "O sargento Olmo vigia o cofre com a atenção de quem não tem mais nada para fazer. De dia, não há sombra onde se esconder.", [
+        { if: () => F.box_sneak == null, label: "Ir por trás das caixas, sem barulho.", act: true, check: { skill: "Furtividade", dc: 14 + hard + dark }, pass: "ok", fail: "sneak" },
+        { if: () => F.box_lie == null, label: "Sargento! Tem um Coletor apanhando no acampamento!", check: { skill: "Enganação", dc: 13 + hard }, pass: "ok", fail: "lie" },
+        { label: "Deixar uma bolsa \"cair\" perto da bota dele.", tag: "25 de ouro", if: () => G.gold >= 25, v: "bribe" },
+        { label: "Voltar mais tarde.", v: "no" },
+      ]);
+      if (v === "no" || v == null) return;
+      if (v === "sneak" || v === "lie") {
+        F[v === "sneak" ? "box_sneak" : "box_lie"] = false;
+        F.box_tries = (F.box_tries ?? 0) + 1;
+        await say(O, "Ei! Mão longe do ferro! (ele bate a lança no chão) Some, antes que eu lembre do seu rosto.");
+        return;
+      }
+      if (v === "bribe") { G.gold -= 25; await say(O, "(O sargento descobre, de repente, um interesse profundo pelo outro lado da praça.)"); }
+      F.box_past = true;
     }
-    if (v === "bribe") { G.gold -= 25; await say(O, "(O sargento descobre, de repente, um interesse profundo pelo outro lado da praça.)"); }
-    const lock = await ask(null, "O cadeado é velho e bem feito. Nix deixou com você dois arames e um conselho: \"não force, convença\".", [
-      { label: "Abrir o cadeado.", check: { skill: ["Prestidigitação", "Investigação"], dc: 12 }, pass: "ok", fail: "bad" },
-      { label: "Desistir.", v: "no" },
+    const lock = await ask(null, F.box_lock === false ? "O cadeado continua fechado, com o seu arame torto ainda enfiado nele." : "O cadeado é velho e bem feito. Nix deixou com você dois arames e um conselho: \"não force, convença\".", [
+      F.box_lock === false ? { label: "Assobiar para Nix, do outro lado da praça.", tag: "Nix", v: "nix" }
+        : { label: "Abrir o cadeado.", check: { skill: ["Prestidigitação", "Investigação"], dc: 12 }, pass: "ok", fail: "bad" },
+      { label: "Desistir por agora.", v: "no" },
     ]);
-    if (lock !== "ok") { if (lock === "bad") { F.box_tries = (F.box_tries ?? 0) + 1; await say(null, "O arame entorta. O cadeado nem toma conhecimento."); } return; }
+    if (lock === "bad") { F.box_lock = false; F.box_tries = (F.box_tries ?? 0) + 1; await say(null, "O arame entorta. O cadeado nem toma conhecimento. Do outro lado da praça, Nix cobre o rosto com a mão."); return; }
+    if (lock !== "ok" && lock !== "nix") return;
+    if (lock === "nix") await say(cast.nix, "(Ela chega sem pressa, tira o seu arame torto como quem tira um espinho, e o cadeado abre no primeiro toque.) Convença, eu disse. Não brigue. (ela volta para as maçãs) Você me deve a vergonha.");
     box.open = true; E.refresh(box); sfx.chest();
     F.lume_got = true;
     giveItem(ITEMS.lume);
@@ -503,7 +519,7 @@ async function strongbox() {
       [null, "Dentro: um xale, dois brinquedos de madeira, e um cristal turvo do tamanho de uma noz. Quando você o pega, ele esquenta, e por um segundo você ouve uma mulher velha cantando para alguém dormir."],
       [ARQ(), "(só você ouve) Uma Lume de cozinha. Em Velmoor toda casa tinha uma dúzia. (uma pausa longa) ...Eu tinha esquecido que elas cantavam."],
     ]);
-    reward(100, "O cofre do comandante");
+    reward(lock === "nix" ? 60 : 100, "O cofre do comandante");
     UI.updateQuest();
   });
 }
@@ -590,12 +606,12 @@ async function procession() {
       v = await ask(D, "A Bruma está a meia légua, irmãos. Para eles, é só mais um pouco de estrada. Deixem-nos passar.", [
         { label: "Para onde saem as procissões?", v: "where", if: () => !F.monastery_hint },
         { label: "Deixar a procissão passar.", v: "pass" },
-        { label: "\"Eles não escolheram isso. Solte-os e vá embora.\"", check: { skill: "Persuasão", dc: 14 }, pass: "free", fail: "nofree" },
+        { if: () => !F.proc_free_try, label: "Eles não escolheram isso. Solte-os e vá embora.", check: { skill: "Persuasão", dc: 14 }, pass: "free", fail: "nofree" },
         { label: "Queimar a fumaça de lembrança diante deles.", tag: "Fumaça", if: () => hasItem("smoke"), v: "smoke" },
         { label: "Atacar.", v: "fight" },
       ]);
       if (v === "where") { F.monastery_hint = true; await say(D, "Do Mosteiro do Véu Sereno, onde a Madre nos ensina a largar o que pesa. Há um livro lá com o nome de cada um que descansou. Nós não esquecemos de ninguém. Só ajudamos cada um a esquecer de si."); UI.updateQuest(); }
-      if (v === "nofree") await say(D, "Soltar? Eles não estão presos, irmão. Presos estão vocês, a tudo o que dói.");
+      if (v === "nofree") { F.proc_free_try = true; await say(D, "Soltar? Eles não estão presos, irmão. Presos estão vocês, a tudo o que dói."); }
     } while (v === "where" || v === "nofree");
     if (v === "pass") {
       F.proc = "passed";

@@ -474,7 +474,7 @@ function pipaTalk() {
     start: { text: F.pipa_bird ? "(Ela segura o passarinho de madeira com as duas mãos, e morde o bico de vez em quando, sem perceber.)" : "Você tem cara de quem veio de longe. A Madre diz que longe é onde as coisas doem. Eu sou daqui. Eu acho.",
       options: [
         { label: "Mostrar o passarinho de madeira.", tag: "Passarinho", if: () => hasItem("bird") && !F.pipa_bird, to: "bird" },
-        { label: "\"Quer ir ver o seu pai?\"", if: () => F.pipa_bird && !F.pipa, check: { skill: "Persuasão", dc: 12 }, pass: () => pipaFollow(), passTo: "come", failTo: "nocome" },
+        { label: "Quer ir ver o seu pai?", if: () => F.pipa_bird && !F.pipa && F.pipa_ask == null, check: { skill: "Persuasão", dc: 12 }, pass: () => { F.pipa_ask = true; pipaFollow(); }, fail: () => { F.pipa_ask = false; }, passTo: "come", failTo: "nocome" },
         { label: "Qual é o seu nome?", to: "name", once: true },
         { label: "Até mais.", to: "end" },
       ] },
@@ -532,6 +532,7 @@ function joanaTree() {
 }
 async function kettle() {
   if (F.c2_tea_swapped) return say(null, "A chaleira da ronda descansa na borda do fogo, cheia do chá que a Sálvia preparou para os guardas. Agora ele está forte. Muito forte.");
+  if (F.c2_kettle_try === false) return say(null, "A chaleira da ronda agora fica do lado da Joana, que corta cebola sem tirar o olho dela.");
   await scene(async () => {
     const nix = inParty("nix");
     const v = await ask(null, "Duas chaleiras na borda do fogo. Uma grande, para a casa. Uma pequena, de tampa amarrada com fita branca: a da ronda da Ala. Ao lado, um saco de folhas pálidas, das fortes.", [
@@ -541,6 +542,7 @@ async function kettle() {
     ]);
     if (v === "nix") { await say(cast.nix, "(Ela nem olha para as mãos. A tampa sobe, as folhas caem, a fita volta para o lugar, e ela já está mordendo um pão.) Feira das Lembranças. Primeira coisa que se aprende é o que vai na xícara de quem."); }
     if (v === "ok" || v === "nix") { F.c2_tea_swapped = true; reward(80, "O chá da ronda"); }
+    if (v === "bad") F.c2_kettle_try = false;
     if (v === "bad") await say(cast.joana, "Ei! Essa é da Sálvia! (ela tira a chaleira das suas mãos sem raiva nenhuma) Ninguém mexe na chaleira da Sálvia. Nem a Madre.");
   });
 }
@@ -557,12 +559,13 @@ async function altar() {
       revealDoor();
       return;
     }
+    if (F.c2_altar_try === false) return say(null, "O véu do altar se mexe de leve, sem vento. Você já procurou e não achou nada. Alguém da casa deve saber o que há atrás dele.");
     const v = await ask(null, "O altar está coberto por um véu grande, branco, bordado com um olho fechado. A capela está vazia. Uma corrente de ar faz o véu se mexer, de leve, e não há janela aberta.", [
       { label: "Procurar de onde vem o ar.", check: { skill: ["Investigação", "Percepção"], dc: 14 }, pass: "ok", fail: "bad" },
       { label: "Deixar o altar em paz.", v: "no" },
     ]);
     if (v === "ok") { await say(null, "O ar vem de trás do véu, da parede. Entre os castiçais, um está gasto onde a mão segura, só ele. Você empurra. A parede cede."); revealDoor(); }
-    if (v === "bad") await say(null, "Velas, cal, um véu bordado. Se há alguma coisa aqui, ela não quer ser achada por você, hoje.");
+    if (v === "bad") { F.c2_altar_try = false; await say(null, "Velas, cal, um véu bordado. Se há alguma coisa aqui, ela não quer ser achada por você. Alguém da casa deve saber: um monge velho, um irmão que duvida."); }
   });
 }
 function revealDoor() {
@@ -628,16 +631,24 @@ async function bars() {
   if (F.hulda_free) return;
   const b = E.obj("bars");
   await scene(async () => {
+    // the guards that walked off (to the chapel, or back to their cups) left the ring of keys on its nail
+    const nail = !hasItem("key") && (F.c2_guards === "silas" || F.c2_guards === "talk");
     const opts = [
       ...(hasItem("key") ? [{ label: "Usar a chave da cela.", tag: "Chave", v: "key" }] : []),
+      ...(nail ? [{ label: "Pegar a chave no prego ao lado da porta.", tag: "Chave", v: "key" }] : []),
       ...(inParty("nix") ? [{ label: "Deixar Nix abrir.", tag: "Nix", v: "nix" }] : []),
-      { label: "Abrir a fechadura com um arame.", check: { skill: "Prestidigitação", dc: 14 }, pass: "pick", fail: "bad" },
-      { label: "Forçar as grades.", check: { skill: "Atletismo", dc: 16 }, pass: "force", fail: "bad" },
+      { if: () => F.c2_bars_pick == null, label: "Abrir a fechadura com um arame.", check: { skill: "Prestidigitação", dc: 14 }, pass: "pick", fail: "badpick" },
+      { if: () => F.c2_bars_force == null, label: "Forçar as grades.", check: { skill: "Atletismo", dc: 16 }, pass: "force", fail: "badforce" },
       { label: "Deixar para depois.", v: "no" },
     ];
-    const v = await ask(null, "Uma porta de grades, com um cadeado grande. Do outro lado, a anã ronca.", opts);
+    const v = await ask(null, F.c2_bars_pick === false || F.c2_bars_force === false ? "A porta de grades, com o cadeado grande, um pouco mais arranhado do que antes. A anã ronca. A chave dessa porta está com quem guarda a ala." : "Uma porta de grades, com um cadeado grande. Do outro lado, a anã ronca.", opts);
     if (v === "no" || v == null) return;
-    if (v === "bad") { await say(null, "O ferro não cede. A anã, do outro lado, resmunga dormindo: \"...mais força, criatura...\""); return; }
+    if (v === "badpick" || v === "badforce") {
+      F[v === "badpick" ? "c2_bars_pick" : "c2_bars_force"] = false;
+      await say(null, v === "badpick" ? "O arame entorta dentro do cadeado. A anã, do outro lado, resmunga dormindo: \"...com jeito, criatura...\"" : "O ferro não cede. A anã, do outro lado, resmunga dormindo: \"...mais força, criatura...\"");
+      return;
+    }
+    if (nail && v === "key") { giveItem(ITEMS.key); await say(null, "Num prego, ao lado da porta, um molho de chaves de ferro com um véu gravado no cabo. A da cela é a maior."); }
     if (v === "nix") await say(cast.nix, "(Ela se agacha, sopra a fechadura, e a porta abre.) Cadeado de mosteiro. Feito por gente que acha que ninguém quer entrar.");
     if (v === "force") await say(null, "Você apoia o pé na parede e puxa. O ferro reclama, entorta, e solta da pedra com um estalo que ecoa pela ala inteira.");
     F.hulda_free = v;

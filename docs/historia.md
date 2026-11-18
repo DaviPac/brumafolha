@@ -790,3 +790,16 @@ Uma regra só, para o jogador ler sem explicação (o renderizador da caixa apli
 - `Continuar`, `Voltar.` e `...` só fazem a conversa andar, e aparecem mais apagados.
 - Quando o verbo não abre a frase (ou abre uma fala), a opção diz o que é com `act: true` ou `act: false`.
 - O teste `tests/audit.test.mjs` confere todas as opções das três partes da história contra esta regra.
+
+### 9.2 Rolagens
+
+- **Toda rolagem é resolvida uma vez.** Em diálogo ou fora dele (fechadura, armadilha, objeto examinado), a falha fica
+  gravada numa flag (o padrão é `F.x == null` para mostrar a opção, `true` no sucesso, `false` na falha), e a opção
+  some ou passa a mostrar o resultado. `once: true` não basta: ele só vale até a conversa fechar.
+- **Se a informação é necessária para seguir, a falha leva a outro caminho**: outra pessoa que sabe (o Tomé, o Irmão
+  Tadeu, o Irmão Silas), outro custo (mostrar a marca a Rosalva, ouro para o sargento), um companheiro (Nix no cadeado),
+  um item (a chave no prego). Nunca a um beco. O mapa dos caminhos está em [fluxo-historia.md](fluxo-historia.md).
+- **Tentar de novo** só quando a ficção mudou e a opção diz isso (Nix no cadeado depois do arame torto). Uma opção
+  que pode voltar depois de falhar leva `retry: true`, para a auditoria saber que é de propósito.
+- Toda recompensa (XP, ouro, poção, item, lembrança, aprovação) sai uma vez: a opção que dá a recompensa liga a flag
+  que a esconde. `tests/audit.test.mjs` procura as que não ligam.

@@ -1235,10 +1235,10 @@ async function relicAftermath() {
 function otavioTree() {
   const canTell = F.chair_seen || F.returned_heirloom;
   return {
-    start: { narr: true, text: "O pescador esvaído joga uma rede que não existe, de novo e de novo. Na cintura dele há uma faca, com o cabo entalhado.", options: [
+    start: { narr: true, text: F.otavio_try === false && !F.otavio_found ? "O pescador esvaído joga uma rede que não existe, de novo e de novo. A faca na cintura dele balança. O chão não para de tremer." : "O pescador esvaído joga uma rede que não existe, de novo e de novo. Na cintura dele há uma faca, com o cabo entalhado.", options: [
       ...(F.otavio_found ? [] : canTell ? [F.names_tree
         ? { label: "Comparar o entalhe da faca com o da cadeira e o da árvore.", tag: "M + O", do: otavioFound, to: "found" }
-        : { label: "Comparar o entalhe da faca com o da cadeira.", check: { skill: "Investigação", dc: 12 }, pass: otavioFound, passTo: "found", failTo: "nofound" }] : []),
+        : { if: () => F.otavio_try == null, label: "Comparar o entalhe da faca com o da cadeira.", check: { skill: "Investigação", dc: 12 }, pass: otavioFound, fail: () => { F.otavio_try = false; }, passTo: "found", failTo: "nofound" }] : []),
       { label: "Deixá-lo.", to: "end" },
     ] },
     found: { narr: true, text: "É a mesma marca. O mesmo talho em forma de anzol que estava na cadeira de balanço: \"Para a Maren, do teu Otávio\". Este homem é Otávio. O lago devolveu o barco. A Ordem ficou com ele.", options: [{ label: "Continuar", to: "mate" }] },
