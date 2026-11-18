@@ -257,7 +257,9 @@ const SNAP_SRC = `window.__snapNow = ${(() => {
 export function compare(a, b, { slack = 40 } = {}) {
   const errs = [];
   const eq = (k, x, y) => { if (JSON.stringify(x) !== JSON.stringify(y)) errs.push(`${k}: ${JSON.stringify(x)} ≠ ${JSON.stringify(y)}`); };
-  for (const k of ["mapa", "mode", "leader", "followers", "hero", "mate", "items", "gold", "potions", "memories", "approval", "chests", "objects", "dialogue", "abilities"]) eq(k, a[k], b[k]);
+  for (const k of ["mapa", "mode", "leader", "followers", "hero", "mate", "items", "gold", "potions", "memories", "approval", "objects", "dialogue", "abilities"]) eq(k, a[k], b[k]);
+  // chests added at the end of a map's list by a newer version (the relics) don't count against an older save
+  eq("chests", a.chests, b.chests.slice(0, a.chests.length));
   // flags: the same, except the ones that are only a fade in progress
   const VOL = new Set(["campFogK", "smokeK", "gate_busy"]);
   const fa = Object.fromEntries(Object.entries(a.f).filter(([k]) => !VOL.has(k))), fb = Object.fromEntries(Object.entries(b.f).filter(([k]) => !VOL.has(k)));

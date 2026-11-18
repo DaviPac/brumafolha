@@ -185,6 +185,13 @@ const DRAW = {
   bread: (d) => { d.e(8, 9, 6, 4.2, "rope", 0.1).l(5, 7, 6, 9, "wood").l(8, 6, 9, 9, "wood").l(11, 7, 12, 9, "wood"); },
   veil: (d) => { d.p([[8, 1.5], [13, 6], [13, 14], [3, 14], [3, 6]], "bone").e(8, 8.5, 3, 3.6, "dark").px(8, 3, "silver", HI); },
   crown: (d) => { d.p([[2, 12], [2, 4], [5, 8], [8, 3], [11, 8], [14, 4], [14, 12]], "gold").r(2, 11, 12, 2, "gold", -0.2).px(8, 9, "red", HI).px(4, 10, "blue", HI).px(12, 10, "blue", HI); },
+  // the relics of Velmoor (src/relics.js): white silver and glass, with one warm or blue note each
+  bell: (d) => { d.p([[8, 2], [11, 5], [12, 11], [4, 11], [5, 5]], "silver", 0.1).r(3, 11, 10, 2, "silver", -0.2).px(8, 1, "steel").px(6, 5, "silver", HI).px(6, 6, "silver", HI).c(8, 13.5, 1.2, "blue"); },
+  quill: (d) => { d.p([[13, 1.5], [14, 3], [9, 10], [6, 11.5], [6, 9], [9, 4]], "bone", 0.1).l(13, 2, 3, 14, "silver").l(4, 13, 3, 14, "dark").px(10, 5, "bone", LO).px(8, 8, "bone", LO); },
+  ring: (d) => { d.c(8, 9, 5, "silver").c(8, 9, 2.6, "dark").r(6, 3, 4, 2, "silver", -0.2).px(7, 3, "dark").px(8, 3, "dark").px(5, 7, "silver", HI); },
+  mirror: (d) => { d.p([[3, 13], [8, 2], [13, 12]], "blue", 0.2).p([[5, 12], [8, 5], [10, 10]], "silver", 0.2).px(7, 6, "silver", HI).px(6, 9, "silver", HI); },
+  cup: (d) => { d.p([[2, 3], [14, 3], [11, 8], [5, 8]], "silver").r(7, 8, 2, 4, "silver", -0.1).r(5, 12, 6, 2, "silver", -0.2).l(8, 3, 8, 7, "steel").px(4, 4, "silver", HI).px(5, 5, "bone"); },
+  ribbon: (d) => { d.p([[2, 3], [14, 3], [13, 9], [14, 14], [10, 11], [6, 11], [2, 14], [3, 9]], "bone", 0.1).r(7, 4, 2, 5, "silver", -0.3).r(6, 5, 4, 1, "silver", -0.3).px(8, 3, "gold"); },
 };
 
 export const ICON_NAMES = Object.keys(DRAW);

@@ -7,6 +7,7 @@ import { sfx } from "./audio.js";
 import { derive, weaponProficient, armorAllowed, shieldAllowed, signed } from "./rules.js";
 import { WEAPONS, ARMORS, SHIELDS, ARMOR_CAT_NAMES, itemDef, weaponLine } from "./items.js";
 import { bondPage, drawFaces } from "./companions.js";
+import { RELICS, relicsFound } from "./relics.js";
 
 const $ = (s) => document.querySelector(s);
 const TABS = [["bag", "bag", "Bolsa"], ["gear", "sword", "Equipamento"], ["quests", "book", "Missões"], ["memories", "leaf", "Lembranças"], ["party", "talk", "Grupo"]];
@@ -64,7 +65,9 @@ function bagPage() {
     `<div class="item"><span class="ic">${icon("potion")}</span><div><b>Poção de Cura</b> ×${G.potions}<p>Recupera 2d4+2 PV. Em combate, gasta a ação bônus.</p></div></div>`,
     ...G.items.map((it) => `<div class="item ${it.read ? "readable" : ""}" data-item="${it.id}"><span class="ic">${icon(it.icon)}</span><div><b>${it.name}</b>${it.read ? ` <span class="tag">${icon("scroll", "sm")} ler</span>` : it.gear ? ` <span class="tag">${icon("sword", "sm")} equipável</span>` : ""}<p>${it.gear ? gearLine(it) + " — " : ""}${it.desc}</p></div></div>`),
   ];
-  return `<h2>Bolsa</h2><div class="items">${rows.join("")}</div>`;
+  const found = relicsFound().length;
+  return `<h2>Bolsa</h2><div class="items">${rows.join("")}</div>`
+    + (found ? `<p class="muted small">${icon("bell", "sm")} Relíquias de Velmoor: ${found} de ${RELICS.length}. ${found === RELICS.length ? "Juntas, elas contam a noite inteira." : "Leia cada uma: elas contam a mesma noite."}</p>` : "");
 }
 
 function questPage() {

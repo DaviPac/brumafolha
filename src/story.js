@@ -17,6 +17,7 @@ import { refreshCombatHotbar } from "./combat.js";
 import * as A1 from "./act1.js";
 import { initCompanions, approve as companionApprove } from "./companions.js";
 import { initCampfire, campfire as campfireTalk } from "./campfire.js";
+import { RELICS, relicsFound } from "./relics.js";
 import { ids, nameFn, encode, decode, groupById, allUnits } from "./save/codec.js";
 
 let E;
@@ -147,7 +148,12 @@ function reward(xp, why) {
   UI.toast(`${why}  ·  +${xp} XP`, 3200);
   sfx.quest();
 }
-export function giveItem(it) { if (!G.items.some((i) => i.id === it.id)) G.items.push(it); refreshJournal(); }
+export function giveItem(it) {
+  if (!G.items.some((i) => i.id === it.id)) G.items.push(it);
+  // every relic of Velmoor read together: the night is in the Diário (src/relics.js)
+  if (it.relic && relicsFound().length === RELICS.length) remember("velmoor_night", "A noite de Velmoor: os sinos de vidro, a escada, o nome riscado, e todos os vigias dando o anel a uma pessoa só.");
+  refreshJournal();
+}
 const hasItem = (id) => G.items.some((i) => i.id === id);
 const takeItem = (id) => { const i = G.items.findIndex((x) => x.id === id); if (i >= 0) G.items.splice(i, 1); };
 function remember(id, text, origin = false) {

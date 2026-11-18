@@ -29,6 +29,7 @@ const HINTS = {
   escape: ["Corra!", "Siga a trilha marcada até o barco no cais. Não pare: a Bruma está logo atrás."],
   light: ["Luz", "De noite, lanternas e fogueiras iluminam e fazem sombra. O menu (<b>Esc</b>) tem a luz em <b>desligada</b>, <b>baixa</b> ou <b>alta</b>, e a intensidade."],
   forgotten: ["Esquecido", "Um personagem <b>Esquecido</b> perde a <b>ação bônus</b> no próximo turno: ele esquece o que ia fazer. O ícone de folha sobre a cabeça e na faixa de iniciativa mostra quem está assim. A <b>fumaça de lembrança</b> protege o grupo por uma luta."],
+  relic: ["Relíquias de Velmoor", "Coisas da noite do ritual. <b>Leia</b> na Bolsa (<b>I</b>): cada uma conta um pedaço. Carregada, ajuda um pouco numa perícia (+1 em quem rolar)."],
   fire: ["A fogueira", "Depois de descansar, o grupo conversa em volta do fogo. Quem gosta de você conta mais. Contar uma lembrança sua em voz alta a <b>ancora</b>: fica mais difícil de perder."],
   run: ["Correr", "Segure <b>Shift</b> (ou o <b>B</b> do controle) para correr. Clicar duas vezes no chão também corre até lá."],
   levelup: ["Subir de nível", "Cada nível traz uma escolha: uma <b>habilidade nova</b> da classe, <b>+2 num atributo</b> ou uma <b>perícia nova</b>. Os companheiros chegam com uma sugestão marcada, que você pode trocar. <b>Depois</b> guarda a escolha: o <b>+</b> no retrato abre a tela de novo."],

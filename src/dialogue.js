@@ -8,6 +8,7 @@ import { sfx } from "./audio.js";
 import { icon } from "./art/icons.js";
 import { makeD20 } from "./art/frames.js";
 import { SKILLS } from "./rules.js";
+import { relicBonus } from "./relics.js";
 import { key, focusDefault } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
@@ -109,6 +110,9 @@ function bestAt(skills) {
   // one who likes the hero lends a hand (+1)
   const help = G.hooks.checkHelp?.(best.who);
   if (help) { best.bonus += help.bonus; best.help = help; }
+  // a relic of Velmoor in the bag helps in its skill
+  const relic = relicBonus(best.skill);
+  if (relic) { best.bonus += relic; best.relic = relic; }
   if (refused && refused.bonus > best.base) best.refused = refused.who.name;
   return best;
 }
@@ -194,7 +198,7 @@ function show(id) {
       // what it depends on (the ability behind the skill), who rolls, who helps, who won't
       const abil = [...new Set(skills.map((s) => SKILLS[s]))].join("/");
       const sign = (n) => (n >= 0 ? "+" : "") + n;
-      const extra = (best.help ? ` ${sign(best.help.bonus)} ${best.help.who}` : "") + (best.refused ? ` · ${best.refused} não quis ajudar` : "");
+      const extra = (best.help ? ` ${sign(best.help.bonus)} ${best.help.who}` : "") + (best.relic ? ` ${sign(best.relic)} relíquia` : "") + (best.refused ? ` · ${best.refused} não quis ajudar` : "");
       tag = `<span class="chk">${icon("d20")} ${skills.join(" ou ")} (${abil}) CD ${o.check.dc} <small>· ${best.who.name} ${sign(best.base)}${extra} · <span class="p">${pct}%</span></small></span> `;
     }
     d.innerHTML = `<span class="num">${i + 1}</span>${tag}${optionHtml(o)}`;

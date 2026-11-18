@@ -41,6 +41,7 @@ import { diceReroll } from "./dialogue.js";
 import { initLevelUp, openLevelUp, closeLevelUp, levelUpOpen, anyPending } from "./levelup.js";
 import { pendingPicks } from "./rules.js";
 import { tickCompanions } from "./companions.js";
+import { addRelics } from "./relics.js";
 import { initObjective, tickObjective, markPrefs, setMarkOn } from "./objective.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
@@ -220,6 +221,7 @@ function buildMap(id) {
   W.builtFlags = encode(G.f, "flags"); // some maps are made from the story so far: a load builds them the same way
   idScope = ids.scope(id);
   S.populate(W);
+  addRelics(W); // at the end of the chest list: the older chests keep their ids
   idScope = null;
   for (const o of W.objects) o.art = propArt(o);
   for (const c of W.chests) W.block[Math.floor((c.y - 1) / TILE) * MW + Math.floor(c.x / TILE)] = 1;
@@ -789,7 +791,8 @@ function openChest(c) {
   G.fx.spawn(FX.hitSpark, { x: c.x, y: c.y - 12, palette: PAL.gold });
   sfx.chest();
   const got = [c.loot.item, ...(c.loot.items ?? [])].filter(Boolean);
-  UI.toast(`${c.name}: +${c.loot.potions} poção${c.loot.gold ? `, +${c.loot.gold} ouro` : ""}${got.length ? ", " + got.map((i) => i.name).join(", ") : ""}`, 3600);
+  UI.toast(`${c.name}: ${[c.loot.potions ? `+${c.loot.potions} poção` : "", c.loot.gold ? `+${c.loot.gold} ouro` : "", ...got.map((i) => i.name)].filter(Boolean).join(", ") || "vazio"}`, 3600);
+  if (got.some((i) => i.relic)) hint("relic");
   got.forEach(S.giveItem);
   if (got.some((i) => i.gear)) hint("gear");
   c.onOpen?.();

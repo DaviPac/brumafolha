@@ -41,7 +41,8 @@ for (const flags of ["goblin_pact,maren_aboard,maren_lucid,tome_alive,silas_doub
   test(`ids dos mapas antigos iguais na 0.8.0 e na nova (${flags})`, async () => {
     const [a, b] = [await ids(oldSrv.url, flags), await ids(newSrv.url, flags)];
     assert.ok(Object.keys(a).length > 500, `ids suficientes: ${Object.keys(a).length}`);
-    const diff = Object.keys({ ...a, ...b }).filter((k) => a[k] !== b[k]).map((k) => `${k}: ${a[k]} → ${b[k]}`);
+    // new things may be added at the end of a list (a new id); an old id must name the same thing
+    const diff = Object.keys(a).filter((k) => a[k] !== b[k]).map((k) => `${k}: ${a[k]} → ${b[k]}`);
     assert.deepEqual(diff, []);
   });
 }
