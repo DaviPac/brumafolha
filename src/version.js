@@ -5,10 +5,23 @@
 // moment (see src/update.js). Players see the notes of what changed the first time they open the new version.
 // No DOM here: the service worker imports it too.
 
-export const VERSION = "0.9.1";
+export const VERSION = "0.10.0";
 
 /** Newest first. { version, date: "AAAA-MM-DD", title, items: [html] } */
 export const NOTES = [
+  {
+    version: "0.10.0", date: "2026-11-18", title: "Refinamento: companheiros, níveis e fogueiras",
+    items: [
+      "<b>Subir de nível</b> agora é uma escolha: uma habilidade nova da classe, +2 num atributo ou uma perícia. Os companheiros chegam com uma sugestão, que você pode trocar. Quem já estava acima do nível 1 recebe as escolhas que ficaram para trás.",
+      "Os <b>companheiros</b> mostram quando gostam ou não do que você faz, e isso pesa: quem confia em você ajuda nos testes e abre uma conversa pessoal; quem perdeu a paciência diz isso na sua cara. A aba <b>Grupo</b> do Diário mostra onde cada um está.",
+      "Eles também <b>comentam o mundo</b>: os lugares, as coisas, o que você escolheu, e conversam entre si na estrada.",
+      "A <b>fogueira</b> virou um momento: depois de descansar, escolha com quem conversar. Contar uma lembrança sua em voz alta a ancora, e o chá do Mosteiro não leva lembrança ancorada.",
+      "Seis <b>relíquias de Velmoor</b> escondidas pelo caminho contam a noite do ritual, e ajudam um pouco nos testes.",
+      "Combate mais claro e mais esperto: o mago usa a magia ao clicar no inimigo, o erro mostra a conta, a faixa diz quem age a seguir, as condições aparecem em ícones, e os inimigos focam os feridos, recuam e protegem o chefe. Há a opção <b>Combate rápido</b> (ou segure Shift).",
+      "<b>Correr</b> com Shift, o B do controle ou clique duplo. Uma marca discreta aponta o próximo passo quando você fica um tempo sem achar.",
+      "Vau-de-Cardo tem gente andando e falando do que você fez. O Mosteiro e a cidade ganharam músicas próprias.",
+    ],
+  },
   {
     version: "0.9.1", date: "2026-11-18", title: "Revisão da história",
     items: [

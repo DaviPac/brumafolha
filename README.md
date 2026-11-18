@@ -460,7 +460,8 @@ O formato continua 1, sem migração. O que é novo tem valor padrão para saves
 
 ### Testes desta rodada
 
-`cd tests && npm install && npm test`. Os testes acham o Chromium do Playwright em `/opt/pw-browsers/chromium` ou em
+`cd tests && npm install && npm test` (33 testes, todos passando nesta rodada; cada um tem até 25 minutos, porque as
+jogadas inteiras passam de 10 minutos num navegador sem GPU). Os testes acham o Chromium do Playwright em `/opt/pw-browsers/chromium` ou em
 `PW_CHROMIUM`, quando a versão instalada não é a do `package.json`.
 - `levelup`: a tela abre sozinha, "Depois" e o "+" do retrato, a escolha fica no save; o save 0.8.0 no nível 3; cada
   uma das 17 habilidades novas numa luta de verdade.
@@ -473,7 +474,9 @@ O formato continua 1, sem migração. O que é novo tem valor padrão para saves
 ## O que ficou faltando
 
 - **Desempenho**: medido só em Chromium sem janela (o desenho é por software lá, e engana). A medida pedida, numa janela
-  real do Firefox em 1080p com o F3, não pôde ser feita nesta máquina. O que foi acrescentado ao mundo é pouco: cinco
+  real do Firefox em 1080p com o F3, não pôde ser feita nesta máquina. Comparação relativa, no mesmo Chromium, em Vau-de-Cardo
+  com os moradores andando (8 s, duas vezes cada): mediana do quadro 100 a 117 ms na 0.9.1 e 117 ms na 0.10.0, dentro
+  do ruído do desenho por software. O que foi acrescentado ao mundo é pouco: cinco
   moradores andando só em Vau-de-Cardo, balões em DOM e uns ícones de condição durante o combate. **F3** (ou `?fps`)
   mostra quadros por segundo e o tempo de cada parte do desenho; vale medir antes de publicar.
 - **Interiores de Vau-de-Cardo** (taverna, guarnição): não feitos.
