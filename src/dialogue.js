@@ -66,6 +66,33 @@ export function diceReroll() { document.querySelector("#dice:not(.hidden) .lampe
 
 let current = null;
 
+// ---------------------------------------------------------------- how an answer reads (docs/historia.md §9)
+// What the hero SAYS is written as is, without quotes. What the hero DOES starts with a verb in the infinitive
+// ("Pegar a lanterna.") and is shown in italics; an action followed by words is written "Mostrar a marca — É isto que
+// você procura." Someone else answering for the hero is "Kael: ...". "Continuar", "Voltar." and "..." only move the
+// conversation along. An option can say what it is with `act: true` (an action that doesn't start with a verb) or
+// `act: false` (a line that does).
+const META = /^(\.\.\.|Continuar|Voltar\.)$/;
+const OTHER = /^([A-ZÀ-Ý][a-zà-ÿ]+): (.+)$/;
+const ACT = /^([A-ZÀ-Ý][a-zà-ÿ]*(ar|er|ir|or|ôr)(-(lhe|lhes|se|me|nos))?|[A-ZÀ-Ý][a-zà-ÿ]*[áêí]-(la|lo|las|los))\b/;
+const NOT_VERBS = new Set(["Por", "Melhor", "Pior", "Senhor", "Qualquer", "Mulher", "Lugar"]);
+/** "say", "act", "other" (someone answers for the hero) or "meta". */
+export function optionKind(o) {
+  const l = o.label;
+  if (META.test(l)) return "meta";
+  if (o.act != null) return o.act ? "act" : "say";
+  if (OTHER.test(l)) return "other";
+  const m = ACT.exec(l);
+  return m && !NOT_VERBS.has(m[0]) ? "act" : "say";
+}
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+function optionHtml(o) {
+  const kind = optionKind(o), l = o.label;
+  if (kind === "other") { const [, who, words] = OTHER.exec(l); return `<span class="as">${esc(who)}:</span> ${esc(words)}`; }
+  if (kind === "act") { const i = l.indexOf(" — "); return i < 0 ? `<i class="act">${esc(l)}</i>` : `<i class="act">${esc(l.slice(0, i))}</i> — ${esc(l.slice(i + 3))}`; }
+  return esc(l);
+}
+
 /** Who in the party rolls a check (the best at it), and with which of the allowed skills. */
 function bestAt(skills) {
   let best = null;
@@ -147,7 +174,7 @@ function show(id) {
   } else current.input = null;
   node.options.filter((o) => !o.if || o.if()).forEach((o, i) => {
     const d = document.createElement("div");
-    d.className = "opt" + (o.once && current.used.has(o.label) ? " used" : "");
+    d.className = "opt k-" + optionKind(o) + (o.once && current.used.has(o.label) ? " used" : "");
     d.tabIndex = 0;
     if (i === 0) d.dataset.default = "";
     const skills = o.check ? [o.check.skill].flat() : null;
@@ -157,7 +184,7 @@ function show(id) {
       const pct = Math.max(5, Math.min(95, (21 - (o.check.dc - best.bonus)) * 5));
       tag = `<span class="chk">${icon("d20")} ${skills.join(" ou ")} CD ${o.check.dc} <small>· ${best.who.name} ${best.bonus >= 0 ? "+" : ""}${best.bonus} · <span class="p">${pct}%</span></small></span> `;
     }
-    d.innerHTML = `<span class="num">${i + 1}</span>${tag}${o.label}`;
+    d.innerHTML = `<span class="num">${i + 1}</span>${tag}${optionHtml(o)}`;
     if (o.check) G.hooks.hint?.("check");
     d.onclick = async () => {
       if (!current || current.busy) return;

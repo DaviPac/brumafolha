@@ -199,15 +199,15 @@ function abelTree() {
       options: [
         { label: "Quem é você?", to: "who", if: () => !F.q_pipa },
         { label: "Ela pegou. Ela assobiou como sabiá.", if: () => F.pipa_bird && !F.pipa && !F.pipa_follow, do: () => pipaEnd("bird"), to: "end" },
-        { label: "\"Ela está bem. Está feliz lá.\"", if: () => F.q_pipa && !F.pipa && !F.pipa_follow, do: () => pipaEnd("lie"), to: "end" },
+        { label: "Ela está bem. Está feliz lá.", if: () => F.q_pipa && !F.pipa && !F.pipa_follow, do: () => pipaEnd("lie"), to: "end" },
         { label: "O que você sabe do Mosteiro?", to: "monastery", once: true },
         { label: "As fitas brancas na trilha.", to: "ribbons", once: true },
         { label: "Até mais.", to: "end" },
       ] },
     who: { text: "Abel. Lenhador, enquanto tiver bosque. (ele aponta a cabana) Minha mulher morreu no inverno da febre. Eu fiquei com uma menina de oito anos e uma panela vazia. As monjas vieram com pão e com conversa boa.", options: [{ label: "Continuar", to: "who2" }] },
     who2: { text: "Pipa. Eu deixei a Pipa com elas. Vou lá todo domingo. Ela me sorri. É um sorriso educado, de quem recebe visita. (ele mostra um passarinho entalhado) Eu fiz isso pra ela. Ela dormia mordendo o bico. Esqueceu lá em casa.", options: [
-      { label: "\"Eu levo para ela.\"", do: () => { F.q_pipa = true; giveItem(ITEMS.bird); UI.toast("Na bolsa: Passarinho de madeira", 2400); UI.updateQuest(); }, to: "who3" },
-      { label: "\"Por que você mesmo não leva?\"", to: "why" },
+      { label: "Eu levo para ela.", do: () => { F.q_pipa = true; giveItem(ITEMS.bird); UI.toast("Na bolsa: Passarinho de madeira", 2400); UI.updateQuest(); }, to: "who3" },
+      { label: "Por que você mesmo não leva?", to: "why" },
       { label: "Voltar.", to: "start" },
     ] },
     why: { text: "Porque se eu der e ela me agradecer como se agradece a um estranho, eu não volto mais lá. E se eu não voltar, ela esquece de vez. (ele estende o passarinho) Você, ela não precisa lembrar.", options: [
@@ -355,9 +355,9 @@ async function madreFirst() {
     ]);
     // round one: what grief is for
     const r1 = await ask(O, "Ela espera a resposta de verdade. Não é retórica.", [
-      { label: "\"A dor era o que sobrava do amor. Você jogou fora os dois.\"", check: { skill: "Persuasão", dc: 14 }, pass: "ok", fail: "no" },
-      { label: "\"Você não escolheu. A Bruma escolheu por você, e você chama de fé.\"", check: { skill: "Intuição", dc: 13 }, pass: "ok", fail: "no" },
-      { label: "\"Eu não sei.\"", v: "honest" },
+      { label: "A dor era o que sobrava do amor. Você jogou fora os dois.", check: { skill: "Persuasão", dc: 14 }, pass: "ok", fail: "no" },
+      { label: "Você não escolheu. A Bruma escolheu por você, e você chama de fé.", check: { skill: "Intuição", dc: 13 }, pass: "ok", fail: "no" },
+      { label: "Eu não sei.", v: "honest" },
     ]);
     if (r1 === "ok") { won++; await say(O, "(A tesoura para.) ...Os dois. (ela olha para a lavanda por muito tempo) Você fala como quem já perdeu alguém. Ou como quem tem medo de perder."); }
     else if (r1 === "honest") { await say(O, "Ninguém sabe. É a única resposta honesta que eu já ouvi nesse jardim. (ela sorri, e parece mais velha) Obrigada."); won += 0.5; }
@@ -372,7 +372,7 @@ async function madreFirst() {
         [null, `No Diário, uma linha riscada. Você sabe que era uma das suas raízes. Você não sabe qual.`],
       ]);
       r2 = await ask(O, "(Ela percebe. Ela é gentil a ponto de não dizer nada por um momento.)", [
-        { label: "\"Eu dei isso a outra pessoa. Por um motivo.\"", check: { skill: "Persuasão", dc: 16 }, pass: "ok", fail: "no" },
+        { label: "Eu dei isso a outra pessoa. Por um motivo.", check: { skill: "Persuasão", dc: 16 }, pass: "ok", fail: "no" },
         { label: "Ficar em silêncio.", v: "blank" },
       ]);
       if (r2 !== "ok") { await say(O, "Você já começou. (a voz dela é quase um carinho) Viu como não dói? Você nem sente falta. É só um quarto vazio numa casa grande."); F.c2_blank = true; }
@@ -380,8 +380,8 @@ async function madreFirst() {
     } else {
       r2 = await ask(O, "Ela espera, com a tesoura parada.", [
         { label: lost ? "Contar uma coisa sua. (Uma lembrança que você não deu.)" : "Contar uma lembrança da sua origem, com detalhes.", check: { skill: ["Persuasão", "Atuação"], dc: 13 }, pass: "ok", fail: "no" },
-        { label: "\"Isso é meu. Você não vai saber.\"", check: { skill: "Intimidação", dc: 14 }, pass: "ok", fail: "no" },
-        ...(F.eco_trade === "refused" ? [{ label: "\"Uma coisa dentro de mim me pediu uma lembrança. Eu disse não. Eu continuo dizendo não.\"", v: "refused" }] : []),
+        { label: "Isso é meu. Você não vai saber.", check: { skill: "Intimidação", dc: 14 }, pass: "ok", fail: "no" },
+        ...(F.eco_trade === "refused" ? [{ label: "Uma coisa dentro de mim me pediu uma lembrança. Eu disse não. Eu continuo dizendo não.", v: "refused" }] : []),
       ]);
       if (r2 === "refused") { r2 = "ok"; await say(A, "(só você ouve, e a voz dela treme um pouco) ...Você está contando isso para ela. Para ela, e não para mim."); }
     }
@@ -391,10 +391,10 @@ async function madreFirst() {
     const ap = G.approval[mate().key] ?? 0;
     if (ap <= -2) await say(mate(), kael() ? "(Kael, de repente, para ela) Eu cobrei lembrança por oito anos. Às vezes a viúva agradecia. (ele não olha para você) Eu nunca soube se ela estava errada." : "(Lyra, de repente) Ela não está errada sobre tudo. Em Lethiel, quem passa pela Poda volta sorrindo. (ela não olha para você) Eu fugi da minha. Às vezes eu me pergunto do quê.");
     const r3 = await ask(O, "A Ordem só acompanha quem está cansado. Nós não arrastamos ninguém. Nós seguramos a lanterna.", [
-      ...(F.otavio_found ? [{ label: "\"Otávio, pescador do Lago Espelhado. Vocês o levaram. A mulher dele ainda espera.\"", v: "otavio" }] : []),
-      { label: "\"Uma criança que não queria ir também estava cansada?\"", check: { skill: "Persuasão", dc: ap <= -2 ? 17 : 14 }, pass: "ok", fail: "no" },
+      ...(F.otavio_found ? [{ label: "Otávio, pescador do Lago Espelhado. Vocês o levaram. A mulher dele ainda espera.", v: "otavio" }] : []),
+      { label: "Uma criança que não queria ir também estava cansada?", check: { skill: "Persuasão", dc: ap <= -2 ? 17 : 14 }, pass: "ok", fail: "no" },
       ...(ap >= 2 ? [{ label: `Deixar ${mate().name} responder.`, tag: "Aprovação", check: { skill: ["Persuasão", "Intuição"], dc: 10 }, pass: "mate", fail: "no" }] : []),
-      { label: "\"Talvez a senhora tenha razão.\"", v: "yield" },
+      { label: "Talvez a senhora tenha razão.", v: "yield" },
     ]);
     if (r3 === "otavio") {
       won++;
@@ -434,10 +434,10 @@ function odiliaTalk() {
   return {
     start: { text: F.hulda_joined ? "A anã gritava com o deus dela e as crianças não dormiam. Agora ela grita com vocês. (ela sorri) Cada um com o seu fardo." : F.c2_madre === "shaken" ? "Eu ainda estou pensando no que você disse. É estranho pensar em alguma coisa por tanto tempo." : "A lavanda floresce melhor perto do muro norte. Ninguém sabe por quê. Eu acho que eu sei.",
       options: [
-        { label: "\"O que a senhora quer com a minha mão?\"", if: () => !!F.c2_madre_saw, to: "hand", once: true },
-        { label: "\"E o velho de cinza? O Sabiá?\"", to: "sabia", once: true },
-        { label: "\"Por que as crianças?\"", to: "kids", once: true },
-        { label: "\"Posso ver a anã?\"", if: () => F.c2_madre === "shaken" && !F.hulda_joined, to: "permit" },
+        { label: "O que a senhora quer com a minha mão?", if: () => !!F.c2_madre_saw, to: "hand", once: true },
+        { label: "E o velho de cinza? O Sabiá?", to: "sabia", once: true },
+        { label: "Por que as crianças?", to: "kids", once: true },
+        { label: "Posso ver a anã?", if: () => F.c2_madre === "shaken" && !F.hulda_joined, to: "permit" },
         { label: "Até mais.", to: "end" },
       ] },
     hand: { who: O, text: "Paz. Para todo mundo, de uma vez. (ela fala como quem diz a hora) O que você carrega já fez isso uma vez, há mil anos, pela metade. Uma cidade inteira descansou numa noite. Eu gostaria de terminar o que ela começou. Sem guerra, sem dor. Eu não vou tirar à força. Eu nunca tiro à força.", options: [{ label: "Voltar.", to: "start" }] },
@@ -457,8 +457,8 @@ function tadeuTree() {
         { label: "Até mais.", to: "end" },
       ] },
     why: { text: "(Ele limpa a terra das mãos devagar.) Porque eu ainda estou lendo uma coisa. Faz vinte anos. (ele baixa a voz) Diga, viajante: você já leu a Página em Branco?", options: [
-      { label: "\"Não. Mas trago uma pena e uma torre.\"", if: () => hasItem("seal"), do: () => { F.c2_tadeu_asked = true; }, to: "start" },
-      { label: "\"Que página?\"", do: () => { F.c2_tadeu_asked = true; }, to: "blank" },
+      { label: "Não. Mas trago uma pena e uma torre.", if: () => hasItem("seal"), do: () => { F.c2_tadeu_asked = true; }, to: "start" },
+      { label: "Que página?", do: () => { F.c2_tadeu_asked = true; }, to: "blank" },
     ] },
     blank: { text: "Os três séculos que faltam em todos os livros de história. (ele volta para a erva daninha) Esquece. Coisa de velho.", options: [{ label: "...", to: "end" }] },
     seal: { text: "(Ele olha o sinete por um bom tempo, e depois para os dois lados.) Pena e torre. Faz vinte anos que eu planto chá esperando alguém aparecer com isso. O Sabiá está na Ala do Silêncio, com a anã, atrás da capela. A porta fica atrás do véu do altar: empurre o terceiro castiçal da esquerda.", options: [{ label: "Continuar", to: "seal2" }] },
@@ -587,9 +587,9 @@ async function guards() {
     ]);
     const v = await ask(S, F.c2_tea_swapped ? "Os três estão quase dormindo em pé." : "Ela não grita. Ela sorri e estende uma xícara.", [
       ...(F.c2_tea_swapped ? [{ label: "Esperar.", v: "sleep" }] : []),
-      ...(F.c2_madre === "shaken" ? [{ label: "\"A Madre permitiu que levássemos a anã.\"", v: "permit" }] : []),
-      ...(F.c2_silas ? [{ label: "\"O Irmão Silas manda dizer que a Madre chama na capela.\"", check: { skill: "Enganação", dc: 11 }, pass: "silas", fail: "fight" }] : []),
-      { label: "\"A Madre nos mandou ver o velho. Ela quer saber se ele bebeu o chá.\"", check: { skill: "Enganação", dc: 15 }, pass: "talk", fail: "fight" },
+      ...(F.c2_madre === "shaken" ? [{ label: "A Madre permitiu que levássemos a anã.", v: "permit" }] : []),
+      ...(F.c2_silas ? [{ label: "O Irmão Silas manda dizer que a Madre chama na capela.", check: { skill: "Enganação", dc: 11 }, pass: "silas", fail: "fight" }] : []),
+      { label: "A Madre nos mandou ver o velho. Ela quer saber se ele bebeu o chá.", check: { skill: "Enganação", dc: 15 }, pass: "talk", fail: "fight" },
       { label: "Aceitar a xícara, e jogar o chá na cara dela.", v: "fight" },
     ]);
     F.c2_guards = v;
@@ -708,8 +708,8 @@ function sabiaTalk() {
   return {
     start: { text: "(O velho está de olhos fechados, mas não está dormindo.) Vão. Na lua nova. A anã, levem. Eu fico com o chá e com a vista da janela.",
       options: [
-        { label: "\"Por que a carta dizia 'não escute'?\"", if: () => !!F.sabia_halftruth, to: "listen", once: true },
-        { label: "\"Venha com a gente agora.\"", to: "come", once: true },
+        { label: "Por que a carta dizia 'não escute'?", if: () => !!F.sabia_halftruth, to: "listen", once: true },
+        { label: "Venha com a gente agora.", to: "come", once: true },
         { label: "Até mais.", to: "end" },
       ] },
     listen: { who: S, text: "(Ele abre os olhos. São cinzentos, claros, e enxergam muito bem.) Porque eu escutei, uma vez. E ela foi muito convincente. (ele fecha os olhos de novo) Na lua nova.", options: [{ label: "Voltar.", to: "start" }] },
@@ -730,9 +730,9 @@ async function sabiaFirst() {
     ]);
     if (inParty("hulda")) await lines([[HU(), "Velho! Três semanas eu ouvindo você roncar pela parede."], [S, "E eu ouvindo a senhora discutir com uma pedra. (ele sorri) A pedra estava ganhando."]]);
     const v = await ask(S, "Ele toma um gole de chá e faz careta.", [
-      { label: "\"Você é L.\"", v: "l" },
-      { label: "\"O que é isso na minha mão?\"", v: "what" },
-      { label: "\"Por que você me mandou buscar isso?\"", v: "why" },
+      { label: "Você é L.", v: "l" },
+      { label: "O que é isso na minha mão?", v: "what" },
+      { label: "Por que você me mandou buscar isso?", v: "why" },
     ]);
     if (v === "l") await say(S, "Sou o que assinou a carta. A Odara me chama de Sabiá porque eu canto cedo e fora de hora. (ele dá de ombros) Nome é coisa que a gente veste.");
     if (v === "what") await say(S, "Uma coisa que lembra. Por isso ela vale tanto: todo mundo hoje em dia quer esquecer, ou fazer esquecer. (ele aponta a sua mão com a xícara) Ela não. Ela quer lembrar. De tudo. É bonito e é terrível, como quase tudo que vale a pena.");
@@ -785,7 +785,7 @@ async function sleepHere() {
   await scene(async () => {
     const v = await ask(null, "A hospedaria tem camas limpas, de lençol branco, que cheiram a lavanda. Odara disse: não durmam no Mosteiro, por mais gentil que seja a cama.", [
       { label: "Dormir aqui.", v: "yes" },
-      { label: "Não. Dormir no bosque.", v: "no" },
+      { label: "Dormir no bosque, como Odara disse.", v: "no" },
     ]);
     if (v !== "yes") return;
     await UI.fade(1, 900);
@@ -844,7 +844,7 @@ async function choice() {
         { label: F.c2_proof ? "Mandar a página do registro à guarnição de Vau-de-Cardo. Denunciar à Coroa." : "Contar à guarnição de Vau-de-Cardo o que vimos aqui. Denunciar à Coroa.", v: "crown" },
         { label: "Atacar o Mosteiro agora, nós mesmos.", v: "attack" },
         { label: "Deixar o Mosteiro em paz e levar só Hulda.", v: "peace" },
-        { label: "Ainda não. Voltar para dentro.", v: "back" },
+        { label: "Voltar para dentro, por enquanto.", v: "back" },
       ]);
       if (v === "back" || v == null) { E.place(lead(), 4, 15, 2); return; }
       F.c2_choice = v;

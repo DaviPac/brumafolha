@@ -63,7 +63,7 @@ export const SCENARIOS = {
       await T.goTo(p, 10, 14);
       await T.play(p, ["Deixar a procissão passar."]);
       await hunters(p, ["Mostrar a marca."]);
-      await courier(p, "\"Quem é L.?\"");
+      await courier(p, "Quem é L.?");
     },
   },
   "a1-fim-sem-pacto-sem-nix": {
@@ -78,7 +78,7 @@ export const SCENARIOS = {
       await T.play(p, ["Sacar a arma."], { until: ["combat"] });
       await T.winFight(p); await T.play(p);
       await hunters(p, ["Mostrar a marca."]);
-      await courier(p, "\"E as trezentas peças?\"");
+      await courier(p, "E as trezentas peças?");
     },
   },
 };

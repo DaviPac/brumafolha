@@ -36,8 +36,8 @@ async function woods(page, { mothPick, saveTalk, saveFight }) {
   if (saveTalk) {
     await T.play(page, ["Quem é você?"], { until: ["dialogue"] });
     await saveReload(page, "conversa-abel");
-    await T.play(page, ["\"Eu levo para ela.\"", "Até mais."]);
-  } else await T.play(page, ["Quem é você?", "\"Eu levo para ela.\"", "Até mais."]);
+    await T.play(page, ["Eu levo para ela.", "Até mais."]);
+  } else await T.play(page, ["Quem é você?", "Eu levo para ela.", "Até mais."]);
   assert.ok(await F(page, "q_pipa"), "missão de Pipa");
   await T.goTo(page, 29, 16);
   await T.play(page, [mothPick], { until: ["explore", "combat"] });
@@ -59,7 +59,7 @@ async function monastery(page, v) {
   await T.play(page, ["Uma xícara de chá.", v.tea, ...(v.tea.includes("Obrigado") ? ["Até mais."] : [])]);
   // Pipa and the wooden bird
   await T.interact(page, "Menina de branco");
-  await T.play(page, ["Mostrar o passarinho", "Continuar", "Voltar.", v.pipaCome ? "\"Quer ir ver o seu pai?\"" : "Até mais."], { until: ["explore", "dialogue"] });
+  await T.play(page, ["Mostrar o passarinho", "Continuar", "Voltar.", v.pipaCome ? "Quer ir ver o seu pai?" : "Até mais."], { until: ["explore", "dialogue"] });
   // the d20 decides: if she says no, the conversation goes back to its start and waits for a way out; if she says
   // yes, it ends by itself and "Até mais." is never asked
   await T.play(page, ["Até mais."]).catch((e) => { if (!/escolhas não usadas/.test(e.message)) throw e; });
@@ -71,7 +71,7 @@ async function monastery(page, v) {
   if (v.sleep) { await T.interact(page, "Hospedaria"); await T.play(page, ["Dormir aqui."]); assert.ok(await F(page, "c2_slept")); }
   // a way to the hidden door: Silas, or the seal for Tadeu
   if (v.silas) { await T.interact(page, "Irmão Silas"); await T.play(page, ["Onde está o Sabiá?", "Continuar", "..."]); assert.ok(await F(page, "c2_silas")); }
-  if (v.tadeu) { await T.interact(page, "Irmão Tadeu"); await T.play(page, ["Por que nunca tomou?", "\"Não. Mas trago", "Mostrar o sinete", "Continuar", "..."]); assert.ok(await F(page, "c2_tadeu")); }
+  if (v.tadeu) { await T.interact(page, "Irmão Tadeu"); await T.play(page, ["Por que nunca tomou?", "Não. Mas trago", "Mostrar o sinete", "Continuar", "..."]); assert.ok(await F(page, "c2_tadeu")); }
   // inside, by the kitchen door
   await T.interact(page, "Porta da cozinha");
   await T.play(page);
@@ -123,10 +123,10 @@ test("capítulo 2 a partir do save 0.8.0 com pacto e Nix: em paz, só Hulda", as
     await woods(page, { mothPick: "Pegar a lanterna", saveTalk: true });
     await shot(page, "a-mosteiro");
     await monastery(page, {
-      tea: "\"Obrigado, não.\"", pipaCome: true,
-      madre: ["\"Eu não sei.\"", "Ficar em silêncio.", "\"Otávio, pescador"],
+      tea: "Obrigado, não.", pipaCome: true,
+      madre: ["Eu não sei.", "Ficar em silêncio.", "Otávio, pescador"],
       silas: true, kettle: "Deixar Nix cuidar disso.", saveInside: true, guards: "Esperar.",
-      bars: "Usar a chave da cela.", wake: "Perguntar, bem alto", sabia: "\"Você é L.\"", book: "Deixar Nix levar o livro inteiro.",
+      bars: "Usar a chave da cela.", wake: "Perguntar, bem alto", sabia: "Você é L.", book: "Deixar Nix levar o livro inteiro.",
       saveAfter: true, choice: "Deixar o Mosteiro em paz", choiceFlag: "peace",
     });
     await shot(page, "a-fim");
@@ -143,9 +143,9 @@ test("capítulo 2 a partir do save 0.8.0 sem pacto nem Nix: dormir lá, lutar, a
     await woods(page, { mothPick: "Atacar.", saveFight: true });
     await monastery(page, {
       tea: "Beber.", pipaCome: false,
-      madre: ["\"A dor era o que sobrava", "Contar uma lembrança da sua origem", "\"Talvez a senhora tenha razão.\""],
+      madre: ["A dor era o que sobrava", "Contar uma lembrança da sua origem", "Talvez a senhora tenha razão."],
       sleep: true, tadeu: true, guards: "Aceitar a xícara", saveFight: true,
-      bars: "Usar a chave da cela.", wake: "Examinar a respiração", sabia: "\"Por que você me mandou", book: "Ler em voz alta",
+      bars: "Usar a chave da cela.", wake: "Examinar a respiração", sabia: "Por que você me mandou", book: "Ler em voz alta",
       choice: "Atacar o Mosteiro agora", choiceFlag: "attack",
     });
     await shot(page, "b-fim");
@@ -162,9 +162,9 @@ test("capítulo 2 pelo atalho ?dev=ato1c2: denunciar à Coroa", async () => {
     await woods(page, { mothPick: "Chegar por trás" });
     await monastery(page, {
       tea: "Fingir que bebe", pipaCome: false,
-      madre: ["\"Você não escolheu", "Ficar em silêncio.", "\"Otávio, pescador"],
+      madre: ["Você não escolheu", "Ficar em silêncio.", "Otávio, pescador"],
       silas: true, guards: "O Irmão Silas manda dizer",
-      bars: "Deixar Nix abrir.", wake: "Perguntar, bem alto", sabia: "\"O que é isso na minha mão?\"", book: "Arrancar a página",
+      bars: "Deixar Nix abrir.", wake: "Perguntar, bem alto", sabia: "O que é isso na minha mão?", book: "Arrancar a página",
       choice: "Mandar a página do registro", choiceFlag: "crown",
     });
     assert.deepEqual(page.errors, []);

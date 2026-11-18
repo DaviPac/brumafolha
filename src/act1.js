@@ -276,9 +276,9 @@ async function tomeAsks() {
       [t, "Ela pode devolver a vó? Só o pedaço em que ela sabe quem eu sou. Eu não preciso do resto."],
     ]);
     const v = await ask(null, "A marca na sua palma está fria. A Arquivista não diz nada. Ela está ouvindo.", [
-      { label: "\"Eu não sei, Tomé. Mas eu vou perguntar.\"", v: "ask" },
-      { label: "\"Enquanto você lembrar dela, ela não foi embora.\"", v: "hold" },
-      { label: "\"Não. Ela só sabe tirar.\"", v: "no" },
+      { label: "Eu não sei, Tomé. Mas eu vou perguntar.", v: "ask" },
+      { label: "Enquanto você lembrar dela, ela não foi embora.", v: "hold" },
+      { label: "Não. Ela só sabe tirar.", v: "no" },
     ]);
     if (v === "ask") await say(ARQ(), "(só você ouve) ...Eu posso. Se alguém pagar. É sempre assim, você sabe que é sempre assim.");
     if (v === "hold") { await say(t, "Então eu lembro em dobro. Por mim e por ela."); approve("kael", 1); approve("lyra", 1); }
@@ -301,7 +301,7 @@ async function echoBargain() {
   const mems = G.memories.filter((m) => !m.struck);
   const v = await ask(A, "(O Diário de Lembranças está aberto no seu colo. Você não lembra de tê-lo aberto.)", [
     ...mems.map((m) => ({ label: `Entregar: "${m.text.length > 64 ? m.text.slice(0, 62) + "…" : m.text}"`, tag: m.origin ? "origem" : "lembrança", v: m.id })),
-    { label: "\"Não. Nenhuma.\"", v: "no" },
+    { label: "Não. Nenhuma.", v: "no" },
   ]);
   if (v === "no" || v == null) {
     F.eco_trade = "refused";
@@ -362,7 +362,7 @@ async function gateScene() {
           const v = await ask(g, "(Ele espera. O outro guarda encosta a lança no ombro e boceja.)", [
             { label: "Mostrar só a mão sem marca, falando sem parar.", check: { skill: "Enganação", dc: 12 }, pass: "ok", fail: "bad" },
             { label: "Fechar a mão sobre uma moeda, e deixar a moeda com ele.", tag: "20 de ouro", if: () => G.gold >= 20, v: "bribe" },
-            { label: "\"Um soldado de verdade não precisa de ordem pra saber quem é honesto.\"", check: { skill: "Intimidação", dc: 14 }, pass: "ok", fail: "bad" },
+            { label: "Um soldado de verdade não precisa de ordem pra saber quem é honesto.", check: { skill: "Intimidação", dc: 14 }, pass: "ok", fail: "bad" },
             { label: "Voltar para a vila.", v: "back" },
           ]);
           if (v === "bribe") { G.gold -= 20; ok = true; await say(g, "(A moeda some.) Mãos limpas. Boa viagem."); }
@@ -407,8 +407,8 @@ async function tribute() {
     if (kael) await lines([[D, "(Ele vê Kael e o frasco para no ar.) ...Varrow? Disseram que você tinha desertado. Ou morrido. No nosso ofício dá no mesmo."], [G.mate, "Dário. Você ainda segura o frasco com a mão esquerda. Eu te ensinei errado."]]);
     const v = await ask(null, kael ? "Kael está muito quieto. A mão dele foi, sem ele perceber, até alguma coisa que ele carrega no peito." : "O menino, Beni, olha de um adulto para o outro sem entender o preço que está sendo discutido.", [
       { label: "Pagar as trinta peças.", tag: "30 de ouro", if: () => G.gold >= 30, v: "paid" },
-      { label: kael ? "\"Kael, qual é a cláusula que ele está pulando?\"" : "\"O Tributo é por lar. Ela não tem lar. Mostre a ordem que manda cobrar de quem dorme no chão.\"", check: { skill: "Persuasão", dc: kael ? 11 : 14 }, pass: "talked", fail: "fail" },
-      { label: "\"Encoste nela e você vai precisar de um frasco maior.\"", check: { skill: "Intimidação", dc: 15 }, pass: "scared", fail: "fail" },
+      { label: kael ? "Kael, qual é a cláusula que ele está pulando?" : "O Tributo é por lar. Ela não tem lar. Mostre a ordem que manda cobrar de quem dorme no chão.", check: { skill: "Persuasão", dc: kael ? 11 : 14 }, pass: "talked", fail: "fail" },
+      { label: "Encoste nela e você vai precisar de um frasco maior.", check: { skill: "Intimidação", dc: 15 }, pass: "scared", fail: "fail" },
       { label: "Mostrar o cartaz: \"O comandante quer todo Coletor na guarnição. Agora.\"", tag: "Cartaz", if: () => hasItem("poster"), check: { skill: "Enganação", dc: 12 }, pass: "talked", fail: "fail" },
       { label: "Não se meter.", v: "forgot" },
     ]);
@@ -513,7 +513,7 @@ async function lumeChoice() {
     await say(N, "(Os olhos dela vão direto para a sua mão.) Você conseguiu. Ela canta? As boas cantam. Sessenta peças, como combinado.");
     const v = await ask(null, "A Lume está morna na sua palma, ao lado da marca de prata.", [
       { label: "Entregar a Lume a Nix.", v: "nix" },
-      { label: "\"Ela é de uma velha na fila da sopa. Vai voltar pra ela.\"", v: "people" },
+      { label: "Ela é de uma velha na fila da sopa. Vai voltar pra ela.", v: "people" },
       { label: "Ficar com a Lume.", v: "keep" },
     ]);
     F.lume_done = v;
@@ -588,7 +588,7 @@ async function procession() {
     let v;
     do {
       v = await ask(D, "A Bruma está a meia légua, irmãos. Para eles, é só mais um pouco de estrada. Deixem-nos passar.", [
-        { label: "\"Para onde saem as procissões?\"", v: "where", if: () => !F.monastery_hint },
+        { label: "Para onde saem as procissões?", v: "where", if: () => !F.monastery_hint },
         { label: "Deixar a procissão passar.", v: "pass" },
         { label: "\"Eles não escolheram isso. Solte-os e vá embora.\"", check: { skill: "Persuasão", dc: 14 }, pass: "free", fail: "nofree" },
         { label: "Queimar a fumaça de lembrança diante deles.", tag: "Fumaça", if: () => hasItem("smoke"), v: "smoke" },
@@ -642,7 +642,7 @@ async function murtaToll() {
     await lines([[M, "(Uma goblin pequena, de arco armado, no meio do vau.) Você. O que fez o clã correr com palavra feia. A fumaça foi embora com a gente. O vale ficou branco. Murta decorou sua cara."], [M, "Rio agora é de Murta. Vinte moedas, ou volta nadando."]]);
     const v = await ask(M, "(A flecha aponta para o seu joelho, não para o peito. Ela quer que doa por muito tempo.)", [
       { label: "Pagar as vinte moedas.", tag: "20 de ouro", if: () => G.gold >= 20, v: "pay" },
-      { label: "\"Eu estava errado. Vocês não eram ladrões.\"", check: { skill: "Persuasão", dc: 13 }, pass: "sorry", fail: "no" },
+      { label: "Eu estava errado. Vocês não eram ladrões.", check: { skill: "Persuasão", dc: 13 }, pass: "sorry", fail: "no" },
       { label: "Passar assim mesmo.", v: "push" },
     ]);
     F.toll = v;
@@ -661,8 +661,8 @@ async function murtaAmbush() {
     look(25, 14, 3);
     await lines([[null, "Uma flecha se crava na areia do vau, a um palmo da sua bota. Dos juncos saem três goblins. A menor tem um capuz vermelho grande demais para ela, chamuscado na barra."], [M, "Murta decorou sua cara. No vale. Do lado do fogo, onde a Avó caiu. (ela puxa a corda até a orelha) A Avó segurava o branco pra todo mundo. Até pra você."]]);
     const v = await ask(M, "Fala. Murta quer ouvir a voz antes.", [
-      { label: "\"Eu não sabia o que ela fazia. Agora eu sei. Eu sinto muito.\"", check: { skill: "Persuasão", dc: 16 }, pass: "sorry", fail: "fight" },
-      { label: "\"Ela me atacou primeiro.\"", v: "fight" },
+      { label: "Eu não sabia o que ela fazia. Agora eu sei. Eu sinto muito.", check: { skill: "Persuasão", dc: 16 }, pass: "sorry", fail: "fight" },
+      { label: "Ela me atacou primeiro.", v: "fight" },
       { label: "Sacar a arma.", v: "fight" },
     ]);
     if (v === "sorry") {
@@ -693,9 +693,9 @@ async function hunters() {
     let v = "fight";
     if (!F.guard_alert) {
       v = await ask(H, "As mãos. Devagar.", [
-        { label: "\"Mercadores de sal. A carroça de trás atolou.\"", check: { skill: "Enganação", dc: hasItem("gloves") ? 11 : 15 }, pass: "lie", fail: "fight" },
-        { label: mateIs("kael") ? "Kael: \"Coletor Varrow, em serviço. A prisioneira é minha.\"" : "\"Essa mulher é uma cidadã. Sob que acusação?\"", check: { skill: mateIs("kael") ? "Intimidação" : "Persuasão", dc: 15 }, pass: "rank", fail: "fight" },
-        { label: "Mostrar a marca. \"É isto que você procura.\"", v: "fight" },
+        { label: "Mercadores de sal. A carroça de trás atolou.", check: { skill: "Enganação", dc: hasItem("gloves") ? 11 : 15 }, pass: "lie", fail: "fight" },
+        { label: mateIs("kael") ? "Kael: Coletor Varrow, em serviço. A prisioneira é minha." : "Essa mulher é uma cidadã. Sob que acusação?", check: { skill: mateIs("kael") ? "Intimidação" : "Persuasão", dc: 15 }, pass: "rank", fail: "fight" },
+        { label: "Mostrar a marca — É isto que você procura.", v: "fight" },
       ]);
     }
     if (v === "lie") {
@@ -754,7 +754,7 @@ async function courier() {
       [O, "Ele sabe o que você carrega. Sabia antes de escrever a carta. E é o único vivo que sabe como tirar isso de você sem tirar você junto. (ela olha a sua mão) ...Ou era isso que ele dizia."],
     ]);
     const v = await ask(O, "Perguntem. Eu respondo o que não for me custar a língua.", [
-      { label: "\"Quem é L.?\"", v: "who" }, { label: "\"E as trezentas peças?\"", v: "gold" }, { label: "\"Ele mentiu para mim.\"", check: { skill: "Intuição", dc: F.eco_suspicious || G.hero.ecoEyes ? 11 : 14 }, pass: "lie", fail: "nolie" },
+      { label: "Quem é L.?", v: "who" }, { label: "E as trezentas peças?", v: "gold" }, { label: "Ele mentiu para mim.", check: { skill: "Intuição", dc: F.eco_suspicious || G.hero.ecoEyes ? 11 : 14 }, pass: "lie", fail: "nolie" },
     ]);
     if (v === "who") await say(O, "Um velho que decorou mais livros do que a Coroa queimou. A gente o chama de Sabiá. Cego ele não é. Ele só olha para onde ninguém mais olha.");
     if (v === "gold") await say(O, "(Ela ri, curta.) Um terço agora, do meu bolso, que ele me paga depois. O resto quando vocês o tirarem de lá. Ele sempre foi melhor com palavras do que com contas.");

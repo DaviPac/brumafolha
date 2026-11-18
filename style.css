@@ -222,6 +222,12 @@ body.mode-dialogue #party, body.mode-dialogue #hotbar, body.mode-dialogue #log, 
 .opt .chk small { font-size: inherit; font-weight: 400; color: var(--muted); }
 .opt .chk .p { color: var(--text); }
 .opt.used { opacity: 0.4; pointer-events: none; }
+/* what the hero does is in italics; someone answering for the hero is named; "Continuar" and "Voltar." are quieter */
+.opt .act { font-style: italic; color: #a6cfe0; }
+.opt:hover .act, .opt:focus .act { color: #d4eef8; }
+.opt .as { color: var(--gold); font-weight: 700; }
+.opt.k-meta { color: #b0a690; }
+#dialogue .options { max-height: 46vh; overflow-y: auto; }
 #dialogue.narr .portrait { display: none; }
 #dialogue.narr .text { color: #e2d8c4; }
 #dialogue .dlg-input { margin: 2rem 0 4rem; width: min(200rem, 100%); }

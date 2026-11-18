@@ -774,3 +774,19 @@ fases que acontecem dentro de lembranças do próprio herói.
 - **O custo vem depois.** Nunca diga "esta escolha terá consequências". Só mostre, um ato depois.
 - **Português natural**, sem arcaísmo excessivo. O tom é de conto contado na fogueira, não de pergaminho.
 - **Nomes originais.** Nada de nomes, personagens ou lugares de outros jogos.
+
+### 9.1 Como se escrevem as respostas do herói
+
+Uma regra só, para o jogador ler sem explicação (o renderizador da caixa aplica sozinho, em `src/dialogue.js`,
+`optionKind`):
+
+- **O que o herói diz** fica sem aspas, em texto normal: `Procuro alguém que assina "L.".` Aspas dentro da resposta
+  só para citar um nome ou algo escrito (`"L."`, um bordado, uma lembrança do Diário), nunca em volta da fala inteira.
+- **O que o herói faz** começa com um verbo no infinitivo (`Pegar a lanterna.`, `Fingir que bebe, e despejar no
+  canteiro.`, `Deixar Nix abrir.`) e aparece **em itálico**, em azul-claro. Se a ação vem com uma fala, a fala vem
+  depois de um travessão: `Mostrar a marca — É isto que você procura.`
+- **Outro personagem responde pelo herói** com o nome dele na frente: `Kael: Coletor Varrow, em serviço.` O nome
+  aparece em dourado. Pedir que alguém responda (`Deixar Lyra responder.`) é uma ação do herói.
+- `Continuar`, `Voltar.` e `...` só fazem a conversa andar, e aparecem mais apagados.
+- Quando o verbo não abre a frase (ou abre uma fala), a opção diz o que é com `act: true` ou `act: false`.
+- O teste `tests/audit.test.mjs` confere todas as opções das três partes da história contra esta regra.
