@@ -761,3 +761,7 @@ body.short #creator header p { display: none; }
 #objmark.edge .dia { display: none; }
 #objmark.edge .arrow { display: block; transform: rotate(var(--a, 0rad)); opacity: 0.85; filter: drop-shadow(1rem 1rem 0 var(--ink)); }
 @keyframes objbob { 50% { transform: translateY(-3rem) rotate(45deg); } }
+
+/* the fight's log fades away once exploring (it stayed on screen after a fight); in a fight it stays */
+body:not(.mode-combat) #log > div { animation: logfade 12s steps(6) forwards; }
+@keyframes logfade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }

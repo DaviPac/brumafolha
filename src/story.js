@@ -118,6 +118,13 @@ function ask(who, text, opts, node = {}) {
 }
 /** A run of lines, each [speaker | null for narration, text]. */
 function lines(seq, last = "Continuar") {
+  // the same speaker twice in a row, both short: one box, not two (fewer clicks for the same words, §9)
+  seq = seq.reduce((out, [who, text]) => {
+    const prev = out[out.length - 1];
+    if (prev && prev[0] === who && prev[1].length + text.length <= 280) prev[1] += " " + text;
+    else out.push([who, text]);
+    return out;
+  }, []);
   const tree = {};
   seq.forEach(([who, text], i) => {
     const end = i === seq.length - 1;
