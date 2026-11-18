@@ -328,3 +328,13 @@ Falta, ou não foi testado:
   o capítulo 2 é jogado de ponta a ponta com saves novos explorando, em conversa e em combate.
 - Agora exportar e importar foram testados num navegador (o download e o seletor de arquivo pelo Playwright).
 
+
+## 13. O que a 0.10 acrescentou (sem mudar o formato)
+
+- `G.barks` (as falas dos companheiros já ditas, um `Set`) entrou em `G_KEYS`. Save antigo: começa vazio.
+- Escolhas de subida de nível ficam na ficha (`build.picks`, `extraAbilities`, `asi`, `extraSkills`), salva como
+  qualquer campo de unidade. Save antigo sem `picks`: as escolhas aparecem pendentes (`pendingPicks`).
+- Baús das relíquias (`src/relics.js`) e moradores de Vau-de-Cardo (`src/town.js`) são acrescentados **depois** de
+  tudo o que o mapa já tinha, então os ids antigos (`<mapa>:c<n>`, unidades por ordem) não mudam. Um save antigo não
+  lista os moradores entre os NPCs do mapa; `restore()` os devolve (marcados `resident`).
+- `tests/ids.test.mjs` aceita ids novos e só acusa um id antigo que mudou de dono.

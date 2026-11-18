@@ -357,10 +357,12 @@ Tudo funciona com mouse, teclado e gamepad. As teclas mostradas na tela acompanh
 | | Mouse / teclado | Gamepad |
 |---|---|---|
 | Andar | clique no chão, ou WASD / setas | alavanca esquerda ou D-pad |
+| Correr | segurar `Shift`, ou clique duplo no chão | segurar B |
 | Interagir, confirmar | clique, `E`, `Enter` | A |
 | Barra de ações | `1–9`; `Tab` move o destaque e `F` usa | LB / RB movem o destaque, X usa |
 | Combate | clique no quadrado ou no alvo; setas / WASD movem um cursor de quadrado | D-pad move o cursor, A confirma |
 | Encerrar o turno | `Espaço` | Y |
+| Acelerar o combate | segurar `Shift` (ou a opção Combate rápido) | no menu |
 | Cancelar, voltar | `Esc`, botão direito | B |
 | Bolsa / Diário | `I` / `J` | Select / Y |
 | Trocar de aba nos menus | `Q` / `E` | LB / RB |
@@ -392,44 +394,96 @@ A skill do projeto `.claude/skills/topdown-pixelart` descreve o estilo e o ciclo
 
 Todo o áudio é sintetizado em tempo real com Web Audio em [src/audio.js](src/audio.js), sem arquivos de som:
 - **Música** gerada por um sequenciador: `meadow` (alaúde, flauta e cordas em Ré maior), `ruins` (lá menor, esparsa,
-  com drone) e `combat` (tambores, baixo ostinato e metais). As faixas fazem crossfade conforme a área e o modo.
+  com drone), `combat` (tambores, baixo ostinato e metais), `abbey` (o Mosteiro: um canto em quintas paralelas e o
+  sino da casa) e `town` (Vau-de-Cardo: alaúde em si menor e o tema do menu, grave). As faixas fazem crossfade conforme a área e o modo.
 - **Ambiente**: vento, água do lago, estalos da fogueira, pássaros nos campos e gotas nas ruínas, pela posição do líder.
 - **Efeitos**: passos por superfície (grama, terra, pedra, madeira), espada, magias, poções, d20, baús, vitória e derrota.
 
 Para ouvir cada som isolado e ajustá-lo de ouvido, abra a mesa de som em `http://localhost:5173/tools/sfx.html`.
 
-## O que mudou nesta rodada, e o que ficou faltando
+## Refinamento (0.10.0)
 
-Feito, em quatro etapas (um commit cada): ícones em atlas no lugar de todos os emojis; interface nova com fonte e
-molduras geradas por código, jogável por mouse, teclado e gamepad; luz dinâmica em WebGL2; e o primeiro capítulo
-do Ato I.
+Uma rodada de melhoria do que já funcionava, do prelúdio ao fim do capítulo 2, sem história nova. O diagnóstico, em
+ordem de impacto, e o estado de cada item ficam em [docs/refinamento.md](docs/refinamento.md).
 
-Como foi verificado: num Chrome sem cabeça, em 1920×1080, com um roteiro automático que joga o capítulo do cais
-até a mensageira (variante com pacto goblin) e outro que cobre o cofre, a entrada de Nix, a cena de Tomé e a
-emboscada de Murta. O gamepad foi testado só com um controle simulado (`navigator.getGamepads` falso), não com
-um controle de verdade.
+- **Subir de nível** ([src/levelup.js](src/levelup.js)): uma tela no padrão do criador mostra o que cada um ganhou e
+  pede uma escolha: uma habilidade nova da classe (`LEVEL_POOL` em [src/rules.js](src/rules.js)), +2 num atributo ou
+  uma perícia nova. Os companheiros chegam com uma sugestão marcada, que dá para trocar. A escolha fica na ficha
+  (`build.extraAbilities`, `build.asi`, `build.extraSkills`, `build.picks`).
+- **Companheiros** ([src/companions.js](src/companions.js), falas em [src/companion-lines.js](src/companion-lines.js)):
+  a aprovação aparece num aviso discreto (retrato e "gostou" / "não gostou", sem número) e na aba **Grupo** do Diário,
+  em palavras. Aprovação 3 ou mais: o companheiro ajuda nos testes (+1, dito na opção) e abre a conversa pessoal da
+  fogueira; −4 ou menos: ele confronta o herói uma vez e para de rolar testes por ele. Comentários sobre os lugares e
+  as coisas, e conversas entre eles na estrada, em balões sobre a cabeça; nunca em luta, conversa ou cena.
+- **Fogueira de histórias** ([src/campfire.js](src/campfire.js)): depois de um descanso sem cena própria, o jogador
+  escolhe com quem conversar. Cada companheiro tem três histórias; ouvir uma vira lembrança. Contar uma lembrança sua a
+  **ancora**: o chá do Mosteiro não leva lembrança ancorada.
+- **Relíquias de Velmoor** ([src/relics.js](src/relics.js)): seis objetos da noite do ritual, um por lugar, para ler na
+  Bolsa; cada um dá +1 numa perícia, e os seis juntos viram uma lembrança.
+- **Combate**: clicar num inimigo usa a ação que faz sentido (o truque de um mago, o arco à distância); "Errou: 9
+  contra CA 13" na cena; "a seguir" na faixa de iniciativa; ícones de condição (*Esquecido*, abalado, lento, marcado,
+  em guarda...) sobre a unidade, na faixa e na dica; opção **Combate rápido** e `Shift` acelerando; a IA foca quem está
+  ferido ou mal protegido, recua quase morta e protege o chefe; Gorza, Hesta e Corvino dão uma ordem quando feridos, a
+  Avó e a Irmã Sálvia curam uma vez.
+- **Clareza e ritmo**: marca discreta do próximo passo da missão principal ([src/objective.js](src/objective.js)),
+  que só aparece depois de 25 segundos sem progresso e pode ser desligada; **correr** com `Shift`, o B do controle ou
+  clique duplo; os testes dizem o atributo de que dependem; falas seguidas da mesma pessoa numa caixa só; o registro
+  do combate some depois da luta; seis dicas novas no tutorial.
+- **Mundo**: Vau-de-Cardo tem moradores com rotina e falas de fundo que reagem ao que o grupo fez
+  ([src/town.js](src/town.js)); o Mosteiro e a cidade têm músicas próprias; o Relicário e o sonho foram revistos com a
+  luz ligada.
 
-Falta, ou ficou pela metade:
+### Decisões (refinamento)
 
-- **Desempenho**: medido nesta máquina (RTX 3060 de notebook, tela de 165 Hz) numa janela real do Firefox com
-  960×497 de jogo. Vista de cima, nas ruínas, luz alta: 7 ms de desenho, 83 quadros por segundo. Vista 3D, no
-  acampamento: luz alta 12 ms e 62 quadros por segundo; luz desligada 14 ms e 52 a 56 (medido com a máquina ocupada
-  por outros programas). Testes em navegador sem janela enganam: lá o canvas 2D não é acelerado e os custos são
-  outros. Em telas acima de 100 Hz o jogo desenha um quadro sim, um não. Não foi medido em máquinas fracas. **F3**
-  (ou `?fps` no endereço) mostra quadros por segundo e o tempo de cada parte do desenho.
-- **Sem WebGL2**, a vista 3D em canvas 2D é lenta (9 quadros por segundo no Firefox); nesse caso use a vista de cima (`V`).
-- **Efeitos do pixelfx** (fogueira, magias) são o maior custo que resta: são pintados pixel a pixel em JavaScript.
-- **Luz**: os sprites são iluminados pela posição na tela, sem altura (a copa de uma árvore na frente de uma
-  fogueira clareia como se estivesse no chão). As sombras caem só no chão, não sobre outros sprites. Cores que
-  não estão em nenhuma rampa (misturas com transparência) seguem a rampa mais próxima, então o degrau é aproximado
-  nelas. O Relicário e o sonho com a luz ligada não foram revisados visualmente.
-- **Prólogo com a interface nova**: foram conferidos acampamento, corça, patrulha, criador e menus. O prólogo
-  inteiro não foi rejogado do sonho ao barco, e o botão "Continuar: Ato I" da tela final foi testado só pelo
-  atalho `?dev=ato1`.
+1. **Ninguém vai embora** com aprovação muito baixa: o roteiro conta com Kael ou Lyra em quase toda cena. A
+   consequência é o confronto e a recusa de ajudar nos testes, até a relação melhorar.
+2. **Aprovação de Nix e Hulda** sai das escolhas que já existiam (a Lume, o livro de nomes, o chá, Pipa, a escolha do
+   Mosteiro, a troca com o Eco). Nix começa conforme o que foi feito com a Lume.
+3. **A fogueira** só abre nos descansos sem cena própria. As três noites roteirizadas continuam iguais.
+4. **Lembrança ancorada** protege do chá do Mosteiro (o único lugar que tira uma lembrança sem o jogador escolher).
+5. **Habilidades novas** usam as regras que o combate já tinha onde possível (Comando e Cantiga de Ninar são o
+   mesmo teste da Constrição, com outro nome e outro aviso).
+6. **Sem viagem rápida**: os mapas do Ato I são vizinhos e a história dispara cenas pelas bordas. Correr resolve a maior
+   parte da caminhada.
+7. **Sem interiores** em Vau-de-Cardo nesta rodada: o esforço foi para a cidade de fora estar viva.
+
+### Saves
+
+O formato continua 1, sem migração. O que é novo tem valor padrão para saves antigos:
+- personagens acima do nível 1 sem escolhas feitas recebem as escolhas pendentes ao carregar, com sugestão
+  (`pendingPicks` em `src/rules.js`); o save 0.8.0 com o grupo no nível 3 abre a tela com duas escolhas para cada um;
+- `G.barks` (as falas já ditas) entrou na lista do save; um save antigo começa sem nenhuma;
+- os baús das relíquias e os moradores entram **no fim** das listas de cada mapa (ids por posição); o `restore()` põe
+  de volta os moradores que um save antigo não lista (`resident`);
+- `tests/ids.test.mjs` agora aceita ids novos e só falha se um id antigo mudar de dono; a comparação de estado dos
+  testes ignora os baús acrescentados no fim e os moradores, que andam.
+
+### Testes desta rodada
+
+`cd tests && npm install && npm test`. Os testes acham o Chromium do Playwright em `/opt/pw-browsers/chromium` ou em
+`PW_CHROMIUM`, quando a versão instalada não é a do `package.json`.
+- `levelup`: a tela abre sozinha, "Depois" e o "+" do retrato, a escolha fica no save; o save 0.8.0 no nível 3; cada
+  uma das 17 habilidades novas numa luta de verdade.
+- `companions`: o aviso de aprovação, a ajuda nos testes e a fala que muda com aprovação alta e baixa; o confronto;
+  nenhum comentário durante luta ou conversa, e os ditos ficam no save; a fogueira (história, a pessoal que espera
+  aprovação, a lembrança ancorada).
+- `audit` passou a conferir as respostas do herói escritas em `companion-lines.js` e `campfire.js`.
+- `tour.mjs` (não é teste): `node tour.mjs antes|depois` joga duas partidas e tira as fotos do diagnóstico.
+
+## O que ficou faltando
+
+- **Desempenho**: medido só em Chromium sem janela (o desenho é por software lá, e engana). A medida pedida, numa janela
+  real do Firefox em 1080p com o F3, não pôde ser feita nesta máquina. O que foi acrescentado ao mundo é pouco: cinco
+  moradores andando só em Vau-de-Cardo, balões em DOM e uns ícones de condição durante o combate. **F3** (ou `?fps`)
+  mostra quadros por segundo e o tempo de cada parte do desenho; vale medir antes de publicar.
+- **Interiores de Vau-de-Cardo** (taverna, guarnição): não feitos.
+- **Equilíbrio**: as CDs e os combates não foram ajustados jogando à mão; a IA nova foca o mais frágil, o que pode
+  deixar algumas lutas mais duras para um mago.
+- **Texto**: alguns momentos de cena ainda têm quatro caixas seguidas antes de uma escolha (Cendra no Relicário, o
+  Sabiá na cela).
+- **Luz**: os sprites são iluminados pela posição na tela, sem altura; as sombras caem só no chão. Sem WebGL2, a vista
+  3D em canvas 2D é lenta (use a vista de cima, `V`).
 - **Gamepad**: não dá para digitar o nome do herói (use o botão de nome aleatório); sem remapeamento de teclas.
-- **Ato I**: faltam o Mosteiro do Véu Sereno (Hulda, a Madre), o Bosque de Lethiel, a Procissão Branca e a
-  revelação de L. Murta e Silas ainda não podem ser recrutados. A aprovação dos companheiros é registrada mas
-  ainda não muda nada. A lembrança entregue ao Eco fica riscada no Diário, mas nenhum diálogo depende dela ainda.
-- **Vau-de-Cardo** não tem interiores: a taverna atende no pátio. Os moradores não têm rotina.
+- **Ato I**: faltam o Bosque de Lethiel, a Procissão Branca e a revelação de L. Murta e Silas ainda não podem ser
+  recrutados.
 - **Versão Unity** (`unity/`): não recebeu nada disto.
-
