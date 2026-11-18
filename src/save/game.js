@@ -17,7 +17,7 @@ export function initGame(engine) { M = engine; }
 
 // what of G goes in a save (the rest is per-frame, per-screen, or rebuilt)
 const G_KEYS = ["party", "followers", "leader", "hero", "mate", "potions", "gold", "f", "items", "memories", "approval", "clock", "clockTarget", "tint", "ambient",
-  "musicOverride", "speedCap", "tutorial", "hintsSeen", "origin", "advNext", "followLeader", "campaign", "playTime"];
+  "musicOverride", "speedCap", "tutorial", "hintsSeen", "barks", "origin", "advNext", "followLeader", "campaign", "playTime"];
 
 /** The running game as data. `moment` says what was going on: explore, a conversation, a fight. */
 export function collect() {
@@ -123,6 +123,7 @@ export function restore(save) {
     else if (k === "items" || k === "memories") G[k].splice(0, G[k].length, ...v);
     else if (k === "approval") { for (const x of Object.keys(G.approval)) delete G.approval[x]; Object.assign(G.approval, v); }
     else if (k === "hintsSeen") G.hintsSeen = v instanceof Set ? v : new Set();
+    else if (k === "barks") G.barks = v instanceof Set ? v : new Set();
     else G[k] = v;
   }
   // Saves written before the codec kept undefined apart from null carry musicOverride: null, which the game reads as

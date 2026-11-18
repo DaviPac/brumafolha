@@ -722,3 +722,22 @@ body.short #creator header p { display: none; }
 @media (max-width: 700px), (orientation: portrait) { #levelup .lu-body { grid-template-columns: 1fr; } }
 .pcard .lv.up { color: var(--ink); background: var(--gold); cursor: pointer; animation: lvup 1.2s steps(2) infinite; pointer-events: auto; }
 @keyframes lvup { 50% { box-shadow: 0 0 0 1rem var(--ink), 0 0 0 3rem var(--gold); } }
+
+/* ---- companions (src/companions.js): approval notices, lines over heads, the party page */
+#approve { position: absolute; left: 8rem; top: 34rem; display: flex; flex-direction: column; gap: 2rem; pointer-events: none; z-index: 6; }
+.apn { display: flex; align-items: center; gap: 4rem; padding: 1rem 6rem 1rem 1rem; background: #1a1522e0; box-shadow: 0 0 0 1rem var(--ink), 0 0 0 2rem #54486a; animation: apin 0.3s steps(3); }
+.apn canvas { width: 26rem; height: 24rem; image-rendering: pixelated; }
+.apn.up span { color: var(--good); } .apn.down span { color: #e0a090; }
+.apn.out { opacity: 0; transition: opacity 0.5s steps(4); }
+@keyframes apin { from { transform: translateX(-20rem); opacity: 0; } }
+#bubbles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.bubble { position: absolute; transform: translate(-50%, -100%); max-width: 190rem; padding: 2rem 5rem 3rem; background: #f4ecd8; color: #2a1e2e; line-height: 13rem; box-shadow: 0 0 0 1rem var(--ink), 2rem 2rem 0 1rem #0006; white-space: normal; text-align: left; }
+.bubble b { color: #7a3a14; margin-right: 2rem; }
+.bubble::after { content: ""; position: absolute; left: 50%; bottom: -4rem; width: 6rem; height: 4rem; background: #f4ecd8; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.bubble.fade { opacity: 0.4; transition: opacity 0.3s steps(3); }
+#journal .bond { display: flex; gap: 6rem; align-items: flex-start; padding: 4rem 0; border-bottom: 1rem solid #2c2338; }
+#journal .bond canvas { width: 52rem; height: 48rem; image-rendering: pixelated; box-shadow: 0 0 0 1rem #54486a; }
+#journal .bond p { margin: 1rem 0; }
+#journal .bond small { font-size: inherit; color: var(--teal); }
+#journal .bond.t-2 p, #journal .bond.t-1 p { color: #e0a090; }
+#journal .bond.t1 p, #journal .bond.t2 p { color: var(--good); }

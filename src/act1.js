@@ -331,7 +331,9 @@ async function echoBargain() {
     [A, power === "eyes" ? "Pronto. Olhos de Velmoor: +2 em Percepção, Intuição e Investigação. Obrigada. Estava apertado aqui." : "Pronto. O Lampejo de Velmoor é seu: uma vez por descanso, role de novo um d20 que falhou. Obrigada. Estava apertado aqui."],
   ]);
   if (mateIs("kael")) { await say(G.mate, "(de manhã, antes de qualquer bom-dia) Você tá com cara de quem pagou alguma coisa. Eu conheço essa cara. Eu cobrava ela."); approve("kael", -1); }
-  else await say(G.mate, "(de manhã, Lyra olha o seu Diário fechado por tempo demais, e não pergunta nada.)");
+  else { await say(G.mate, "(de manhã, Lyra olha o seu Diário fechado por tempo demais, e não pergunta nada.)"); approve("lyra", -1); }
+  // §8: Nix finds a trade with the Echo fascinating
+  if (cast.nix && G.party.includes(cast.nix)) { await say(cast.nix, "(Nix pega a sua mão e olha a palma contra a luz, como quem confere uma moeda.) Uma lembrança por um poder, sem intermediário. Sabe quanto a Feira cobraria de comissão nisso? Você é um prodígio."); approve("nix", 1); }
 }
 
 // ---------------------------------------------------------------- the gate and the notice board
@@ -569,6 +571,8 @@ async function nixJoins() {
   while (N.level < G.hero.level) G.hooks.gainXp(N, N.nextXp - N.xp);
   N.hp = N.maxHp;
   G.party.push(N);
+  // where she starts with the hero: the Lume sold to her, given away to its owner (she's curious), or kept
+  G.approval.nix ??= { nix: 1, people: 1, keep: -1 }[F.lume_done] ?? 0;
   E.partyChanged();
   UI.banner("Nix entrou no grupo");
   sfx.quest();

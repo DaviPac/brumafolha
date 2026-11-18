@@ -14,6 +14,8 @@ import { serve } from "./lib/server.mjs";
 import * as T from "./lib/game.mjs";
 
 const FILES = ["src/story.js", "src/act1.js", "src/act1ch2.js"].map((f) => path.join(T.ROOT, f));
+// the hero's answers written elsewhere: the companions' confrontations and the campfire (only for the quotes rule)
+const ANSWERS = [...FILES, ...["src/companion-lines.js", "src/campfire.js"].map((f) => path.join(T.ROOT, f)).filter((f) => fs.existsSync(f))];
 const SRC = FILES.map((f) => fs.readFileSync(f, "utf8")).join("\n");
 
 /** Every flag the story reads or writes, and the values it gives them. */
@@ -42,9 +44,9 @@ test("as respostas das cenas seguem a regra das aspas (§9.1)", async () => {
   const rule = d.slice(d.indexOf("const META"), d.indexOf("const esc"));
   const { optionKind } = await import("data:text/javascript," + encodeURIComponent(rule));
   const bad = [];
-  for (const f of FILES) {
+  for (const f of ANSWERS) {
     const s = fs.readFileSync(f, "utf8");
-    for (const m of s.matchAll(/label: "((?:[^"\\]|\\.)*)"/g)) {
+    for (const m of s.matchAll(/(?:label|mend|hold): "((?:[^"\\]|\\.)*)"/g)) {
       const l = JSON.parse(`"${m[1]}"`), line = s.slice(0, m.index).split("\n").length;
       if (/^["“].*["”]$/.test(l)) bad.push(`${path.basename(f)}:${line} fala entre aspas: ${l}`);
       if (/^\(/.test(l)) bad.push(`${path.basename(f)}:${line} resposta entre parênteses: ${l}`);

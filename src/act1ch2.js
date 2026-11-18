@@ -244,7 +244,7 @@ async function pipaHome() {
 }
 function pipaEnd(how) {
   F.pipa = how;
-  if (how === "bird") { reward(120, "O passarinho de Pipa"); approve("kael", 1); approve("lyra", 1); }
+  if (how === "bird") { reward(120, "O passarinho de Pipa"); approve("kael", 1); approve("lyra", 1); approve("hulda", 1); }
   if (how === "lie") { reward(60, "O passarinho de Pipa"); approve("kael", -1); }
   UI.updateQuest();
 }
@@ -569,6 +569,7 @@ async function kettle() {
     ]);
     if (v === "nix") { await say(cast.nix, "(Ela nem olha para as mãos. A tampa sobe, as folhas caem, a fita volta para o lugar, e ela já está mordendo um pão.) Feira das Lembranças. Primeira coisa que se aprende é o que vai na xícara de quem."); }
     if (v === "ok" || v === "nix") { F.c2_tea_swapped = true; reward(80, "O chá da ronda"); }
+    if (v === "nix") approve("nix", 1);
     if (v === "bad") F.c2_kettle_try = false;
     if (v === "bad") await say(cast.joana, "Ei! Essa é da Sálvia! (ela tira a chaleira das suas mãos sem raiva nenhuma) Ninguém mexe na chaleira da Sálvia. Nem a Madre.");
   });
@@ -813,12 +814,12 @@ async function lectern() {
       { label: "Ler em voz alta os nomes da página, e deixar o livro.", v: "read" },
     ]);
     if (v === "page" || v === "nix") { F.c2_proof = true; const { text, ...page } = ITEMS.page; giveItem({ ...page, read: text() }); }
-    if (v === "nix") { F.c2_book = "nix"; await say(cast.nix, "(O livro some dentro da capa rubra como se fosse um lenço.) Arquivo Real, Feira, Lembradores... alguém vai pagar o peso disso em ouro. Ou em vergonha. As duas moedas me servem."); }
+    if (v === "nix") { F.c2_book = "nix"; approve("nix", 2); approve("hulda", -1); await say(cast.nix, "(O livro some dentro da capa rubra como se fosse um lenço.) Arquivo Real, Feira, Lembradores... alguém vai pagar o peso disso em ouro. Ou em vergonha. As duas moedas me servem."); }
     if (v === "read") {
       F.c2_book = "read";
       await say(null, "Você lê os nomes em voz alta, um a um. Leva tempo. Ninguém interrompe. Quando termina, a vela do nicho está mais baixa, e o corredor parece mais quente.");
       remember("names", "Os nomes do livro do Mosteiro, lidos em voz alta, um a um, na Ala do Silêncio.");
-      approve("kael", 1); approve("lyra", 1);
+      approve("kael", 1); approve("lyra", 1); approve("hulda", 2);
       if (F.silas_doubt) F.c2_read_for_silas = true;
     }
     reward(150, "O livro de nomes");
@@ -897,15 +898,15 @@ async function choice() {
       F.c2_choice = v;
       if (v === "crown") {
         await say(Hd, "A Coroa. (ela fica quieta muito tempo, para uma anã) Ormun gosta de juramento cumprido. Eu jurei acabar com essa casa. Não jurei como. (ela cospe) Não gosto. Vamos.");
-        approve("kael", -2); approve("lyra", -1);
+        approve("kael", -2); approve("lyra", -1); approve("hulda", -1); approve("nix", -1);
       } else if (v === "attack") {
         await say(Hd, "AGORA sim. Ormun gosta de pedra quebrada quando é a pedra certa. (ela já está andando de volta para o pátio)");
-        approve("kael", 1); approve("lyra", -1);
+        approve("kael", 1); approve("lyra", -1); approve("hulda", 2); approve("nix", -1);
         await assault();
         return;
       } else {
         await say(Hd, "Em paz. (ela olha o portão norte) Na lua nova a gente vê quanta paz cabe numa vila. Eu levo isso na conta, viu, Ormun? Na conta.");
-        approve("lyra", 1);
+        approve("lyra", 1); approve("nix", 1);
       }
       await leave();
     });

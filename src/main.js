@@ -40,6 +40,7 @@ import { VERSION } from "./version.js";
 import { diceReroll } from "./dialogue.js";
 import { initLevelUp, openLevelUp, closeLevelUp, levelUpOpen, anyPending } from "./levelup.js";
 import { pendingPicks } from "./rules.js";
+import { tickCompanions } from "./companions.js";
 import { initLight, lightOn, lightAvailable, lightLayers, lightSurface, renderLight, showLight, setRamps, collectRamps, lightSettings, setLight } from "./light.js";
 import * as RULES from "./rules.js";
 import { P as PV, frame as pvFrame, project, unproject, rowToFlat, mouseRel, setPersp } from "./persp.js";
@@ -532,6 +533,7 @@ const E = {
   resetTrail: () => { trail.length = 0; },
   fight(group, opts) { G.mode = "explore"; G.camFocus = null; startCombat(group, opts); },
   zone: () => { zoneNow = ""; },
+  zoneName: () => zoneNow,
 };
 
 // ---------------------------------------------------------------- saving: what the save modules need from here
@@ -1340,6 +1342,7 @@ function update(dt) {
     if (u.alert > 0) u.alert -= dt;
   }
   S.update(dt);
+  tickCompanions(dt);
   updateAudio(dt);
   // camera: in combat the player may look around freely until the next action
   if (G.mode !== "combat") { freeCam = false; drag = null; }

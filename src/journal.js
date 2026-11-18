@@ -6,9 +6,10 @@ import { key, focusDefault } from "./input.js";
 import { sfx } from "./audio.js";
 import { derive, weaponProficient, armorAllowed, shieldAllowed, signed } from "./rules.js";
 import { WEAPONS, ARMORS, SHIELDS, ARMOR_CAT_NAMES, itemDef, weaponLine } from "./items.js";
+import { bondPage, drawFaces } from "./companions.js";
 
 const $ = (s) => document.querySelector(s);
-const TABS = [["bag", "bag", "Bolsa"], ["gear", "sword", "Equipamento"], ["quests", "book", "Missões"], ["memories", "leaf", "Lembranças"]];
+const TABS = [["bag", "bag", "Bolsa"], ["gear", "sword", "Equipamento"], ["quests", "book", "Missões"], ["memories", "leaf", "Lembranças"], ["party", "talk", "Grupo"]];
 let tab = "bag", open = false, reading = null, who = 0, err = "";
 
 export const journalOpen = () => open;
@@ -40,6 +41,7 @@ function render() {
   if (tab === "bag") page.innerHTML = bagPage();
   if (tab === "quests") page.innerHTML = questPage();
   if (tab === "memories") page.innerHTML = memoryPage();
+  if (tab === "party") { page.innerHTML = bondPage(); drawFaces(page); }
   if (tab === "gear") { page.innerHTML = gearPage(); wireGear(page); }
   page.querySelectorAll("[data-item]").forEach((b) => (b.onclick = () => {
     const it = G.items.find((i) => i.id === b.dataset.item);
@@ -75,7 +77,9 @@ function memoryPage() {
   const ms = G.memories;
   const head = `<h2>Diário de Lembranças</h2><p class="muted">O que você viveu, e quem você é.</p>`;
   if (!ms.length) return head + "<p class='muted'>Por enquanto, só o sonho. E nem dele você tem certeza.</p>";
-  return head + `<ul class="mems">${ms.map((m) => `<li class="${m.struck ? "struck" : ""} ${m.origin ? "origin" : ""} ${m.flicker ? "flicker" : ""}">${m.text}</li>`).join("")}</ul>`;
+  const anchored = ms.some((m) => m.anchored && !m.struck);
+  return head + `<ul class="mems">${ms.map((m) => `<li class="${m.struck ? "struck" : ""} ${m.origin ? "origin" : ""} ${m.flicker ? "flicker" : ""} ${m.anchored && !m.struck ? "anchored" : ""}">${m.anchored && !m.struck ? icon("camp", "sm") + " " : ""}${m.text}</li>`).join("")}</ul>`
+    + (anchored ? `<p class="muted small">${icon("camp", "sm")} Ancorada numa fogueira: contada em voz alta, fica mais difícil de perder.</p>` : "");
 }
 
 // ---------------------------------------------------------------- equipment

@@ -15,6 +15,7 @@ import { FX, PAL } from "./fx.js";
 import { openJournal, refreshJournal } from "./journal.js";
 import { refreshCombatHotbar } from "./combat.js";
 import * as A1 from "./act1.js";
+import { initCompanions, approve as companionApprove } from "./companions.js";
 import { ids, nameFn, encode, decode, groupById, allUnits } from "./save/codec.js";
 
 let E;
@@ -34,6 +35,7 @@ export function init(engine) {
   G.hooks.itemRead = itemRead;
   G.hooks.journalClosed = () => { const f = afterJournal; afterJournal = null; f?.(); };
   A1.init({ E, F, cast, soon, ask, lines, say, scene, look, reward, giveItem, hasItem, takeItem, remember, approve, tween, later, mateIs, hint, refreshJournal });
+  initCompanions({ F, scene, lines, ask, say, inScene, busy: storyBusy, interactables, zone: () => E.zoneName(), look: () => { G.camFocus = null; } });
 }
 
 // ---------------------------------------------------------------- little tools
@@ -153,11 +155,8 @@ function remember(id, text, origin = false) {
   hint("memory");
   refreshJournal();
 }
-function approve(key, n) {
-  if (!mateIs(key)) return;
-  G.approval[key] = (G.approval[key] ?? 0) + n;
-  UI.floater(G.mate.x, G.mate.y - 44, n > 0 ? `${G.mate.name} aprova` : `${G.mate.name} desaprova`, n > 0 ? "heal" : "miss");
-}
+/** Approval counts for whoever of the companions is in the party to see it (companions.js shows it). */
+const approve = (key, n) => companionApprove(key, n);
 const speaker = (name, specKey) => ({ name, portrait: portrait(buildCharacter(SPECS[specKey])) });
 
 // ---------------------------------------------------------------- items

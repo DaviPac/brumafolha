@@ -71,7 +71,7 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
         opts: dlg ? [...dlg.querySelectorAll(".opt")].map((o) => o.textContent) : [],
         end: end && !end.classList.contains("hidden"),
         busy: !!window.G.combat?.busy,
-        lu: !document.querySelector("#levelup")?.classList.contains("hidden"),
+        lu: !!document.querySelector("#levelup:not(.hidden)"),
       };
     });
     if (s.lu) { await levelUp(page); calm = 0; continue; }
@@ -110,7 +110,7 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
  */
 export async function levelUp(page) {
   const chosen = [];
-  for (let i = 0; i < 12 && (await page.evaluate(() => !document.querySelector("#levelup").classList.contains("hidden"))); i++) {
+  for (let i = 0; i < 12 && (await page.evaluate(() => !!document.querySelector("#levelup:not(.hidden)"))); i++) {
     const c = await page.evaluate(() => {
       const r = document.querySelector("#levelup"), ok = r.querySelector("[data-ok]");
       if (ok.disabled) { const o = r.querySelector(".lu-opt"); o.click(); return o.dataset.k; }
@@ -124,7 +124,7 @@ export async function levelUp(page) {
 /** Whatever screen a calm moment may open by itself (the level-up) is dealt with first. */
 export async function settle(page) {
   await sleep(50);
-  if (await page.evaluate(() => !document.querySelector("#levelup")?.classList.contains("hidden"))) await levelUp(page);
+  if (await page.evaluate(() => !!document.querySelector("#levelup:not(.hidden)"))) await levelUp(page);
 }
 
 /** Put the party's leader on a tile (as if it had walked there) and let the story's per-frame checks see it. */

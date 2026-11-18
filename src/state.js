@@ -12,6 +12,7 @@ export const G = {
   quest: { stage: 0, flags: {} },
   f: {}, // story flags (heard_smoke, goblin_pact, ...)
   items: [], memories: [], approval: {},
+  barks: new Set(), // the companions' lines already said (companions.js)
   followers: [], // walk behind the party but don't fight (Tomé)
   camFocus: null, // a point or unit the camera looks at in cutscenes
   tutorial: false, hintsSeen: new Set(),

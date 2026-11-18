@@ -7,6 +7,7 @@ import { updateQuest, log, updateParty } from "./ui.js";
 import { sfx } from "./audio.js";
 import { icon } from "./art/icons.js";
 import { makeD20 } from "./art/frames.js";
+import { SKILLS } from "./rules.js";
 import { key, focusDefault } from "./input.js";
 
 const $ = (s) => document.querySelector(s);
@@ -95,12 +96,20 @@ function optionHtml(o) {
 
 /** Who in the party rolls a check (the best at it), and with which of the allowed skills. */
 function bestAt(skills) {
-  let best = null;
+  let best = null, refused = null;
   for (const p of G.party.filter((p) => p.hp > 0 && !p.ai))
     for (const s of skills) {
       const b = p.skills[s] ?? 0;
+      // a companion who has had enough of the hero doesn't roll for them (companions.js)
+      if (G.hooks.refuses?.(p)) { if (!refused || b > refused.bonus) refused = { who: p, bonus: b }; continue; }
       if (!best || b > best.bonus) best = { who: p, skill: s, bonus: b };
     }
+  best ??= { who: G.hero, skill: skills[0], bonus: G.hero.skills[skills[0]] ?? 0 };
+  best.base = best.bonus;
+  // one who likes the hero lends a hand (+1)
+  const help = G.hooks.checkHelp?.(best.who);
+  if (help) { best.bonus += help.bonus; best.help = help; }
+  if (refused && refused.bonus > best.base) best.refused = refused.who.name;
   return best;
 }
 
@@ -182,7 +191,11 @@ function show(id) {
     let tag = o.tag ? `<span class="tag">[${o.tag}]</span> ` : "";
     if (o.check) {
       const pct = Math.max(5, Math.min(95, (21 - (o.check.dc - best.bonus)) * 5));
-      tag = `<span class="chk">${icon("d20")} ${skills.join(" ou ")} CD ${o.check.dc} <small>· ${best.who.name} ${best.bonus >= 0 ? "+" : ""}${best.bonus} · <span class="p">${pct}%</span></small></span> `;
+      // what it depends on (the ability behind the skill), who rolls, who helps, who won't
+      const abil = [...new Set(skills.map((s) => SKILLS[s]))].join("/");
+      const sign = (n) => (n >= 0 ? "+" : "") + n;
+      const extra = (best.help ? ` ${sign(best.help.bonus)} ${best.help.who}` : "") + (best.refused ? ` · ${best.refused} não quis ajudar` : "");
+      tag = `<span class="chk">${icon("d20")} ${skills.join(" ou ")} (${abil}) CD ${o.check.dc} <small>· ${best.who.name} ${sign(best.base)}${extra} · <span class="p">${pct}%</span></small></span> `;
     }
     d.innerHTML = `<span class="num">${i + 1}</span>${tag}${optionHtml(o)}`;
     if (o.check) G.hooks.hint?.("check");
@@ -193,7 +206,7 @@ function show(id) {
       const value = current.input?.value.trim() ?? "";
       if (o.check) {
         current.busy = true;
-        const res = await skillCheck(best.skill, best.who.name, best.bonus, o.check.dc, best.who.lucky);
+        const res = await skillCheck(best.skill, best.who.name + (best.help ? `, com a ajuda de ${best.help.who},` : ""), best.bonus, o.check.dc, best.who.lucky);
         current.busy = false;
         log(`${best.who.name} — ${best.skill}: ${res.roll}${best.bonus >= 0 ? "+" : ""}${best.bonus} = ${res.total} vs CD ${o.check.dc} · ${res.ok ? "sucesso" : "falha"}`, res.ok ? "heal" : "miss");
         const next = res.ok ? o.pass : o.fail;
