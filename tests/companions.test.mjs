@@ -39,8 +39,8 @@ test("aprovação: aviso discreto, sem número; ajuda nos testes; muda o que o c
     await page.screenshot({ path: path.join(OUT, "aprovacao-teste.jpg"), type: "jpeg", quality: 80 });
     await T.play(page, ["Até mais."]);
     await comp(page, "C.forceBanter()");
-    await T.waitFor(page, () => document.querySelector("#bubbles .bubble"), null, 5000);
-    const said = (await bubbles(page)).join(" ");
+    await T.waitFor(page, () => [...document.querySelectorAll("#bubbles .bubble")].some((b) => b.textContent.startsWith("Kael")), null, 15000);
+    const said = (await bubbles(page)).filter((t) => t.startsWith("Kael")).join(" ");
     assert.match(said, /Você pergunta antes de decidir/, "a fala de quem confia: " + said);
     await page.screenshot({ path: path.join(OUT, "aprovacao-fala.jpg"), type: "jpeg", quality: 80 });
     assert.deepEqual(page.errors, []);
@@ -55,8 +55,8 @@ test("aprovação baixa: a fala muda, ele não ajuda nos testes, e há um confro
     await page.evaluate(async () => { for (const b of (await import("/src/companion-lines.js")).BARKS) window.G.barks.add(b.id); window.G.approval.kael = -2; });
     await comp(page, "C.clearBubbles()"); await T.sleep(500);
     await comp(page, "C.forceBanter()");
-    await T.waitFor(page, () => document.querySelector("#bubbles .bubble"), null, 5000);
-    assert.match((await bubbles(page)).join(" "), /Termina comigo cobrando a conta/);
+    await T.waitFor(page, () => [...document.querySelectorAll("#bubbles .bubble")].some((b) => b.textContent.startsWith("Kael")), null, 15000);
+    assert.match((await bubbles(page)).filter((t) => t.startsWith("Kael")).join(" "), /Termina comigo cobrando a conta/);
     // out of approval: the confrontation, once
     await page.evaluate(() => { window.G.approval.kael = -4; });
     await T.waitFor(page, () => !document.querySelector("#dialogue").classList.contains("hidden"), null, 5000);

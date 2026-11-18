@@ -113,7 +113,11 @@ export async function levelUp(page) {
   for (let i = 0; i < 12 && (await page.evaluate(() => !!document.querySelector("#levelup:not(.hidden)"))); i++) {
     const c = await page.evaluate(() => {
       const r = document.querySelector("#levelup"), ok = r.querySelector("[data-ok]");
-      if (ok.disabled) { const o = r.querySelector(".lu-opt"); o.click(); return o.dataset.k; }
+      if (ok.disabled) {
+        let o = r.querySelector(".lu-opt");
+        if (!o) { r.querySelector('[data-tab="asi"]').click(); o = r.querySelector(".lu-opt"); }
+        o.click(); return o.dataset.k;
+      }
       ok.click(); return null;
     });
     if (c) chosen.push(c);

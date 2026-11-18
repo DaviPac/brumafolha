@@ -71,7 +71,9 @@ function render() {
   const list = members();
   if (!list.length) { closeLevelUp(); return; }
   who = Math.min(who, list.length - 1);
-  const p = list[who], kind = tabOf.get(p) ?? "ability", sel = picks.get(p), lv = levelOf(p), left = pendingPicks(p);
+  // the first tab with something to choose (a hero who learned every ability of the class goes straight to scores)
+  if (!tabOf.has(list[who])) tabOf.set(list[who], levelOptions(list[who].build).abilities.length ? "ability" : "asi");
+  const p = list[who], kind = tabOf.get(p), sel = picks.get(p), lv = levelOf(p), left = pendingPicks(p);
   const ready = list.every((m) => picks.get(m));
   const choiceName = (m) => { const c = picks.get(m); if (!c) return "falta escolher"; return c.kind === "ability" ? ABILITIES[c.key].name : c.kind === "asi" ? `${ABIL_NAMES[c.key]} +2` : c.key; };
   root.innerHTML = `<div class="box fr fr-panel">
