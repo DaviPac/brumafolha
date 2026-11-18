@@ -1138,16 +1138,20 @@ function surfaceAt(x, y) {
   const t = G.W.tileAt(Math.floor(x / TILE), Math.floor((y - 2) / TILE));
   return t === T.DOCK ? "wood" : t === T.STONE || t === T.MARBLE || t === T.STAIRS ? "stone" : t === T.PATH ? "dirt" : t === T.WATER ? "water" : "grass";
 }
+// a place's own music, over the general rule (interiors dream, ruins are ruins): the Monastery, inside and out, has
+// its chant; Vau-de-Cardo its lute (it played the meadow's, and the cloister played the dream of Velmoor)
+const PLACE_MUSIC = { vau: "town", mosteiro: "abbey", claustro: "abbey" };
 function updateAudio(dt) {
   if (G.mode === "title" || G.mode === "create" || !G.party.length) return;
   const l = lead(), vale = G.W.id === "vale", out = !!G.W.outdoor;
   const zone = vale ? zoneAt(l.x, l.y) : G.W.zone, ruins = zone === "Ruínas de Velmoor";
-  const track = G.musicOverride !== undefined ? G.musicOverride : G.mode === "combat" ? "combat" : G.mode === "over" ? null : !out ? "dream" : ruins ? "ruins" : G.W.music ?? "meadow";
+  const placeMusic = PLACE_MUSIC[G.W.id];
+  const track = G.musicOverride !== undefined ? G.musicOverride : G.mode === "combat" ? "combat" : G.mode === "over" ? null : placeMusic ?? (!out ? "dream" : ruins ? "ruins" : G.W.music ?? "meadow");
   playMusic(track, G.mode === "combat" ? 0.5 : 2.5);
   const w = vale ? waterField(l.x, l.y) : 9, fire = Math.max(0, ...campfires().map((o) => 1 - dist(o.x, o.y, l.x, l.y) / 220));
   updateAmbience({
     wind: !out ? 0.35 : ruins ? 1 : 0.7, water: vale ? clamp(1 - w / 1.1, 0, 1) : out ? clamp(1 - Math.abs(G.W.id === "vau" ? l.y - 25 * TILE : l.x - 31 * TILE) / (7 * TILE)) : 0, fire,
-    birds: !out || ruins || G.mode === "combat" || (vale && G.f.escape) || G.clock > 19.5 || G.clock < 5.5 ? 0 : 1, ruins: !out ? 0.8 : ruins ? 1 : 0,
+    birds: !out || ruins || G.mode === "combat" || (vale && G.f.escape) || G.clock > 19.5 || G.clock < 5.5 ? 0 : 1, ruins: G.W.id === "claustro" ? 0 : !out ? 0.8 : ruins ? 1 : 0,
   }, dt, G.time);
   // footsteps: one every ~20 px walked, quieter for everyone but the leader
   for (const u of [...G.party, ...G.enemies, ...G.followers]) {
@@ -1870,7 +1874,9 @@ function draw() {
   if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => { if (x > cx + box.x - 140 && x < cx + box.x + box.w + 140 && y > cy + box.y - 80 && y < cy + box.y + box.h + 230) anchored(x, y, () => fn(ctx)); });
   else G.fx.draw(ctx, cx, cy, gpu);
   sec("efeitos");
-  if (!lit) drawGlows(cx, cy);
+  // with the light on, glows are lights; but the dream is bright all over and its lantern vanished in it (0.10):
+  // there the halo is drawn as well
+  if (!lit || G.W.id === "sonho") drawGlows(cx, cy);
   drawCritters(cx, cy, ruinK);
   const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : W.id === "vau" ? 0.05 : 0.15;
   ctx.globalAlpha = mk;
@@ -1947,7 +1953,7 @@ function gatherLights(cx, cy) {
     if (o.kind === "campfire") { if (!o.out) add(o.x, o.y, 4, 150, o.goblin ? [0.72, 1, 0.66] : [1, 0.7, 0.38], flick(o.x), true); }
     else if (o.light) { if (!o.light.off) add(o.x + (o.light.dx ?? 0), o.y, o.light.h ?? 0, o.light.r, o.light.c, (o.light.i ?? 1) * (o.light.flicker ? flick(o.x) : 1), o.light.shadows ?? true); }
     else if (o.glow) glow(o, o.glow);
-    else if (o.kind === "statue" && o.lit) add(o.x, o.y, 30, 90, [0.6, 0.78, 1], 0.9, true);
+    else if (o.kind === "statue") add(o.x, o.y, 30, o.lit ? 90 : 60, [0.6, 0.78, 1], o.lit ? 0.9 : 0.35, o.lit);
   }
   for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) glow(u, u.glow);
   for (const L of G.fx.lights()) add(L.x, L.y, 0, L.r, L.c, L.i, L.shadows);

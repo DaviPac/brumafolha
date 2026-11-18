@@ -110,7 +110,9 @@ export function buildRelic() {
     B: floor, "0": solidFloor, P: solidFloor, S: solidFloor, D: solidFloor, E: { t: T.STAIRS, walk: true },
   });
   W.zone = "Relicário de Velmoor";
-  W.amb = { level: -1, tint: [0.8, 0.9, 1.14], tintK: 0.6, gain: 1 }; // a cold light without a source
+  // a cold light without a source, a step darker than the ruins: the statues, the pedestal and the hero's hand make
+  // pools of light on the marble (reviewed with the light on, 0.10)
+  W.amb = { level: -2, tint: [0.78, 0.88, 1.16], tintK: 0.65, gain: 1 };
   W.floorRamp = IRAMP.marble;
   for (const [x, y] of W.marks["0"]) W.objects.push({ kind: "rpillar", x: x * TILE + 16, y: y * TILE + 28, h: 4, seed: 300 + x * 3 + y });
   return W;

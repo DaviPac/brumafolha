@@ -272,6 +272,16 @@ const TITLE_MEL = [
   [[0, 71, 4], [4, 74, 4], [8, 78, 6], [14, 81, 2]], [[0, 83, 8], [8, 79, 4], [12, 78, 4]],
   [[0, 76, 6], [6, 74, 2], [8, 71, 8]], [[0, 70, 8], [8, 73, 4], [12, 78, 4]],
 ];
+// the Monastery: a chant that climbs and settles too easily, in A minor with a borrowed G (calm, and a little wrong)
+const ABBEY_MEL = [
+  [[0, 69, 8], [8, 71, 4], [12, 72, 4]], [[0, 71, 8], [8, 69, 8]],
+  [[0, 65, 6], [6, 67, 2], [8, 69, 8]], [[0, 67, 12]],
+];
+// Vau-de-Cardo: the menu's theme slowed down and played low, for a town full of people who lost a home
+const TOWN_MEL = [
+  [[0, 66, 4], [4, 69, 4], [8, 71, 8]], [[0, 74, 6], [6, 71, 2], [8, 69, 8]],
+  [[0, 67, 4], [4, 69, 4], [8, 71, 4], [12, 69, 4]], [[0, 66, 12]],
+];
 const playMel = (mel, bar, s, sp, play) => { for (const [st, m, len] of mel[bar] ?? []) if (st === s) play(m, len * sp); };
 
 const TRACKS = {
@@ -327,6 +337,25 @@ const TRACKS = {
       if (s === 8 && hashf(loop, bar, 3) < 0.6) I.bell(t, voicing(ch, 72)[(hashf(bar, loop, 1) * 3) | 0], 0.18, out, 0.9);
       if (bar === 2 && s === 4 && loop % 2 === 0) I.flute(t, 69, sp * 10, 0.35, out);
       if (bar === 3 && s === 6 && loop % 2 === 1) I.flute(t, 67, sp * 8, 0.3, out);
+    },
+  },
+  abbey: { // the Monastery of the Veil: a slow bed, the bell of the house, a chant in parallel fifths
+    bpm: 56, bars: 4, prog: ["Am", "G", "F", "G"],
+    step(bar, s, t, loop, out, sp) {
+      const ch = PC[this.prog[bar]];
+      if (s === 0) { I.pad(t, voicing(ch, 52), sp * 16, 0.75, out, 800); I.bass(t, rootAt(ch, 36), sp * 14, 0.45, out); }
+      if (s === 0 && bar === 0) I.bell(t, 81, 0.28, out, 0.9); // the bell rings once, without hurry
+      if (loop % 2 === 0) playMel(ABBEY_MEL, bar, s, sp, (m, d) => { I.flute(t, m - 12, d, 0.55, out); I.flute(t, m - 5, d, 0.3, out); });
+      else if (s % 4 === 0 && hashf(loop, bar, s) < 0.4) I.pluck(t, voicing(ch, 64)[(s / 4) % 3], sp * 4, 0.3, out);
+    },
+  },
+  town: { // Vau-de-Cardo: a lute in B minor, unhurried, and the menu's theme low on the flute every other turn
+    bpm: 70, bars: 4, prog: ["Bm", "G", "Em", "Fs"],
+    step(bar, s, t, loop, out, sp) {
+      const ch = PC[this.prog[bar]];
+      if (s === 0) { I.pad(t, voicing(ch, 50), sp * 16, 0.6, out, 900); I.bass(t, rootAt(ch, 35), sp * 8, 0.6, out); }
+      if (s % 4 === 0) { const v = voicing(ch, 59); I.pluck(t, [v[0], v[2], v[1], v[2]][s / 4], sp * 3, s === 0 ? 0.6 : 0.4, out); }
+      if (loop % 2 === 1) playMel(TOWN_MEL, bar, s, sp, (m, d) => I.flute(t, m, d, 0.55, out));
     },
   },
   combat: {
