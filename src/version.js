@@ -5,10 +5,22 @@
 // moment (see src/update.js). Players see the notes of what changed the first time they open the new version.
 // No DOM here: the service worker imports it too.
 
-export const VERSION = "0.9.0";
+export const VERSION = "0.9.1";
 
 /** Newest first. { version, date: "AAAA-MM-DD", title, items: [html] } */
 export const NOTES = [
+  {
+    version: "0.9.1", date: "2026-11-18", title: "Revisão da história",
+    items: [
+      "Nas conversas, o que o seu herói <b>diz</b> aparece sem aspas, e o que ele <b>faz</b> aparece <i>em itálico</i>. Quando um companheiro responde por você, o nome dele vem na frente.",
+      "Mandar o Tomé para casa antes de ele mostrar a porta não prende mais o prólogo: ele conta onde fica a laje, e dá para achá-la na coluna partida. Saves presos nesse ponto se soltam sozinhos ao carregar.",
+      "Se a luta do Relicário acabar depressa, a Arquivista ainda aparece, logo depois. Saves feitos nesse ponto também se corrigem ao carregar.",
+      "Um teste que falha não pode mais ser repetido até dar certo. Quando o que ele daria é necessário, há sempre outro caminho: outra pessoa que sabe, outro preço, um companheiro.",
+      "Rosalva entrega o recado de L. a quem mostrar a marca, mesmo sem a carta. A chave da cela de Hulda fica num prego quando os guardas saem sem entregá-la. Nix ajuda com o cadeado do cofre.",
+      "Falas que não combinavam com o que já tinha acontecido foram corrigidas: quem já se apresentou não se apresenta de novo, a Madre não oferece uma Hulda que já está com você, o Sabiá conta quem de fato está na sala, Pipa levada ao pai antes da hora reencontra o pai na hora, e recompensas não saem duas vezes.",
+      "Falas ditas ao seu herói agora respeitam o gênero que você escolheu.",
+    ],
+  },
   {
     version: "0.9.0", date: "2026-11-17", title: "Ato I, capítulo 2: O Véu Sereno",
     items: [

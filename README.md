@@ -226,6 +226,74 @@ Desempenho (Firefox 158 em janela real 1920×1080, medidor F3, `tests/perf-firef
 Falta: Bosque de Lethiel, a Procissão Branca e a revelação de L.; recrutar Silas e Murta. O capítulo 2 foi jogado de
 ponta a ponta por roteiro automático, não à mão; o equilíbrio dos combates não foi ajustado jogando.
 
+## Revisão da história (0.9.1)
+
+Uma rodada só de consertos no que já existia (prólogo, capítulos 1 e 2), sem história nova. As regras de escrita que
+saíram dela estão em [docs/historia.md](docs/historia.md) §9.1 a §9.3, e o mapa de cada passo obrigatório e dos
+caminhos para cumpri-lo em [docs/fluxo-historia.md](docs/fluxo-historia.md).
+
+- **Respostas**: fala do herói sem aspas; ação do herói começa com verbo no infinitivo e aparece em itálico
+  (`optionKind` em `src/dialogue.js`); `Kael: ...` quando outro responde por você.
+- **Rolagens**: cada uma resolvida uma vez, com a falha gravada. Onde a rolagem era o único caminho de um passo
+  obrigatório, há agora um caminho garantido.
+- **Becos**: Tomé mandado para casa antes de mostrar a porta; o Eco que não vinha se a luta do Relicário acabasse antes
+  do 4º turno. Saves presos nesses dois pontos se soltam ao carregar (`repair()` em `src/story.js`; saves de teste em
+  `tests/becos/`, feitos com a 0.9.0).
+- **Ordem**: falas e recompensas conferidas para cada ordem plausível (veja a lista no fim desta seção).
+
+### Decisões (revisão)
+
+1. **Rosalva e o recado sem a carta**: novo caminho garantido, `Abrir a mão no balcão e mostrar a marca.` A carta pode
+   ser queimada no prólogo, e as duas rolagens viraram uma tentativa só. Mostrar a marca não tem custo de regras: o custo
+   é ela saber (`rosalva_mark`, para uso futuro). Descoberta como Lembradora, ela também entrega o recado se pedirem.
+2. **A coluna partida**: examinável (`Coluna partida`) depois de entrar nas ruínas. Com o Tomé conhecido ou depois de ele
+   contar, a laje é achada sem rolagem; antes, uma rolagem (Investigação ou Percepção CD 12), uma vez.
+3. **O Eco depois da luta**: se a luta com Cendra acabar antes do 4º turno sem ninguém cair, o momento do Eco acontece
+   logo depois dela, com a mesma escolha. A fala de abertura muda ("a poeira da luta"), o resto é igual.
+4. **A chave da cela**: nos ramos em que os guardas saem (pela mentira do Silas) ou voltam às xícaras, a chave fica
+   num prego ao lado da porta. Arame e força continuam como alternativas, uma tentativa cada.
+5. **O cofre do comandante**: cada jeito de passar pelo sargento é tentado uma vez (dia ou noite só muda a dificuldade);
+   o suborno sempre funciona para quem tem ouro. Se o arame entortar, Nix abre o cadeado (com menos XP).
+6. **Pipa levada ao pai antes da escolha**: o reencontro acontece na hora, com a mesma recompensa, e a manhã depois
+   da escolha não o repete. Depois de a Coroa queimar o Mosteiro, a trilha do bosque para lá fica fechada.
+7. **Dormir no Mosteiro** uma vez só: na segunda, o companheiro não deixa (antes, cada noite riscava outra lembrança
+   e repetia a cena).
+8. **Diário**: depois da escolha do Mosteiro, objetivos que ficaram abertos no capítulo 2 saem da lista; "Liberte a
+   anã" só aparece depois de alguém falar dela; a missão de Pipa termina quando Abel ouve a resposta, com ou sem o
+   passarinho.
+
+### O que foi conferido e corrigido, por ordem
+
+- **Prólogo**: Maren conta do neto mesmo se o Tomé já voltou (agora agradece) e dá a recompensa do neto uma vez, em
+  qualquer ordem; Gorza não manda levar um menino que já foi; Silas não olha para uma criança que não está lá; a
+  patrulha só é citada se ainda está na trilha; Otávio é comparado uma vez; a tela final diz o que houve com um Tomé
+  que ninguém encontrou.
+- **Capítulo 1**: Rosalva e Nix não se apresentam de novo na mesma conversa; o quarto de Rosalva lê se ela já é
+  Lembradora; a procissão é convencida uma vez; Dário reage ao cartaz em vez de a Kael; Beni, Gorza e Murta comentam o
+  que já aconteceu.
+- **Capítulo 2**: Abel, Tadeu, Silas e Pipa não repetem a apresentação; Clara não fala de uma anã que já está no grupo;
+  a Madre não oferece Hulda se ela já foi solta; o Sabiá conta quantos estão na sala; Hulda, no portão, sabe se o velho
+  foi encontrado; o pão de Joana sai uma vez; o altar, a chaleira e o pedido a Pipa são tentados uma vez.
+- **Português**: falas ao herói com gênero ("cansada/cansado", "a senhora/o senhor", "Obrigada/Obrigado",
+  "forasteira/forasteiro"); "querido" de Lyra virou "meu bem", como ela fala no resto do jogo.
+
+### Testes desta rodada
+
+- `audit`: monta as 30 árvores de diálogo com 120 combinações de flags, itens, companheiros e ouro cada uma, e acusa
+  nó inexistente, nó sem saída, rolagem que pode ser repetida depois de falhar, recompensa que pode ser pega de novo e
+  resposta fora da regra das aspas. Escreve a lista de todas as respostas em `tests/out/respostas.txt`. As respostas das
+  cenas (`ask()`) são conferidas no código-fonte, só quanto à regra de escrita.
+- `story`: cinco jogadas até o fim de cada parte, com os dados viciados (`dice: "fail"` tira 1 em tudo, `"pass"` tira 20):
+  prólogo com o Tomé mandado para casa primeiro e falhando tudo; prólogo pulando o opcional, a coluna antes do Tomé e o
+  Relicário vencido de uma vez; capítulo 1 sem a carta, falhando tudo e com o opcional antes; capítulo 2 falhando tudo;
+  capítulo 2 acertando tudo, com Pipa levada ao pai antes da escolha e a chave no prego. Fotos das falas corrigidas em
+  `tests/out/historia-*.jpg`.
+- `becos`: os saves presos da 0.9.0 carregam e saem do beco.
+
+O que ficou de fora:
+o equilíbrio das CDs não foi revisto, e as cenas com `ask()` não passam pela auditoria automática de rolagens (cada
+uma é uma cena que só acontece uma vez, o que foi conferido lendo).
+
 ## Interface
 
 A interface foi refeita com estrutura de Baldur's Gate 3 e acabamento de pixel art:
