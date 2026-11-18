@@ -865,17 +865,80 @@ export async function useAbility(u, ab, target) {
 }
 
 // ---------------------------------------------------------------- AI (enemies, and allies who fight on their own)
+// A trick of their own for some named enemies (by key, so the maps and the saves don't change): a leader who rallies
+// the others once when hurt, a healer who mends a wounded ally once.
+const TRICKS = { gorza: "rally", hesta: "rally", corvino: "rally", avo: "mend", salvia: "mend" };
+async function trick(u, C) {
+  const t = TRICKS[u.key];
+  if (!t || u.used.trick || u.team !== "enemy") return false;
+  const allies = C.group.filter((e) => e !== u && e.hp > 0 && !e.gone && cheb(u, e) <= 6);
+  if (t === "rally" && u.hp <= u.maxHp / 2 && allies.length) {
+    u.used.trick = true;
+    u.pose = "attack"; u.poseT = 0.5;
+    floater(u.x, u.y - 46, "Avante!", "crit");
+    for (const e of allies) { e.inspired = true; e.inspireDie = 6; G.fx.spawn(FX.hitSpark, { x: e.x, y: e.y - 18, palette: PAL.gold }); }
+    log(`${u.name} grita uma ordem: ${allies.map((e) => e.name).join(", ")} ganham +1d6 no próximo ataque.`, "sys");
+    sfx.swing(true);
+    await sleep(600);
+    return false; // a shout, not the whole turn
+  }
+  const hurt = allies.filter((e) => e.hp <= e.maxHp / 2).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0] ?? (u.hp <= u.maxHp / 2 ? u : null);
+  if (t === "mend" && hurt) {
+    u.used.trick = true;
+    face(u, hurt);
+    u.pose = "cast"; u.poseT = 0.6;
+    G.fx.spawn(FX.bloom, { x: hurt.x, y: hurt.y + 2, palette: PAL.heal });
+    sfx.heal();
+    await sleep(450);
+    const r = roll("2d6+2"); heal(hurt, r.total);
+    log(`${u.name} cuida de ${hurt === u ? "si mesma" : hurt.name}: +${r.total} PV.`, "heal");
+    await sleep(350);
+    return true; // that was the turn
+  }
+  return false;
+}
+/**
+ * Who to go for: the wounded and the poorly armoured, the casters, whoever is threatening their leader; distance
+ * counts, but it's not everything. Lower is better.
+ */
+function targetScore(u, f, boss) {
+  const d = cheb(u, f);
+  let s = d * 1.6 + (f.hp / f.maxHp) * 6 + (f.ac - 12) * 0.6;
+  if (f.role === "caster") s -= 1;
+  if (f.hp <= 6) s -= 2; // one blow away
+  if (boss && boss !== u && cheb(f, boss) <= 1) s -= 4; // someone is on their chief
+  return s;
+}
 async function aiTurn(u) {
   const C = G.combat;
   if (u.noncombat) { await sleep(300); return; }
   const foes = (u.team === "enemy" ? living(G.party) : living(C.group).filter((e) => !e.gone)).filter((f) => f.key !== u.spare);
   if (!foes.length) return;
-  const byDist = foes.map((f) => ({ f, d: cheb(u, f) })).sort((a, b) => a.d - b.d || a.f.hp - b.f.hp);
   G.hooks.focus?.(u);
+  if (await trick(u, C)) return;
+  const boss = u.team === "enemy" ? C.group.find((e) => e.boss && e.hp > 0 && !e.gone) : null;
+  // the small and the hired run when almost dead (once): a step back instead of a last swing
+  if (u.team === "enemy" && !u.boss && !u.esvaido && !u.ranged && !u.used.fled && u.hp <= u.maxHp * 0.3 && foes.some((f) => cheb(u, f) <= 1)) {
+    u.used.fled = true;
+    const [ux, uy] = tileOf(u), reach = reachable(blockedFor(u), ux, uy, u.moveLeft);
+    let best = null;
+    for (const [k] of reach) {
+      const tx = k % MW, ty = (k / MW) | 0;
+      const dmin = Math.min(...foes.map((f) => { const [fx, fy] = tileOf(f); return Math.max(Math.abs(fx - tx), Math.abs(fy - ty)); }));
+      if (!best || dmin > best.d) best = { tx, ty, d: dmin };
+    }
+    if (best && best.d >= 2) {
+      floater(u.x, u.y - 40, "Recua!", "info");
+      log(`${u.name} recua, ferido.`, "sys");
+      await moveAlong(u, gridPath(blockedFor(u), ux, uy, best.tx, best.ty));
+      return;
+    }
+  }
+  const byDist = foes.map((f) => ({ f, d: cheb(u, f) })).sort((a, b) => targetScore(u, a.f, boss) - targetScore(u, b.f, boss));
   if (u.ranged) {
     // prefer the most wounded target in range; keep a step away from blades
     const inRange = byDist.filter((o) => o.d <= u.ranged.range);
-    if (byDist[0].d <= 1) {
+    if (byDist.some((o) => o.d <= 1)) {
       const [ux, uy] = tileOf(u), reach = reachable(blockedFor(u), ux, uy, u.moveLeft);
       let best = null;
       for (const [k] of reach) {
@@ -885,7 +948,7 @@ async function aiTurn(u) {
       }
       if (best) await moveAlong(u, gridPath(blockedFor(u), ux, uy, best.tx, best.ty));
     }
-    const pick = (inRange.length ? inRange : byDist).sort((a, b) => a.f.hp - b.f.hp)[0].f;
+    const pick = (inRange.length ? inRange : byDist)[0].f;
     if (cheb(u, pick) > u.ranged.range) {
       const [ux, uy] = tileOf(u), [tx, ty] = tileOf(pick);
       const p = gridPath(blockedFor(u), ux, uy, tx, ty);
