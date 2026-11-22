@@ -11,6 +11,8 @@ import { paintGround, paintBaseParallel, waterSparkles, PAL as GPAL } from "./ar
 import { groundKey, loadGround, saveGround } from "./art/groundcache.js";
 import * as A from "./art/props.js";
 import * as I from "./art/interiors.js";
+import * as DC from "./art/decor.js";
+import { decorate } from "./decor.js";
 import { buildCharacter, portrait, SPECS, SW, SH } from "./art/chars.js";
 import { findPath, reachable } from "./path.js";
 import { FxLayer, FX, PAL } from "./fx.js";
@@ -86,7 +88,7 @@ async function boot() {
   fgLeft = silhouette(11); fgRight = silhouette(29);
   G.fx = new FxLayer();
   await loadStep(loading ? null : "Misturando a luz...", 0.15);
-  if (initLight(document.getElementById("gl"))) setRamps(collectRamps([GPAL, A.RAMP, I.IRAMP, SPECS, RULES, ARMORS]));
+  if (initLight(document.getElementById("gl"))) setRamps(collectRamps([GPAL, A.RAMP, I.IRAMP, TW.TRAMP, AB.ARAMP, DC.DRAMP, SPECS, RULES, ARMORS]));
   await loadStep(loading ? null : "Chamando os companheiros...", 0.25);
   spawnCompanions();
   S.init(E);
@@ -107,7 +109,9 @@ async function boot() {
   }
   valeBase = null;
   // a first visit keeps the valley's ground for the next ones, a little after the menu is up (it takes a moment)
-  if (!valeCached && gkey) setTimeout(() => saveGround(gkey, maps.vale.ground), 5000);
+  // (the painting as it came out, without the marks put on it afterwards: those are drawn again on every build)
+  if (!valeCached && gkey) setTimeout(() => { const g = maps.vale.groundImg, [c, x] = makeCanvas(g.width, g.height); x.putImageData(g, 0, 0); saveGround(gkey, c); }, 5000);
+  else if (maps.vale) maps.vale.groundImg = null;
   valeCached = null;
   await loadStep(null, 0.92);
   loadMap("vale", 15, 38);
@@ -209,6 +213,7 @@ function buildMap(id) {
   const img = id === "vale" ? valeCached ?? paintGround(W, valeBase ?? undefined) : W.outdoor ? TW.paintOutdoor(W, T) : I.paintInterior(W, T);
   g.getContext("2d").putImageData(img, 0, 0);
   W.ground = g;
+  if (id === "vale") W.groundImg = img;
   if (W.outdoor) W.waterMask = waterMask(img);
   W.sparkles = id === "vale" ? waterSparkles(W) : W.outdoor ? TW.outdoorSparkles(W, T) : [];
   W.enemies = []; W.npcs = []; W.chests = []; W.groups = {};
@@ -217,6 +222,11 @@ function buildMap(id) {
   S.populate(W);
   idScope = null;
   for (const o of W.objects) o.art = propArt(o);
+  // what makes it look lived in: marks painted on the ground, small things standing (decor.js; never saved)
+  decorate(W);
+  const gx = g.getContext("2d");
+  for (const d of W.decals) DC.paintDecal(gx, d.kind, d.x, d.y, d.seed);
+  for (const d of W.decor) { d.art = decorArt(d); if (d.block) W.block[d.block[1] * MW + d.block[0]] = 1; }
   for (const c of W.chests) W.block[Math.floor((c.y - 1) / TILE) * MW + Math.floor(c.x / TILE)] = 1;
   W.critters = makeCritters(W);
   // the save's view of this map: ids for its objects and groups, and how everything looks right now
@@ -265,6 +275,8 @@ function makeCritters(W) {
       if (W.tileAt((x / TILE) | 0, (y / TILE) | 0) !== 0) continue;
       out.push({ kind: "bf", x, y, c: R.pick(BF), ph: R.range(0, 9), r: R.range(14, 40), sp: R.range(0.3, 0.7) });
     }
+    // pollen over the meadows by day (the fireflies take over at night)
+    for (let i = 0; i < 40; i++) out.push({ kind: "pol", x: R.range(4, MW - 4) * TILE, y: R.range(16, MH - 4) * TILE, ph: R.range(0, 9), r: R.range(20, 50), sp: R.range(0.05, 0.12) });
     for (let i = 0; i < 70; i++) {
       const inR = i < 40;
       const x = inR ? R.range(10, 30) * TILE : R.range(32, 76) * TILE, y = inR ? R.range(3, 14) * TILE : R.range(17, 37) * TILE;
@@ -272,6 +284,10 @@ function makeCritters(W) {
     }
   } else if (W.outdoor) {
     for (let i = 0; i < 40; i++) out.push({ kind: "ff", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(8, 30), sp: R.range(0.15, 0.4) });
+    for (let i = 0; i < 26; i++) out.push({ kind: "pol", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(20, 50), sp: R.range(0.05, 0.12) });
+  } else if (W.id === "claustro") {
+    // dust turning slowly in the candlelight
+    for (let i = 0; i < 60; i++) out.push({ kind: "dust", x: R.range(2, W.w - 2) * TILE, y: R.range(1, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(6, 22), sp: R.range(0.05, 0.14) });
   } else {
     // slow pale motes of light
     for (let i = 0; i < 50; i++) out.push({ kind: "mote", x: R.range(2, W.w - 2) * TILE, y: R.range(2, W.h - 2) * TILE, ph: R.range(0, 9), r: R.range(10, 40), sp: R.range(0.08, 0.2) });
@@ -312,6 +328,14 @@ function propArt(o) {
     case "mgate": return key(`mgate${o.open ? 1 : 0}`);
     default: return key(o.kind);
   }
+}
+function decorArt(d) {
+  const k = `decor-${d.kind}-${d.seed % 16}`;
+  if (!art.has(k)) {
+    const s = d.seed % 16;
+    art.set(k, { candles: () => DC.makeCandles(s), brazier: () => DC.makeBrazier(), pot: () => DC.makePot(s), sacks: () => DC.makeSacks(s), basket: () => DC.makeBasket(s), stump: () => DC.makeStump(s), mushrooms: () => DC.makeMushrooms(s) }[d.kind]());
+  }
+  return art.get(k);
 }
 function makeArt(o) {
   switch (o.kind) {
@@ -1790,6 +1814,7 @@ function draw() {
   const items = [];
   const inView = (x, y, m = 120) => x > cx + box.x - m && x < cx + box.x + box.w + m && y > cy + box.y - 20 && y < cy + box.y + box.h + 160;
   for (const o of W.objects) if (!o.hidden && inView(o.x, o.y, o.kind === "house" ? 210 : 120)) items.push({ y: o.y + (o.sortY ?? 0), o });
+  for (const o of W.decor) if (inView(o.x, o.y, 40)) items.push({ y: o.y, o });
   for (const g of W.grass) if (inView(g.x, g.y, 20)) items.push({ y: g.y, g });
   for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) if (!u.gone && !u.hidden && inView(u.x, u.y)) items.push({ y: u.y + (u.float ? 40 : 0), u });
   G.chests.forEach((c) => inView(c.x, c.y) && items.push({ y: c.y, c }));
@@ -1919,6 +1944,7 @@ function airNow(amb) {
     if (o.kind === "campfire") { if (!o.out) air.lamps.push({ x: o.x, y: o.y, r: 150, c: o.goblin ? [0.5, 1, 0.45] : [1, 0.55, 0.2], i: 1 }); }
     else if (o.light && !o.light.off && o.light.r >= 60) air.lamps.push({ x: o.x + (o.light.dx ?? 0), y: o.y, r: o.light.r * 0.9, c: o.light.c, i: (o.light.i ?? 1) * 0.8 });
   }
+  for (const o of G.W.decor) if (o.light && o.light.r >= 60) air.lamps.push({ x: o.x, y: o.y, r: o.light.r * 0.9, c: o.light.c, i: (o.light.i ?? 1) * 0.8 });
 }
 /** The tileable mist in the colour of the hour (a few shades, made once each). */
 const mists = new Map();
@@ -1955,6 +1981,7 @@ function gatherLights(cx, cy) {
     else if (o.glow) glow(o, o.glow);
     else if (o.kind === "statue" && o.lit) add(o.x, o.y, 30, 90, [0.6, 0.78, 1], 0.9, true);
   }
+  for (const o of G.W.decor) if (o.light) add(o.x + (o.light.dx ?? 0), o.y, o.light.h ?? 0, o.light.r, o.light.c, (o.light.i ?? 1) * (o.light.flicker ? flick(o.x + o.y) : 1), o.light.shadows ?? true);
   for (const u of [...G.party, ...G.npcs, ...G.followers, ...G.enemies]) if (u.glow && !u.gone && !u.hidden) glow(u, u.glow);
   for (const L of G.fx.lights()) add(L.x, L.y, 0, L.r, L.c, L.i, L.shadows);
   return out;
@@ -1970,15 +1997,40 @@ function gatherOccluders(items, cx, cy) {
   return out;
 }
 
+/** Sparks rising off the fires: worked out from the time alone, so they cost nothing to keep. */
+function embers(cx, cy, t) {
+  ctx.globalCompositeOperation = "lighter";
+  for (const o of G.W.objects) {
+    if (o.kind !== "campfire" || o.out || o.hidden) continue;
+    if (o.x < cx - 60 || o.x > cx + G.vw + 60 || o.y < cy - 20 || o.y > cy + G.vh + 120) continue;
+    for (let i = 0; i < 7; i++) {
+      const p = (t * (0.32 + (i % 3) * 0.07) + i * 0.143) % 1;
+      const gx = o.x + Math.sin(i * 2.7 + t * 1.3) * (3 + p * 9) + (i - 3), gy = o.y - 8 - p * 46;
+      anchored(gx, gy + 14, () => {
+        const a = (1 - p) * (p < 0.08 ? p / 0.08 : 1);
+        ctx.fillStyle = o.goblin ? `rgba(170,255,140,${a})` : p < 0.4 ? `rgba(255,214,120,${a})` : `rgba(255,140,60,${a * 0.8})`;
+        ctx.fillRect(Math.round(gx - cx), Math.round(gy - cy), 1, 1);
+      });
+    }
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+/** How much it is night outdoors (0 by day, 1 at night): fireflies come out, the pollen settles. */
+function nightK() {
+  if (!G.W.outdoor || G.W.amb) return 0;
+  return clamp(-dayLight(G.clock).level / 2 + (G.clock > 17.5 || G.clock < 6.5 ? 0.25 : 0));
+}
 function drawCritters(cx, cy, ruinK) {
-  const t = G.time;
+  const t = G.time, nk = nightK();
   ctx.save();
+  embers(cx, cy, t);
   for (const c of G.W.critters) {
     const a = t * c.sp + c.ph;
     const gx = c.x + Math.sin(a) * c.r + Math.sin(a * 2.3) * 6, gy = c.y + Math.sin(a * 1.7) * c.r * 0.5 + Math.cos(a * 3.1) * 4;
     const x = Math.round(gx - cx), y = Math.round(gy - cy - 14);
     if (!PV.on && (x < -4 || y < -4 || x > G.vw + 4 || y > G.vh + 4)) continue;
-    if (c.kind === "bf" && G.f.escape) continue;
+    if (c.kind === "bf" && (G.f.escape || nk > 0.6)) continue;
+    if (c.kind === "pol" && nk > 0.5) continue;
     anchored(gx, gy, () => {
       if (c.kind === "bf") {
         const open = Math.floor(t * 12 + c.ph) % 2 === 0;
@@ -1987,9 +2039,16 @@ function drawCritters(cx, cy, ruinK) {
         if (open) { ctx.fillRect(x - 2, y - 1, 2, 2); ctx.fillRect(x + 1, y - 1, 2, 2); ctx.fillStyle = c.c[1]; ctx.fillRect(x - 2, y - 1, 1, 1); ctx.fillRect(x + 2, y - 1, 1, 1); }
         else { ctx.fillRect(x - 1, y - 2, 1, 2); ctx.fillRect(x + 1, y - 2, 1, 2); }
         ctx.fillStyle = "#1a1020"; ctx.fillRect(x, y - 1, 1, 2);
+      } else if (c.kind === "pol" || c.kind === "dust") {
+        // pollen in the sun, dust in the candlelight: a pale speck that drifts and catches the light now and then
+        const b = (0.35 + 0.35 * Math.sin(t * 0.7 + c.ph * 5)) * (c.kind === "pol" ? 1 - nk : 1);
+        if (b < 0.08) return;
+        ctx.fillStyle = c.kind === "pol" ? `rgba(255,246,190,${b})` : `rgba(255,226,170,${b * 0.8})`;
+        ctx.fillRect(x, y + Math.round(Math.sin(t * 0.3 + c.ph) * 6), 1, 1);
       } else {
         const mote = c.kind === "mote";
-        const b = Math.max(0, Math.sin(t * (mote ? 0.9 : 2.2) + c.ph * 3)) * (mote ? 0.7 : 0.35 + ruinK * 0.65);
+        // fireflies glow at dusk and at night (and in the ruins' smoke); by day only a faint one here and there
+        const b = Math.max(0, Math.sin(t * (mote ? 0.9 : 2.2) + c.ph * 3)) * (mote ? 0.7 : (0.12 + nk * 0.88) * (0.35 + Math.max(ruinK, nk) * 0.65));
         if (b < 0.05) return;
         ctx.globalCompositeOperation = "lighter";
         ctx.fillStyle = mote ? `rgba(120,150,220,${b * 0.3})` : `rgba(120,160,40,${b * 0.35})`; ctx.fillRect(x - 1, y - 1, 3, 3);

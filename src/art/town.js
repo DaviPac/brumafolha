@@ -2,7 +2,7 @@
 // the things a frontier town is made of: palisade, timber houses, market stalls, lamp posts, a well, tables,
 // a tavern sign, a notice board, a cart, a shrine. Same rules as the valley: lit from the top left, hard ramps
 // with ordered dither, a dark outline on everything that stands.
-import { TILE, PixBuf, Rng, ramp, rampAt, vnoise, fbm, hash2, clamp } from "../util.js";
+import { TILE, PixBuf, Rng, ramp, rampAt, vnoise, fbm, hash2, clamp, bayer } from "../util.js";
 import { PAL } from "./ground.js";
 import { RAMP } from "./props.js";
 
@@ -48,7 +48,16 @@ export function paintOutdoor(W, K) {
         let land = 0;
         for (const r of [8, 20, 34]) for (let a = 0; a < 6; a++) { const k = kAt(Math.round(x + Math.cos(a * 1.047) * r), Math.round(y + Math.sin(a * 1.047) * r)); if (k !== K.WATER && k !== K.DOCK && k >= 0) land += 1 / 18; }
         c = rampAt(PAL.water, clamp(0.15 + land * 1.6) + (vnoise(x / 14, y / 7, 2) - 0.5) * 0.25, x, y);
-        if (W.ford?.(x, y)) c = rampAt(PAL.water, 0.8 + (vnoise(x / 5, y / 3, 9) - 0.5) * 0.4, x, y); // the shallows of a ford
+        if (W.ford) {
+          // the shallows of a ford: an edge that wanders, paler where it is shallowest, and the current combed into
+          // light streaks running downstream (not a straight band across the river)
+          const j = (vnoise(x / 11, y / 9, 13) - 0.5) * 26 + (vnoise(x / 4, y / 4, 19) - 0.5) * 6;
+          if (W.ford(x, y + j)) {
+            const mid = W.ford(x, y + j - 12) && W.ford(x, y + j + 12);
+            c = rampAt(PAL.water, (mid ? 0.82 : 0.66) + (vnoise(x / 5, y / 3, 9) - 0.5) * 0.34, x, y);
+            if (vnoise(x / 2.2, y / 10, 17) > 0.8) c = PAL.water[PAL.water.length - 1];
+          }
+        }
         const up = kAt(x, y - 3), up2 = kAt(x, y - 1);
         if ((up !== K.WATER && up !== K.DOCK && up >= 0) || (up2 !== K.WATER && up2 !== K.DOCK && up2 >= 0)) c = PAL.bank[up2 !== K.WATER ? 0 : 1];
       } else if (t === K.DOCK) {
@@ -62,7 +71,9 @@ export function paintOutdoor(W, K) {
         c = cobble(x, y);
       } else {
         const lush = fbm(x / 200, y / 200, 21 + lushSeed, 3);
-        c = lush < 0.4 ? rampAt(PAL.dry, base * 0.85 + 0.1, x, y) : rampAt(PAL.grass, base * 0.8 + (lush - 0.4) * 0.8 - (fbm(x / 70, y / 70, 41, 2) < 0.4 ? 0.18 : 0), x, y);
+        // a ragged, dithered border between dry meadow and grass (as in the valley)
+        const k = (lush + (vnoise(x / 7, y / 6, 33) - 0.5) * 0.06 + (vnoise(x / 2.5, y / 2.5, 34) - 0.5) * 0.025 - 0.39) / 0.04;
+        c = k < 1 && k <= bayer(x, y) ? rampAt(PAL.dry, base * 0.85 + 0.1 + (k > 0 ? 0.08 : 0), x, y) : rampAt(PAL.grass, base * 0.8 + Math.max(0, lush - 0.4) * 0.8 - (k < 1.6 ? 0.12 : 0) - (fbm(x / 70, y / 70, 41, 2) < 0.4 ? 0.18 : 0), x, y);
       }
       const j = (y * w + x) * 4;
       d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;

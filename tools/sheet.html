@@ -18,6 +18,7 @@
 // Contact sheet of every generated asset at 3x, so new art can be judged side by side.
 // Open http://localhost:5173/tools/sheet.html (add ?only=chars, ?only=props or ?only=icons).
 import * as A from "../src/art/props.js";
+import * as DC from "../src/art/decor.js";
 import { buildCharacter, SPECS } from "../src/art/chars.js";
 import { ICON_NAMES, iconCanvas } from "../src/art/icons.js";
 
@@ -52,6 +53,16 @@ if (only !== "chars" && only !== "icons") {
     ["post", A.makePost(14).c], ["rowboat", A.makeRowboat().c], ["campfire", A.makeCampfireBase().c], ["banner", A.makeBanner().c],
     ["bones", A.makeBones(1).c], ["chest", A.makeChest(false).c], ["chest open", A.makeChest(true).c],
   ]);
+  section("decor (0.9.2)", [
+    ["candles", DC.makeCandles(1).c], ["candles b", DC.makeCandles(4).c], ["brazier", DC.makeBrazier().c], ["pot", DC.makePot(1).c], ["pot b", DC.makePot(2).c], ["pot c", DC.makePot(3).c],
+    ["sacks", DC.makeSacks(2).c], ["sacks 3", DC.makeSacks(3).c], ["basket apples", DC.makeBasket(1).c], ["basket fish", DC.makeBasket(2).c],
+    ["stump", DC.makeStump(1).c], ["stump b", DC.makeStump(2).c], ["mushrooms", DC.makeMushrooms(2).c], ["mushrooms b", DC.makeMushrooms(3).c],
+  ]);
+  section("ground marks (0.9.2)", ["pebbles", "stones", "leaves", "flowers", "twigs", "puddle", "moss", "straw", "wax"].map((k, i) => {
+    const c = document.createElement("canvas"); c.width = 24; c.height = 16; const x = c.getContext("2d");
+    x.fillStyle = k === "stones" ? "#33a3b0" : k === "puddle" || k === "moss" || k === "straw" ? "#6e665c" : "#4a8a30"; x.fillRect(0, 0, 24, 16);
+    DC.paintDecal(x, k, 12, 8, i + 3); return [k, c];
+  }));
 }
 </script>
 </body>
