@@ -1087,6 +1087,19 @@ function resize() {
 }
 
 // ---------------------------------------------------------------- update
+/** People standing about look around now and then, and turn to whoever comes close; only while exploring, and only
+ * in how they are drawn (u.face): where they face in the story (u.dir, which the save keeps) never changes. */
+function glance(n, dt) {
+  const l = lead();
+  if (G.mode !== "explore" || !l || n.fixed || n.ghost || n.float || n.hidden || n.gone || n.moving || n.path?.length || n.team !== "npc") { n.face = null; return; }
+  const dx = l.x - n.x, dy = l.y - n.y;
+  if (dx * dx + dy * dy < (2.6 * TILE) ** 2) { n.face = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 1 : 2) : dy < 0 ? 3 : 0; n.lookT = 1.5; return; }
+  n.lookT = (n.lookT ?? 2 + hash2(Math.round(n.x), 3, 9) * 6) - dt;
+  if (n.lookT > 0) return;
+  // a look to one side, then back to what they were doing
+  n.face = n.face == null && hash2(Math.round(G.time), Math.round(n.x), 11) < 0.6 ? [0, 1, 2][Math.floor(hash2(Math.round(G.time * 7), Math.round(n.y), 13) * 3)] : null;
+  n.lookT = n.face == null ? 4 + hash2(Math.round(G.time), Math.round(n.y), 17) * 6 : 1.2 + hash2(Math.round(G.time), 2, 19) * 1.6;
+}
 function stepAlongPath(u, dt) {
   if (!u.path.length) { u.moving = false; return; }
   const [tx, ty] = u.path[0];
@@ -1339,6 +1352,7 @@ function update(dt) {
     if (G.followLeader) followTrail(dt);
   }
   if (G.mode !== "combat") for (const n of G.npcs) stepAlongPath(n, dt);
+  for (const n of G.npcs) glance(n, dt);
   for (const u of [...G.party, ...G.enemies, ...G.npcs, ...G.followers]) {
     u.animT += dt;
     if (u.poseT > 0) u.poseT -= dt; else u.pose = "idle";
@@ -1391,8 +1405,11 @@ function drawUnit(u, cx, cy) {
   else if (u.pose === "cast" && u.poseT > 0) fi = 6;
   else if (u.gesture) fi = Math.floor(u.animT * 0.9) % 2 ? 6 : 4;
   else if (u.moving) fi = Math.floor(u.animT * 8) % 4;
-  const set = sheetOf(u);
-  const img = u.flashT > 0 ? set.flash[u.dir][fi] : set.frames[u.dir][fi];
+  // a blink now and then while standing (each one on its own beat); the face it shows can be a glance (u.face)
+  const dir = u.face ?? u.dir;
+  const blink = fi === 4 && !u.moving && dir !== 3 && ((G.time + (u.blinkPh ??= hash2(Math.round(u.x), Math.round(u.y), 5) * 5)) % 4.6) < 0.14;
+  const set = sheetOf(u), fj = blink && set.frames[dir][7] ? 7 : fi;
+  const img = u.flashT > 0 ? set.flash[dir][fj] : set.frames[dir][fj];
   if (u.alpha != null) ctx.globalAlpha = u.alpha;
   if (down) {
     ctx.save(); ctx.globalAlpha = 0.6; ctx.translate(x, y - 6); ctx.rotate(Math.PI / 2); ctx.drawImage(img, -SW / 2, -SH / 2 - 4); ctx.restore();

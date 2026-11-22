@@ -39,7 +39,7 @@ if (!only || only === "icons") section("icons", ICON_NAMES.map((k) => [k, iconCa
 if (only !== "props" && only !== "icons") {
   for (const [k, spec] of Object.entries(SPECS)) {
     const ch = buildCharacter(spec);
-    const names = ["walk0", "walk1", "walk2", "walk3", "idle", "attack", "cast"];
+    const names = ["walk0", "walk1", "walk2", "walk3", "idle", "attack", "cast", "blink"];
     section(`char: ${k}`, ch.frames.flatMap((row, dir) => row.map((c, f) => [`${"SWEN"[dir]} ${names[f]}`, c])));
   }
 }

@@ -374,6 +374,7 @@ function drawSprite(S, dir, frame, pose) {
     // face
     const ey = hy + Math.floor(hh * 0.58);
     const eye = (ex) => {
+      if (BLINK) { pb.set(ex, ey, S.skin[2]); pb.set(ex, ey + 1, S.skin[0]); return; } // shut: the lid, and the lash under it
       if (S.ears === "goblin") { pb.set(ex, ey, S.eyes); pb.set(ex, ey + 1, [20, 10, 10]); }
       else { pb.set(ex, ey, S.eyes); pb.set(ex, ey + 1, S.eyes); }
     };
@@ -724,6 +725,7 @@ function drawSprite(S, dir, frame, pose) {
 }
 
 /** dirs: 0 down, 1 left, 2 right, 3 up. frames: walk0..3, idle, attack, cast. */
+let BLINK = false; // drawSprite paints the eyes shut (the blink frame, index 7)
 export function buildCharacter(spec) {
   if (spec.creature) return buildCreature(spec); // not people: the Bruma moths
   const ch = buildSheet(spec);
@@ -740,6 +742,7 @@ function buildSheet(spec) {
     row.push(drawSprite(spec, dir, 0, "idle"));
     row.push(drawSprite(spec, dir, 0, "attack"));
     row.push(drawSprite(spec, dir, 0, "cast"));
+    BLINK = true; row.push(drawSprite(spec, dir, 0, "idle")); BLINK = false; // 7: idle with the eyes shut
     sheet.push(row);
   }
   const canvases = sheet.map((r) => r.map((pb) => pb.canvas()));
