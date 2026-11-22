@@ -395,6 +395,7 @@ function damage(t, amount, crit, src, kind = "blade") {
   floater(t.x, t.y - 34, crit ? `${amount}!` : `${amount}`, crit ? "crit" : "dmg");
   G.shake = crit ? 0.3 : 0.12;
   G.hitstop = crit ? 0.12 : 0.06;
+  (G.impacts ??= []).push({ x: t.x, y: t.y, t: 0, crit, down: t.hp <= 0 }); // a ring of dust on the ground (main.js, drawFloor)
   sfx.hit(crit, kind);
   if (t.hp <= 0) {
     t.hp = 0;

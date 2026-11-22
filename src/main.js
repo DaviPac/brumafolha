@@ -1142,7 +1142,7 @@ function followTrail(dt) {
 const campfires = () => G.W.objects.filter((o) => o.kind === "campfire" && !o.out);
 function surfaceAt(x, y) {
   const t = G.W.tileAt(Math.floor(x / TILE), Math.floor((y - 2) / TILE));
-  return t === T.DOCK ? "wood" : t === T.STONE || t === T.MARBLE || t === T.STAIRS ? "stone" : t === T.PATH ? "dirt" : t === T.WATER ? "water" : "grass";
+  return t === T.DOCK ? "wood" : t === T.STONE || t === T.MARBLE || t === T.STAIRS || t === T.COBBLE ? "stone" : t === T.PATH ? "dirt" : t === T.WATER ? "water" : "grass";
 }
 function updateAudio(dt) {
   if (G.mode === "title" || G.mode === "create" || !G.party.length) return;
@@ -1368,6 +1368,7 @@ function update(dt) {
   if (!(freeCam && G.mode === "combat" && !G.camFocus)) moveCamera(dt, G.camFocus ?? (G.mode === "combat" && G.focus ? G.focus : l));
   if (G.shake > 0) G.shake -= dt;
   if (clickMark) { clickMark.t -= dt; if (clickMark.t <= 0) clickMark = null; }
+  if (G.impacts?.length) { for (const p of G.impacts) p.t += dt; G.impacts = G.impacts.filter((p) => p.t < 0.45); }
   // the keyboard/pad cursor moves the "mouse" during combat
   if (cursor.on && G.mode === "combat") { [G.mouse.x, G.mouse.y] = UI.worldToScreen(cursor.tx * TILE + 16, cursor.ty * TILE + 12); G.mouse.in = true; }
   else if (cursor.on) cursor.on = false;
@@ -1740,6 +1741,13 @@ function drawFloor(cx, cy, vw, vh, items, bg) {
   sec("chão");
   // click marker
   if (clickMark) ring(clickMark.x - cx, clickMark.y - cy, `rgba(232,192,106,${clickMark.t * 2})`, 6 + (0.5 - clickMark.t) * 10);
+  // a blow lands: a ring of dust thrown out along the ground, and a few specks of it (on the ground plane, under everyone)
+  for (const p of G.impacts ?? []) {
+    const k = p.t / 0.45, a = 1 - k, R = (p.crit || p.down ? 18 : 12) * (0.35 + k);
+    ring(p.x - cx, p.y - cy, p.crit ? `rgba(255,190,120,${a})` : `rgba(236,224,196,${a * 0.85})`, R);
+    ctx.fillStyle = `rgba(214,196,160,${a})`;
+    for (let i = 0; i < 6; i++) { const ang = i * 1.047 + p.x * 0.01; ctx.fillRect(Math.round(p.x - cx + Math.cos(ang) * R * 1.15), Math.round(p.y - cy + Math.sin(ang) * R * 0.55), 1, 1); }
+  }
   S.drawGround(ctx, cx, cy);
   drawCombatGrid(cx, cy);
   drawReflections(cx, cy, items);

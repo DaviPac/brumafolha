@@ -160,6 +160,7 @@ export async function begin() {
 }
 async function toMap(id, tx, ty, dir, after) {
   await scene(async () => {
+    if (id === "claustro" || G.W.id === "claustro") sfx.door(); // in or out of the cloister: through a door
     await UI.fade(1, 500);
     E.buildMap(id);
     E.loadMap(id, tx, ty, dir);
