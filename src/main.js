@@ -45,7 +45,7 @@ import { P as PV, frame as pvFrame, project, unproject, rowToFlat, mouseRel, set
 const canvas = document.getElementById("game");
 const screen = canvas.getContext("2d");
 let ctx = screen; // where the drawing functions paint: the screen, or one of the lit renderer's layers
-let mist, vignette, fgLeft, fgRight, fogC, fogX, reflA, reflB;
+let mistBase, vignette, fgLeft, fgRight, fogC, fogX, reflA, reflB;
 const art = new Map();
 const shadows = new Map();
 const grassArt = [];
@@ -82,7 +82,7 @@ async function boot() {
     <li class="touch-only">Combate: <b>toque</b> uma vez para ver, de novo para confirmar · <b>arraste</b> para olhar o campo</li>`;
   for (const el of document.querySelectorAll("[data-icon]")) el.innerHTML = icon(el.dataset.icon);
   for (let v = 0; v < 6; v++) grassArt.push(A.makeTallGrass(v));
-  mist = makeMist();
+  mistBase = makeMist();
   fgLeft = silhouette(11); fgRight = silhouette(29);
   G.fx = new FxLayer();
   await loadStep(loading ? null : "Misturando a luz...", 0.15);
@@ -1645,13 +1645,23 @@ function drawFog(cx, cy) {
   if (fresh) {
     fogC.age = 0; fogC.map = G.W; fogC.ox = ox; fogC.oy = oy;
     const d = fogC.img.data, t = G.time;
+    // the Bruma takes the colour of the hour (pearly blue at night: it "glows faintly", never white on a dark map)
+    // and catches the warm light of fires and lamps near it
+    const [mr, mg, mb] = air.fog, R0 = 236 * mr, G0 = 240 * mg, B0 = 246 * mb;
+    const x0 = ox * C, y0 = oy * C, x1 = x0 + w * C, y1 = y0 + h * C;
+    const lamps = air.lamps.filter((L) => L.x + L.r > x0 && L.x - L.r < x1 && L.y + L.r > y0 && L.y - L.r < y1);
     for (let j = 0; j < h; j++)
       for (let i = 0; i < w; i++) {
         const wx = (ox + i) * C, wy = (oy + j) * C;
         let f = S.fogAt(wx, wy);
         if (f > 0.01) f *= 0.7 + vnoise(wx / 70 + t * 0.12, wy / 50 - t * 0.05, 5) * 0.55;
         const k = (j * w + i) * 4;
-        d[k] = 236; d[k + 1] = 240; d[k + 2] = 246; d[k + 3] = clamp(f, 0, 1) * 235;
+        let r = R0, g = G0, b = B0;
+        if (f > 0.01) for (const L of lamps) {
+          const q = 1 - Math.hypot(wx - L.x, (wy - L.y) * 1.25) / L.r;
+          if (q > 0) { const e = q * q * L.i * air.lampK; r += L.c[0] * e; g += L.c[1] * e; b += L.c[2] * e; }
+        }
+        d[k] = Math.min(255, r); d[k + 1] = Math.min(255, g); d[k + 2] = Math.min(255, b); d[k + 3] = clamp(f, 0, 1) * 235;
       }
   }
   const x = fogC.ox * C - cx, y = fogC.oy * C - cy;
@@ -1765,7 +1775,8 @@ function draw() {
   Object.assign(view, { cx, cy, ss, lit: gpu });
   showLight(gpu, vw * G.scale, vh * G.scale);
   paintOn(gpu ? LY[0].x : screen);
-  const bg = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : W.id === "vale" && PV.on ? "#16231c" : "#0b0a10";
+  // past the edge of an outdoor map is more wood, in the dark (the tilted camera sees past the edges): not a black void
+  const bg = W.id === "sonho" ? "#e8ebf1" : W.id === "relicario" ? "#0e1219" : (W.outdoor || W.id === "vale") && PV.on ? "#16231c" : "#0b0a10";
 
   // the part of the flat world this frame shows: the screen, or (3D) the trapezoid under the tilted camera
   const box = { x: 0, y: 0, w: vw, h: vh };
@@ -1819,6 +1830,8 @@ function draw() {
     if (ruinK > 0.01 && !lit) { ctx.fillStyle = `rgba(16,20,40,${0.32 * ruinK})`; ctx.fillRect(0, 0, vw, vh); }
   } else if (W.id === "sonho") { ctx.fillStyle = "rgba(170,180,230,0.16)"; ctx.fillRect(0, 0, vw, vh); }
   else if (W.id === "relicario" && !lit) { ctx.fillStyle = "rgba(30,50,90,0.14)"; ctx.fillRect(0, 0, vw, vh); }
+  const amb = lit ? ambientNow(ruinK) : null;
+  airNow(amb);
   if (G.tint && !lit) { ctx.fillStyle = G.tint; ctx.fillRect(0, 0, vw, vh); }
   sec("barras");
   if (PV.on) G.fx.drawEach(cx, cy, (x, y, fn) => { if (x > cx + box.x - 140 && x < cx + box.x + box.w + 140 && y > cy + box.y - 80 && y < cy + box.y + box.h + 230) anchored(x, y, () => fn(ctx)); });
@@ -1828,6 +1841,7 @@ function draw() {
   drawCritters(cx, cy, ruinK);
   const mk = W.id === "vale" ? 0.08 + ruinK * 0.7 : W.id === "sonho" ? 0.5 : W.id === "vau" ? 0.05 : 0.15;
   ctx.globalAlpha = mk;
+  const mist = mistArt(air.mist);
   const mx = -((cx * 1.0 + t * 8) % mist.width) - mist.width, my = -((cy * 1.0 + t * 3) % mist.height) - mist.height;
   for (let y = my; y < vh; y += mist.height) for (let x = mx; x < vw; x += mist.width) ctx.drawImage(mist, Math.round(x), Math.round(y));
   ctx.globalAlpha = 1;
@@ -1853,7 +1867,7 @@ function draw() {
   if (gpu) {
     renderLight({
       ss, cam: PV.on ? [0, 0] : [cx, cy], add: !PV.on && G.fx.w === vw && G.fx.h === vh ? G.fx.lightPixels : null,
-      amb: lit ? ambientNow(ruinK) : { level: 0, tint: [1, 1, 1], tintK: 0, gain: 0 }, // unlit: every colour as painted
+      amb: lit ? amb : { level: 0, tint: [1, 1, 1], tintK: 0, gain: 0 }, // unlit: every colour as painted
       lights: lit ? gatherLights(cx, cy) : [], occluders: lit ? gatherOccluders(items, cx, cy) : [],
     });
     base = ctx = screen;
@@ -1862,9 +1876,13 @@ function draw() {
 }
 
 // ---------------------------------------------------------------- light: what shines, what blocks it, how dark it is
+// The colours multiply what stays dark: at night every channel goes below 1 (blue the least), so saturated things
+// like the lake's turquoise sink with the rest instead of glowing; dawn is cold and pale, the late afternoon golden.
+const NIGHT = [0.5, 0.6, 0.94];
 const DAY = [ // hour, darkness in ramp steps, ambient colour, how much of it
-  [0, -2, [0.6, 0.72, 1.14], 0.9], [4.6, -2, [0.6, 0.72, 1.14], 0.9], [5.6, -1.4, [0.86, 0.78, 1.02], 0.75], [6.4, -0.7, [1.1, 0.9, 0.9], 0.6],
-  [7.6, 0, [1, 1, 1], 0], [16.4, 0, [1, 1, 1], 0], [17.6, -0.7, [1.16, 0.88, 0.72], 0.7], [19, -1.3, [0.92, 0.74, 0.92], 0.8], [20.4, -2, [0.6, 0.72, 1.14], 0.9], [24, -2, [0.6, 0.72, 1.14], 0.9],
+  [0, -2, NIGHT, 1], [4.6, -2, NIGHT, 1], [5.5, -1.4, [0.7, 0.78, 1], 0.9], [6.3, -0.8, [0.86, 0.9, 1.04], 0.75], [7.2, -0.3, [0.96, 0.98, 1.04], 0.45],
+  [8.2, 0, [1, 1, 1], 0], [15.8, 0, [1, 1, 1], 0], [16.9, 0, [1.1, 0.98, 0.84], 0.5], [17.8, -0.6, [1.18, 0.88, 0.66], 0.8], [18.8, -1.2, [1.04, 0.74, 0.7], 0.85],
+  [19.6, -1.5, [0.78, 0.66, 0.88], 0.9], [20.4, -2, NIGHT, 1], [24, -2, NIGHT, 1],
 ];
 /** The sky's light at an hour of the day (0–24): whole steps of darkness, and a colour for what stays dark. */
 function dayLight(h) {
@@ -1885,6 +1903,40 @@ function ambientNow(ruinK) {
   return d;
 }
 G.clock = 9;
+/** The open air this frame: colour multipliers for what is painted over the light (the fine mist, the Bruma), and
+ * the warm lights the Bruma catches. Unlit (light off, or no WebGL2), everything is as painted. */
+const air = { fog: [1, 1, 1], mist: [1, 1, 1], lamps: [], lampK: 0 };
+function airNow(amb) {
+  air.lamps.length = 0;
+  if (!amb) { air.fog = air.mist = [1, 1, 1]; air.lampK = 0; return; }
+  const b = 1 + Math.min(0, amb.level) * 0.17;
+  const m = amb.tint.map((v) => clamp(b * (1 + (v - 1) * amb.tintK), 0, 1.2));
+  air.mist = m;
+  air.fog = m.map((v) => 0.42 + 0.58 * v);
+  air.lampK = clamp(-amb.level * 0.5 + 0.25, 0.25, 1) * 150;
+  for (const o of G.W.objects) {
+    if (o.hidden) continue;
+    if (o.kind === "campfire") { if (!o.out) air.lamps.push({ x: o.x, y: o.y, r: 150, c: o.goblin ? [0.5, 1, 0.45] : [1, 0.55, 0.2], i: 1 }); }
+    else if (o.light && !o.light.off && o.light.r >= 60) air.lamps.push({ x: o.x + (o.light.dx ?? 0), y: o.y, r: o.light.r * 0.9, c: o.light.c, i: (o.light.i ?? 1) * 0.8 });
+  }
+}
+/** The tileable mist in the colour of the hour (a few shades, made once each). */
+const mists = new Map();
+function mistArt(m) {
+  const k = m.map((v) => Math.round(v * 10)).join(",");
+  if (!mists.has(k)) {
+    if (k === "10,10,10") mists.set(k, mistBase);
+    else {
+      const [c, x] = makeCanvas(mistBase.width, mistBase.height);
+      x.drawImage(mistBase, 0, 0);
+      const img = x.getImageData(0, 0, c.width, c.height), q = k.split(",").map((v) => v / 10);
+      for (let i = 0; i < img.data.length; i += 4) { img.data[i] *= q[0]; img.data[i + 1] *= q[1]; img.data[i + 2] *= q[2]; }
+      x.putImageData(img, 0, 0);
+      mists.set(k, c);
+    }
+  }
+  return mists.get(k);
+}
 const flick = (seed) => { const t = Math.floor(G.time * 9); return 1 + 0.07 * Math.sin(t * 1.7 + seed) + 0.04 * Math.sin(t * 3.3 + seed * 2); };
 /** Something at flat (x, y) on the ground, `up` pixels tall: where it is in the view and how large things are there. */
 function onView(x, y, up = 0) {
@@ -1898,7 +1950,7 @@ function gatherLights(cx, cy) {
   const glow = (e, g) => add(e.x, e.y, g.h ?? 16, g.r * 2.6, (g.c ?? [150, 190, 255]).map((v) => v / 255), Math.min(1, (g.a ?? 0.35) * 2.4), g.r > 30);
   for (const o of G.W.objects) {
     if (o.hidden) continue;
-    if (o.kind === "campfire") { if (!o.out) add(o.x, o.y, 4, 150, o.goblin ? [0.72, 1, 0.66] : [1, 0.7, 0.38], flick(o.x), true); }
+    if (o.kind === "campfire") { if (!o.out) add(o.x, o.y, 4, 176, o.goblin ? [0.72, 1, 0.66] : [1, 0.64, 0.32], flick(o.x), true); }
     else if (o.light) { if (!o.light.off) add(o.x + (o.light.dx ?? 0), o.y, o.light.h ?? 0, o.light.r, o.light.c, (o.light.i ?? 1) * (o.light.flicker ? flick(o.x) : 1), o.light.shadows ?? true); }
     else if (o.glow) glow(o, o.glow);
     else if (o.kind === "statue" && o.lit) add(o.x, o.y, 30, 90, [0.6, 0.78, 1], 0.9, true);
