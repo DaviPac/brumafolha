@@ -115,8 +115,10 @@ const PLACES = {
   vale(k) {
     // the camp: sacks by the supply crates, a basket of the day's catch by Maren's dock
     k.put("sacks", 9, 35); k.put("basket", 34, 24, { seed: 2 });
-    // the goblins' ruins: offerings of candles at the old walls
-    for (const [tx, ty] of [[12, 3], [28, 4], [10, 12]]) { const c = k.put("candles", tx, ty, { road: false }); if (c) { c.light = { ...CANDLE_LIGHT, c: [0.8, 1, 0.6] }; k.mark("wax", c.x, c.y + 2); } }
+    // two corners off the trail (story.js: "Banco virado para o lago", "Muro com nomes riscados")
+    k.put("bench", 48, 13, { road: false, dy: 22 });
+    const c = k.put("candles", 29, 6, { block: false, dx: -8, dy: 4, light: { ...CANDLE_LIGHT, c: [0.8, 1, 0.6] } });
+    if (c) k.mark("wax", c.x + 4, c.y + 2);
   },
   relicario(k) {
     // cold Lume braziers along the walls: the light of Velmoor, still burning for no one
@@ -141,6 +143,8 @@ const PLACES = {
   travessia(k) {
     // the ford: wet stones to step on
     for (let i = 0; i < 9; i++) k.mark("stones", k.R.range(27.6, 32.4) * TILE, k.R.range(13.5, 16.5) * TILE);
+    // the old road marker (act1.js: "Marco da estrada")
+    k.put("marker", 8, 13, { road: false, dy: 24 });
     // the shrine of Nhara: candles left by the ones who crossed
     const c = k.put("candles", 21, 8, { road: false, light: { ...CANDLE_LIGHT, r: 60 } }); if (c) k.mark("wax", c.x - 4, c.y + 2);
   },

@@ -1036,6 +1036,7 @@ export function interactables() {
     at(Math.floor(r.x / TILE), Math.floor(r.y / TILE), "Fitas brancas", ribbons, { h: 40 });
     const b = E.obj("pbag");
     if (!b.hidden && F.c2_moths && F.c2_moths !== "met" && F.c2_moths !== "fight") out.push({ x: b.x, y: b.y, name: "Bolsa da peregrina", r: 14, act: pilgrimBag });
+    at(19, 21, "Toco cortado", () => say(null, "Um toco cortado rente, com lascas ainda claras em volta. A lenha está empilhada ao lado, coberta com casca contra a chuva. Ninguém veio buscar."), { h: 20, reach: 44 });
     at(0, 14, "Trilha de volta ao Cardo", () => toMap("travessia", 47, 15, 1), { reach: 70 });
   }
   if (W.id === "mosteiro") {
@@ -1043,6 +1044,7 @@ export function interactables() {
     at(MOST.chapel[0], MOST.chapel[1], "Porta da capela", () => toMap("claustro", CLAU.exits.chapel[0] - 1, CLAU.exits.chapel[1], 1), { h: 40 });
     at(MOST.kitchen[0], MOST.kitchen[1], "Porta da cozinha", () => toMap("claustro", CLAU.exits.kitchen[0] + 1, CLAU.exits.kitchen[1], 2), { h: 40 });
     at(MOST.guest[0], MOST.guest[1], "Hospedaria (dormir)", sleepHere, { h: 40 });
+    at(27, 15, "Cesto de folhas", () => say(null, "Folhas claras do chá de bruma, colhidas hoje. Cheiram a chuva e a folhas, como a névoa do norte. Quem colheu deixou as luvas por cima, viradas do avesso."), { h: 20, reach: 44 });
     at(MOST.north[0], MOST.north[1] + 1, "Portão norte", () => say(null, F.c2_madre_left ? "O portão de ferro está aberto. Do outro lado, a névoa, branca, quieta, e uma fila de pegadas pequenas." : "Um portão de ferro com um olho fechado forjado no alto. Do outro lado, a névoa encosta nas grades como um bicho que quer carinho. Está trancado por dentro, com uma corrente nova."), { h: 50 });
   }
   if (W.id === "claustro") {
@@ -1050,6 +1052,7 @@ export function interactables() {
     at(...CLAU.exits.chapel, "Saída da capela", () => toMap("mosteiro", MOST.chapel[0], MOST.chapel[1] + 1, 0), { reach: 60 });
     at(...CLAU.exits.kitchen, "Porta da cozinha", () => toMap("mosteiro", MOST.kitchen[0], MOST.kitchen[1] + 1, 0), { reach: 60 });
     at(6, 9, "Chaleiras", kettle, { h: 40, reach: 64 });
+    at(14, 10, "Velas do dormitório", () => say(null, "Velas curtas, acesas para as crianças dormirem. Numa delas, alguém riscou um nome na cera com a unha. A chama já comeu a metade de cima."), { h: 24, reach: 48 });
     at(29, 10, "Altar do Véu", altar, { h: 60, reach: 70 });
     if (F.c2_altar) at(15, 3, "Livro de nomes", lectern, { h: 36, reach: 60 });
     if (F.c2_altar && !F.hulda_free) at(CLAU.bars[0], CLAU.bars[1] + 1, "Grades da cela", bars, { h: 46, reach: 60 });
