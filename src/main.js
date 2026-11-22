@@ -333,7 +333,7 @@ function decorArt(d) {
   const k = `decor-${d.kind}-${d.seed % 16}`;
   if (!art.has(k)) {
     const s = d.seed % 16;
-    art.set(k, { candles: () => DC.makeCandles(s), brazier: () => DC.makeBrazier(), pot: () => DC.makePot(s), sacks: () => DC.makeSacks(s), basket: () => DC.makeBasket(s), stump: () => DC.makeStump(s), mushrooms: () => DC.makeMushrooms(s), bench: () => AB.makeBench(), marker: () => I.makeMarker() }[d.kind]());
+    art.set(k, { candles: () => DC.makeCandles(s), brazier: () => DC.makeBrazier(), pot: () => DC.makePot(s), sacks: () => DC.makeSacks(s), basket: () => DC.makeBasket(s), stump: () => DC.makeStump(s), mushrooms: () => DC.makeMushrooms(s), bench: () => AB.makeBench(), marker: () => I.makeMarker(), barrel: () => A.makeBarrel() }[d.kind]());
   }
   return art.get(k);
 }

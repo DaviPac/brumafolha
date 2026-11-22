@@ -134,6 +134,9 @@ const PLACES = {
     for (let i = 0; i < 40; i++) k.mark("flowers", k.R.range(25, 36) * TILE, k.R.range(13, 25) * TILE);
     // the kitchen door: sacks of flour; pots by the guesthouse
     k.put("sacks", 5, 9, { road: false }); k.put("pot", 9, 21, { road: false, dy: 20 }); k.put("pot", 11, 23, { road: false, dy: 20 });
+    // the courtyard's edges: water drawn from the well, the day's bread on its way in, flowers under the windows
+    k.put("barrel", 25, 14, { road: false }); k.put("basket", 26, 14, { road: false, seed: 1 }); k.put("sacks", 5, 17, { road: false });
+    for (const tx of [10, 16, 24, 30]) k.put("pot", tx, 10, { road: false, dy: 20, seed: tx });
   },
   vau(k) {
     // the dock and the market: the town lives by the river
