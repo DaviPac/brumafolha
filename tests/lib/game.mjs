@@ -7,8 +7,10 @@ import path from "node:path";
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const SAVES = path.join(ROOT, "tests/saves");
 
+/** PW_CHROMIUM=/path/to/chrome uses a browser other than the one this Playwright version downloads (a machine with
+ * another version preinstalled). */
 export async function launch() {
-  return chromium.launch({ headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
+  return chromium.launch({ headless: true, ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}), args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
 }
 
 /**
