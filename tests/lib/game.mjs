@@ -28,6 +28,9 @@ export async function newPage(browser, { seed = 7, context = null, notes = false
     // the menu's long opening and the "what's new" window are for people, not for scripts
     try { localStorage.setItem("brumafolha.opening", "1"); if (!notes && !localStorage.getItem("brumafolha.version")) localStorage.setItem("brumafolha.version", "999.0.0"); } catch { /* */ }
   }, [seed, notes, dice]);
+  // the app's icons are drawn by the service worker, which these tests block: an empty answer instead of a 404 that
+  // newer Chromiums report as a console error when they ask for the favicon
+  await ctx.route(/\/icons\/[^/]+\.png$/, (r) => r.fulfill({ status: 204, body: "" }));
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(String(e.stack ?? e)));

@@ -354,9 +354,19 @@ parte: as capturas não entram no repositório, que continua sem nenhum arquivo 
 
 ### Desempenho
 
-Medido com `G.perf.draw` (média de 240 quadros) nos 40 enquadramentos das capturas, num Chromium sem janela com WebGL
-por software. Primeira medição (0.9.1 e 0.9.2 em horas diferentes): todos os mapas continuam entre 0,7 e 3,5 ms por
-quadro na 0.9.2 (antes 0,8 a 3,95 ms); nenhum enquadramento passou de 4 ms.
+Medido com `G.perf.draw` (média de 240 quadros) nos 40 enquadramentos das capturas, a 0.9.1 (commit `d6c6e4f`) e a
+0.9.2 rodadas uma logo depois da outra, num Chromium sem janela com WebGL por software:
+
+| | 0.9.1 | 0.9.2 |
+|---|---|---|
+| média dos 40 enquadramentos | 1,92 ms | 1,98 ms |
+| pior enquadramento (média) | 3,54 ms | 3,44 ms |
+| pior p95 | 5,4 ms | 5,0 ms |
+
+O maior aumento foi nas ruínas de dia (2,88 → 3,44 ms) e na Travessia, perto do santuário (2,71 → 3,26 ms): as marcas
+no chão custam nada (vão para o chão uma vez), o custo vem dos objetos de pé e das partículas a mais. Todos os mapas
+continuam entre 0,7 e 3,5 ms. Uma medição anterior, com as duas versões em horas diferentes, deu a 0.9.2 15% mais
+rápida, o que mostra o tamanho do ruído entre rodadas.
 
 ### O que ficou de fora
 
