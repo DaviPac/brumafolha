@@ -386,7 +386,12 @@ rápida, o que mostra o tamanho do ruído entre rodadas.
 - `refino`: a decoração não ocupa o lugar de ninguém, não separa áreas, não entra nos ids e sai igual a cada montagem;
   cada examinável e cada canto novo é visitado, com a experiência dada uma vez só.
 - `PW_CHROMIUM=/caminho/do/chrome npm test` usa um Chromium já instalado quando a versão do Playwright não acha o
-  seu.
+  seu. Os testes respondem vazio ao pedido do favicon (o service worker, que os desenha, fica bloqueado nos testes): sem
+  isso, um Chromium mais novo acusava o 404 como erro de página, na 0.9.1 também.
+- Numa máquina lenta (4 núcleos, WebGL por software) `chapter2` e `story` passam dos 600 s por arquivo do `npm test`
+  e são cancelados no meio, sem falhar. Com `--test-timeout=3600000` os dois passam inteiros.
+- Achado pelos testes: a viagem de barco do fim do prólogo (52 s de jogo) continuava rodando depois da chegada a
+  Vau-de-Cardo, e enquanto isso o jogo não deixava salvar. Agora ela termina quando o Ato I começa.
 
 ## Interface
 
