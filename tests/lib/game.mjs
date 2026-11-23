@@ -100,7 +100,12 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
     } else calm = 0;
     await sleep(150);
   }
-  throw new Error(`tempo esgotado jogando (modo ${await page.evaluate(() => window.G.mode)})`);
+  // say what the game was still waiting on, so a timeout can be told apart from a slow machine
+  const why = await page.evaluate(async () => {
+    const S = await import("/src/story.js"), d = document.querySelector("#dialogue");
+    return JSON.stringify({ modo: window.G.mode, cena: S.inScene(), ocupada: S.storyBusy(), dialogo: !d.classList.contains("hidden"), texto: d.querySelector(".text")?.textContent?.slice(0, 80), mapa: window.G.W?.id, combate: !!window.G.combat?.busy });
+  });
+  throw new Error(`tempo esgotado jogando: ${why}`);
 }
 
 /** Put the party's leader on a tile (as if it had walked there) and let the story's per-frame checks see it. */
