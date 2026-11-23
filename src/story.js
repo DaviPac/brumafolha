@@ -43,6 +43,9 @@ export function init(engine) {
 const tweens = [], timers = [];
 let soonN = 0;
 const tween = (sec, fn, name) => new Promise((res) => tweens.push({ t: 0, sec, fn, res, name }));
+/** Leaving the prologue: whatever is still moving there (the boat going down the river) ends now. Left running, it went
+ * on over a map nobody sees, and kept Vau-de-Cardo from being saved until it was done (storyBusy: "uma animação"). */
+function finishTweens() { for (const tw of tweens.splice(0)) { tw.fn(1); tw.res(); } }
 const later = (sec, fn, kind) => timers.push({ t: sec, fn, kind });
 // G.audit (tests/audit.test.mjs only): the conversations are walked without playing them, so "soon" is now and
 // scenes don't run
@@ -1473,7 +1476,7 @@ function endScreen() {
     <p class="muted">Nível ${G.hero.level} · ${G.gold} peças de ouro</p>
     <div class="row"><button class="go" data-default id="toAct1">Continuar: Ato I</button><button class="quiet" onclick="location.reload()">Jogar de novo</button></div></div>`;
   el.classList.remove("hidden");
-  el.querySelector("#toAct1").onclick = () => A1.begin();
+  el.querySelector("#toAct1").onclick = () => { finishTweens(); A1.begin(); };
   UI.fade(0, 1200);
 }
 
