@@ -28,7 +28,7 @@ const groups = {
   "Flecha": [["armar o arco", () => sfx.bowDraw()], ["disparo", () => sfx.cast("arrow")], ["impacto", () => sfx.impact("arrow")], ["completo", () => { sfx.bowDraw(); setTimeout(() => { sfx.cast("arrow"); setTimeout(() => sfx.impact("arrow"), 380); }, 560); }]],
   "Corpo": [["goblin cai", () => sfx.enemyDown()], ["aliado cai", () => sfx.partyDown()], ["cura", () => sfx.heal()], ["poção", () => sfx.potion()], ["retomar fôlego", () => sfx.breath()]],
   "Passos": ["grass", "dirt", "stone", "wood", "water"].map((s) => [s, () => [0, 280, 560, 840].forEach((d) => setTimeout(() => sfx.step(s), d))]),
-  "Mundo e interface": [["baú", () => sfx.chest()], ["d20", () => { for (let i = 0; i < 17; i++) setTimeout(() => sfx.dieTick(), i * 60); setTimeout(() => sfx.success(false), 1100); }], ["falha", () => sfx.fail()],
+  "Mundo e interface": [["baú", () => sfx.chest()], ["porta", () => sfx.door()], ["d20", () => { for (let i = 0; i < 17; i++) setTimeout(() => sfx.dieTick(), i * 60); setTimeout(() => sfx.success(false), 1100); }], ["falha", () => sfx.fail()],
     ["início do combate", () => sfx.combatStart()], ["seu turno", () => sfx.turn()], ["clique", () => sfx.click()], ["descanso", () => sfx.rest()], ["nível", () => sfx.levelUp()], ["vitória", () => sfx.victory()], ["derrota", () => sfx.defeat()]],
   "Música": [["campos", () => playMusic("meadow")], ["ruínas", () => playMusic("ruins")], ["combate", () => playMusic("combat", 0.4)], ["parar", () => playMusic(null)]],
 };

@@ -5,10 +5,22 @@
 // moment (see src/update.js). Players see the notes of what changed the first time they open the new version.
 // No DOM here: the service worker imports it too.
 
-export const VERSION = "0.9.1";
+export const VERSION = "0.9.2";
 
 /** Newest first. { version, date: "AAAA-MM-DD", title, items: [html] } */
 export const NOTES = [
+  {
+    version: "0.9.2", date: "2026-11-22", title: "O vale mais vivo",
+    items: [
+      "A <b>hora do dia</b> aparece de verdade: a madrugada é fria e pálida, o fim de tarde é dourado, a noite é azul, e o lago escurece junto. A Bruma toma a cor da hora e pega a luz das fogueiras e dos lampiões.",
+      "O <b>Relicário</b> ficou escuro e frio, iluminado pelos braseiros de Velmoor. O <b>claustro</b> do Mosteiro ficou na penumbra, com poças de luz das velas e da lareira.",
+      "Os lugares parecem habitados: pedrinhas, folhas caídas, flores, poças, musgo entre as pedras, cestos, sacos, vasos, tocos e cogumelos. Fagulhas sobem das fogueiras, há pólen de dia e vaga-lumes só ao entardecer e de noite.",
+      "O vau da Travessia tem correnteza e pedras para pisar, e a borda entre o capim seco e a grama não é mais uma linha reta.",
+      "Quem está parado pisca, olha em volta e se vira para você quando você chega perto.",
+      "Oito coisas novas para examinar, e dois cantos fora da trilha no prólogo para quem gosta de andar: um banco virado para o lago e um muro de nomes nas ruínas.",
+      "Som de porta no claustro, passos de pedra no calçamento, e poeira no chão a cada golpe no combate.",
+    ],
+  },
   {
     version: "0.9.1", date: "2026-11-18", title: "Revisão da história",
     items: [

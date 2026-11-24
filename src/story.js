@@ -43,6 +43,9 @@ export function init(engine) {
 const tweens = [], timers = [];
 let soonN = 0;
 const tween = (sec, fn, name) => new Promise((res) => tweens.push({ t: 0, sec, fn, res, name }));
+/** Leaving the prologue: whatever is still moving there (the boat going down the river) ends now. Left running, it went
+ * on over a map nobody sees, and kept Vau-de-Cardo from being saved until it was done (storyBusy: "uma animação"). */
+function finishTweens() { for (const tw of tweens.splice(0)) { tw.fn(1); tw.res(); } }
 const later = (sec, fn, kind) => timers.push({ t: sec, fn, kind });
 // G.audit (tests/audit.test.mjs only): the conversations are walked without playing them, so "soon" is now and
 // scenes don't run
@@ -1473,7 +1476,7 @@ function endScreen() {
     <p class="muted">Nível ${G.hero.level} · ${G.gold} peças de ouro</p>
     <div class="row"><button class="go" data-default id="toAct1">Continuar: Ato I</button><button class="quiet" onclick="location.reload()">Jogar de novo</button></div></div>`;
   el.classList.remove("hidden");
-  el.querySelector("#toAct1").onclick = () => A1.begin();
+  el.querySelector("#toAct1").onclick = () => { finishTweens(); A1.begin(); };
   UI.fade(0, 1200);
 }
 
@@ -1495,6 +1498,11 @@ export function interactables() {
       const mk = E.obj("marker");
       out.push({ x: mk.x, y: mk.y, name: "Marco de pedra", r: 14, act: markerStone });
     }
+    if (!F.escape) {
+      // two corners off the trail, for whoever wanders (0.9.2)
+      at(48, 13, "Banco virado para o lago", lakeBench, { h: 20, reach: 44 });
+      at(29, 5, "Muro com nomes riscados", namesWall, { h: 40, reach: 48 });
+    }
     if (F.trapdoor_open && !F.escape) at(24, 11, "Alçapão (descer)", trapdoorUse, { h: 24 });
     else if (!F.escape && (F.ruins_entered || F.tome_told)) at(24, 11, "Coluna partida", columnLook, { h: 60 });
   }
@@ -1507,9 +1515,26 @@ export function interactables() {
       const o = E.obj(id);
       out.push({ x: o.x, y: o.y, name: o.lit ? "Estátua (Lume acesa)" : "Estátua de uma arquivista", r: 16, h: 50, act: () => statueTalk(id), reach: 58 });
     }
+    at(6, 20, "Braseiro de Velmoor", () => say(null, "Uma chama fria numa tigela de mármore. Não aquece a mão, não tem lenha, não faz fumaça. Queima porque alguém, há muito tempo, mandou que ela lembrasse de queimar."), { h: 40, reach: 52 });
     if (!F.door_open) at(11, 9, "Porta selada", () => say(null, `Uma porta de mármore sem maçaneta, com três encaixes redondos. ${litCount()} de 3 brilham.`), { h: 56, reach: 60 });
   }
   return out;
+}
+
+// the corners off the trail (0.9.2): a look, and a little experience the first time
+async function lakeBench() {
+  await scene(async () => {
+    await say(null, "Um banco de tábua velha, de frente para o lago, largo para duas pessoas. A madeira do lado esquerdo está mais gasta que a do direito.");
+    await say(null, "Daqui, na água parada, as ruínas do norte aparecem inteiras: torres brancas, telhados, uma ponte. Lá em cima, no morro, só há pedra quebrada.");
+    if (!F.x_bench) { F.x_bench = true; reward(25, "O lago lembra"); }
+  });
+}
+async function namesWall() {
+  await scene(async () => {
+    await say(null, "Nomes riscados a faca na pedra, uns por cima dos outros. Os de baixo já não dá para ler. Alguém escreveu o próprio nome três vezes, cada vez mais fundo.");
+    if (F.clan === "truce" || F.goblin_pact) await say(null, "Por cima de tudo, em letra torta de criança goblin, um nome novo. A pedra ainda está branca em volta dele.");
+    if (!F.x_names) { F.x_names = true; reward(25, "Quem escreve, fica"); }
+  });
 }
 
 // ---------------------------------------------------------------- per-frame story logic

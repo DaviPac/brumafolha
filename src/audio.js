@@ -605,6 +605,12 @@ def("menuHover", "ui", (t, i = 0) => I.pluck(t, [71, 74, 76, 78, 81][i % 5], 0.1
 def("menuConfirm", "ui", (t) => { [71, 74, 78, 83].forEach((m, i) => I.pluck(t + i * 0.055, m, 0.2, 0.42, OUT)); I.bell(t + 0.2, 83, 0.25, OUT, 0.7); });
 def("menuBack", "ui", (t) => { I.pluck(t, 74, 0.15, 0.35, OUT); I.pluck(t + 0.08, 69, 0.2, 0.3, OUT); });
 def("talk", "ui", (t) => I.pluck(t, 69, 0.2, 0.4, OUT));
+def("door", "world", (t) => { // an iron latch, old hinges complaining, the door meeting its frame
+  metal(t, shuffle([1180, 2350, 3420]), [0.08, 0.05, 0.035], 0.05, { wet: 0.25 });
+  noise(t + 0.07, 0.42, 0.07, { f: 520, f2: 980, q: 9, attack: 0.12, wet: 0.2 });
+  noise(t + 0.12, 0.3, 0.04, { f: 1400, f2: 1100, q: 12, attack: 0.08 });
+  thud(t + 0.5, 0.45, 0.8);
+});
 def("bells", "world", (t) => { [[0, 74, 0.35], [0.9, 69, 0.25], [1.7, 77, 0.2], [3.1, 72, 0.18]].forEach(([d, m, v]) => I.bell(t + d, m, v, OUT, 0.95)); });
 def("rest", "jingles", (t) => { duck(0.3, 2.5); [62, 66, 69, 74].forEach((m, i) => I.bell(t + i * 0.18, m, 0.7, OUT)); I.pad(t, [50, 57, 62, 66], 1.6, 1.2, OUT, 1400); });
 def("victory", "jingles", (t) => {

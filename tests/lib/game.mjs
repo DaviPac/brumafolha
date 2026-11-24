@@ -7,8 +7,10 @@ import path from "node:path";
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const SAVES = path.join(ROOT, "tests/saves");
 
+/** PW_CHROMIUM=/path/to/chrome uses a browser other than the one this Playwright version downloads (a machine with
+ * another version preinstalled). */
 export async function launch() {
-  return chromium.launch({ headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
+  return chromium.launch({ headless: true, ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}), args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
 }
 
 /**
@@ -26,6 +28,9 @@ export async function newPage(browser, { seed = 7, context = null, notes = false
     // the menu's long opening and the "what's new" window are for people, not for scripts
     try { localStorage.setItem("brumafolha.opening", "1"); if (!notes && !localStorage.getItem("brumafolha.version")) localStorage.setItem("brumafolha.version", "999.0.0"); } catch { /* */ }
   }, [seed, notes, dice]);
+  // the app's icons are drawn by the service worker, which these tests block: an empty answer instead of a 404 that
+  // newer Chromiums report as a console error when they ask for the favicon
+  await ctx.route(/\/icons\/[^/]+\.png$/, (r) => r.fulfill({ status: 204, body: "" }));
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(String(e.stack ?? e)));
@@ -95,7 +100,12 @@ export async function play(page, picks = [], { until = ["explore"], timeout = 90
     } else calm = 0;
     await sleep(150);
   }
-  throw new Error(`tempo esgotado jogando (modo ${await page.evaluate(() => window.G.mode)})`);
+  // say what the game was still waiting on, so a timeout can be told apart from a slow machine
+  const why = await page.evaluate(async () => {
+    const S = await import("/src/story.js"), d = document.querySelector("#dialogue");
+    return JSON.stringify({ modo: window.G.mode, cena: S.inScene(), ocupada: S.storyBusy(), dialogo: !d.classList.contains("hidden"), texto: d.querySelector(".text")?.textContent?.slice(0, 80), mapa: window.G.W?.id, combate: !!window.G.combat?.busy });
+  });
+  throw new Error(`tempo esgotado jogando: ${why}`);
 }
 
 /** Put the party's leader on a tile (as if it had walked there) and let the story's per-frame checks see it. */

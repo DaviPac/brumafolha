@@ -15,7 +15,7 @@ const fnName = new Map(), fnByName = new Map();
 const warned = new Set();
 
 /** Fields of a unit that are never saved: the art (rebuilt from the spec), animation state, callbacks of the moment. */
-const SKIP = new Set(["ch", "portrait", "onArrive", "_sx", "_sy", "_stepAcc", "animT", "flashT", "lunge", "knock", "alert", "art", "fxe", "pose", "poseT"]);
+const SKIP = new Set(["ch", "portrait", "onArrive", "_sx", "_sy", "_stepAcc", "animT", "flashT", "lunge", "knock", "alert", "art", "fxe", "pose", "poseT", "face", "lookT", "blinkPh"]);
 
 let dynSeq = 0;
 export const ids = {

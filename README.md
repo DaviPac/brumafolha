@@ -294,6 +294,105 @@ O que ficou de fora:
 o equilíbrio das CDs não foi revisto, e as cenas com `ask()` não passam pela auditoria automática de rolagens (cada
 uma é uma cena que só acontece uma vez, o que foi conferido lendo).
 
+## Refinamento (0.9.2)
+
+Uma rodada para deixar mais bonito e mais vivo o que já existia (prólogo e capítulos 1 e 2 do Ato I), sem capítulo
+novo. Começou por um diagnóstico: 40 capturas dos 8 mapas, de dia, de noite, de madrugada e à tarde, com uma nota por
+mapa. As piores foram o Relicário (mármore estourado, quase branco), o claustro (creme chapado, paredes como buracos)
+e o pátio do Mosteiro (um campo de pedras vazio). A comparação de antes e depois, captura por captura, foi entregue à
+parte: as capturas não entram no repositório, que continua sem nenhum arquivo de imagem.
+
+### O que mudou
+
+- **Luz** (`src/main.js`, `DAY`, `airNow`): a madrugada é fria e pálida, o fim de tarde dourado e a noite azul. A cor
+  da noite multiplica todos os canais abaixo de 1, então o turquesa do lago escurece junto, em vez de brilhar sobre um
+  cais escuro. A Bruma e a névoa fina eram desenhadas por cima da luz e ficavam brancas de noite: agora tomam a cor da
+  hora (perolada no escuro, "brilha de leve à noite", como diz a bíblia) e pegam a luz quente das fogueiras e lampiões
+  perto delas. Fogueiras com raio maior e mais quente.
+- **Interiores** (`src/maps.js`, `src/maps2.js`): o Relicário e o claustro escurecem pela cor ambiente, que só pesa
+  onde não chega luz. Assim as Lumes, as velas e a lareira fazem poças de luz, mesmo numa rampa clara como o reboco.
+- **Bordas na vista 3D**: além da borda de um mapa externo aparece mata escura, não preto.
+- **Decoração** (`src/decor.js`, arte em `src/art/decor.js`): marcas no chão (pedrinhas, folhas sob as árvores,
+  flores, gravetos, poças, musgo no calçamento, palha no mercado, pingos de cera) e coisas pequenas de pé (velas e
+  braseiros de Lume que acendem, vasos com flores, sacos, cestos de maçã ou peixe, tocos, cogumelos, um banco, um
+  marco de estrada, um barril).
+- **Chão**: o capim seco e a grama se encontram numa borda irregular, com transição pontilhada pelo mesmo dither
+  Bayer da arte (`src/art/ground.js`, `src/art/town.js`). O vau da Travessia ganhou borda irregular, correnteza e
+  pedras para pisar.
+- **Partículas** (`drawCritters`): pólen de dia, vaga-lumes só ao entardecer e de noite (antes brilhavam ao meio-dia),
+  fagulhas subindo das fogueiras, poeira na luz das velas do claustro.
+- **Personagens**: um quadro novo por direção, de olhos fechados (`src/art/chars.js`), e cada um pisca no seu ritmo.
+  Quem está parado olha para os lados de vez em quando e se vira para o líder quando ele chega perto.
+- **Coisas para examinar** (8) e **dois cantos fora da trilha** no prólogo, cada um com 25 XP uma vez: o banco virado
+  para o lago (na água parada, as ruínas aparecem inteiras: "o lago lembra do que o mundo esqueceu", como diz Maren) e o
+  muro com nomes riscados nas ruínas. O braseiro do Relicário, a régua de cheia do cais, o marco da estrada raspado, o
+  toco do lenhador, o cesto de folhas do chá de bruma e as velas do dormitório. O velho de Pedra-Alta e a vendedora de
+  Vau-de-Cardo dizem outra coisa depois do vau e depois que a Lume volta para os refugiados.
+- **Sensação**: som de porta ao entrar e sair do claustro, passos de pedra no calçamento (soavam como grama) e, no
+  combate, um anel de poeira no plano do chão a cada golpe, maior e alaranjado no crítico ou quando o alvo cai.
+
+### Decisões
+
+1. **A decoração fica fora de `W.objects`.** Os saves apontam para objetos pela posição na lista (`mapa:oN`), e o teste
+   `ids` compara todas as chaves: um objeto a mais, mesmo no fim da lista, já seria uma chave nova. Então ela mora em
+   `W.decor` e `W.decals`, refeitos igual a cada montagem (semente pelo nome do mapa) e nunca salvos.
+2. **Decoração que bloqueia a casa só entra em casa livre**: ninguém de pé, nada lá, sem estrada ao lado e sem separar
+   os vizinhos dela. `tests/refino.test.mjs` confere em todos os mapas que nenhuma área andável foi cortada em duas (o
+   teste achou um vaso fechando um corredor em Vau-de-Cardo antes da regra existir).
+3. **As marcas no chão não entram no cache do chão.** O vale guardado entre visitas é a pintura pura; as marcas são
+   desenhadas por cima a cada montagem. O código da decoração pode mudar sem invalidar o cache, e o cache não acumula
+   marcas.
+4. **Para onde alguém olha não muda a história.** O olhar dos NPCs é só de desenho (`u.face`). O `u.dir` que a história
+   usa e o save guarda fica como está. `face`, `lookT` e `blinkPh` não vão para o save.
+5. **Sem NPCs novos.** Vau-de-Cardo já tinha moradores de ambientação. Uma unidade nova criaria ids novos nos mapas
+   antigos, então os dois que existiam passaram a reagir às flags.
+6. **Os examináveis são só narração**, sem resposta do herói e sem rolagem: a regra de escrita (§9.1) e a auditoria
+   ficam intactas. Os dois cantos ficam fora das áreas que disparam cenas (o muro de nomes foi movido uma casa para não
+   disparar a cena da brecha leste).
+7. **As rampas da vila, do Mosteiro e da decoração** (`TRAMP`, `ARAMP`, `DRAMP`) entraram na tabela de cores da luz.
+   Antes, as cores da vila e do Mosteiro seguiam "a rampa mais próxima" de outra arte.
+
+### Desempenho
+
+Medido com `G.perf.draw` (média de 240 quadros) nos 40 enquadramentos das capturas, a 0.9.1 (commit `d6c6e4f`) e a
+0.9.2 rodadas uma logo depois da outra, num Chromium sem janela com WebGL por software:
+
+| | 0.9.1 | 0.9.2 |
+|---|---|---|
+| média dos 40 enquadramentos | 1,92 ms | 1,98 ms |
+| pior enquadramento (média) | 3,54 ms | 3,44 ms |
+| pior p95 | 5,4 ms | 5,0 ms |
+
+O maior aumento foi nas ruínas de dia (2,88 → 3,44 ms) e na Travessia, perto do santuário (2,71 → 3,26 ms): as marcas
+no chão custam nada (vão para o chão uma vez), o custo vem dos objetos de pé e das partículas a mais. Todos os mapas
+continuam entre 0,7 e 3,5 ms. Uma medição anterior, com as duas versões em horas diferentes, deu a 0.9.2 15% mais
+rápida, o que mostra o tamanho do ruído entre rodadas.
+
+### O que ficou de fora
+
+- **A árvore plantada sobre um pinheiro nas ruínas** (lado leste): mover qualquer um dos dois muda a posição de um
+  objeto que o save conhece, e o teste `ids` compara posições.
+- **Vento com quadros novos nas copas**: as árvores já balançam em faixas (`drawProp`); quadros novos custariam memória
+  e carregamento.
+- **NPCs que andam**: os testes de save conferem a posição de cada NPC depois de carregar. Uma rotina de andar pediria
+  guardar e restaurar a rotina, o que fica para uma rodada com mudança no formato do save.
+- **As mariposas da Bruma** continuam formas cinza simples; o pátio do Mosteiro ganhou coisas nas bordas, mas o meio
+  continua aberto (é onde a Madre reúne a casa).
+- **Firefox com janela** (`tests/perf-firefox.mjs`) não roda neste ambiente: os números acima são de um Chromium sem
+  janela, bons para comparar, não para prometer quadros por segundo.
+
+### Testes desta rodada
+
+- `refino`: a decoração não ocupa o lugar de ninguém, não separa áreas, não entra nos ids e sai igual a cada montagem;
+  cada examinável e cada canto novo é visitado, com a experiência dada uma vez só.
+- `PW_CHROMIUM=/caminho/do/chrome npm test` usa um Chromium já instalado quando a versão do Playwright não acha o
+  seu. Os testes respondem vazio ao pedido do favicon (o service worker, que os desenha, fica bloqueado nos testes): sem
+  isso, um Chromium mais novo acusava o 404 como erro de página, na 0.9.1 também.
+- Numa máquina lenta (4 núcleos, WebGL por software) `chapter2` e `story` passam dos 600 s por arquivo do `npm test`
+  e são cancelados no meio, sem falhar. Com `--test-timeout=3600000` os dois passam inteiros.
+- Achado pelos testes: a viagem de barco do fim do prólogo (52 s de jogo) continuava rodando depois da chegada a
+  Vau-de-Cardo, e enquanto isso o jogo não deixava salvar. Agora ela termina quando o Ato I começa.
+
 ## Interface
 
 A interface foi refeita com estrutura de Baldur's Gate 3 e acabamento de pixel art:

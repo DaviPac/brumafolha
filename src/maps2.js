@@ -12,7 +12,7 @@ import { IRAMP } from "./art/interiors.js";
 
 const at = (tx, ty, dy = 26) => ({ x: tx * TILE + 16, y: ty * TILE + dy });
 const LAMP = { r: 120, c: [1, 0.78, 0.42], h: 40, flicker: true };
-const CANDLE = { r: 70, c: [1, 0.8, 0.5], h: 18, flicker: true, i: 0.8, shadows: false };
+const CANDLE = { r: 92, c: [1, 0.8, 0.5], h: 18, flicker: true, i: 0.9, shadows: false };
 
 /** Trees, bushes and rocks wherever the map left room. */
 function woods(W, seed, density = 0.45) {
@@ -151,7 +151,7 @@ export function buildClaustro() {
     const tx = x / TILE, ty = y / TILE, inR = (r) => tx >= r[0] && tx < r[2] + 1 && ty >= r[1] && ty < r[3] + 1;
     return ty < 7 ? "Ala do Silêncio" : inR(CLAU.kitchen) ? "Cozinha" : inR(CLAU.dorm) ? "Dormitório dos órfãos" : inR(CLAU.chapel) ? "Capela do Véu" : "Claustro do Véu";
   };
-  W.amb = { level: -1, tint: [1.12, 0.98, 0.84], tintK: 0.45, gain: 1 }; // candlelight, whitewash, no sky
+  W.amb = { level: -2, tint: [0.66, 0.58, 0.56], tintK: 1, gain: 1 }; // whitewash in the half-dark: candles and the hearth light it
   W.floorRamp = IRAMP.warm;
   const put = (o, blocks = []) => { W.objects.push(o); for (const [bx, by] of blocks) W.setBlock(bx, by, true); return o; };
   // the kitchen: the hearth, the kettle of tea that keeps the house calm, tables

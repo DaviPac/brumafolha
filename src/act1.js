@@ -75,8 +75,8 @@ export function populate(W) {
     npc("dario", { key: "dario", name: "Dário Venn, Coletor", tx: 7, ty: 19, dir: 1, talk: () => (tribute(), null) });
     npc("iara", { key: "iara", name: "Iara", tx: 6, ty: 19, dir: 2, talk: iaraTalk });
     npc("beni", { key: "beni", name: "Beni", tx: 5, ty: 20, dir: 2, small: true, talk: () => ({ start: { text: F.iara === "forgot" ? "A mãe tá esquisita. Ela me chamou de \"menino\". Eu tenho nome." : F.iara ? "O moço de capa vermelha foi embora. A mãe ficou rindo sozinha depois. Ela não ria fazia tempo." : "Você tem uma espada de verdade? O moço de capa vermelha tem uma maça. Eu não gosto dele.", options: [{ label: "...", to: "end" }] } }) });
-    npc("refugee", { name: "Velho do norte", tx: 12, ty: 19, dir: 1, talk: () => ({ start: { text: "Eu sou de Pedra-Alta. Ou era. Pergunte a qualquer um aqui onde fica Pedra-Alta. Ninguém sabe. Eu mesmo já não sei desenhar o caminho.", options: [{ label: "...", to: "end" }] } }) });
-    npc("refugee", { name: "Vendedora", tx: 17, ty: 11, dir: 0, talk: () => ({ start: { text: "Nabo, cebola e o que sobrou de uma vida. Não aceito lembrança, só moeda. Já me pagaram com um aniversário uma vez. Não era nem meu.", options: [{ label: "...", to: "end" }] } }) });
+    npc("refugee", { name: "Velho do norte", tx: 12, ty: 19, dir: 1, talk: () => ({ start: { text: F.trav_entered ? "Vocês atravessaram o vau. Viram um moinho torto do outro lado, na subida? Era Pedra-Alta. (ele espera) Não viram. Tudo bem. Eu também não vejo mais." : "Eu sou de Pedra-Alta. Ou era. Pergunte a qualquer um aqui onde fica Pedra-Alta. Ninguém sabe. Eu mesmo já não sei desenhar o caminho.", options: [{ label: "...", to: "end" }] } }) });
+    npc("refugee", { name: "Vendedora", tx: 17, ty: 11, dir: 0, talk: () => ({ start: { text: F.lume_done === "people" ? "A Lume voltou para a fila. Uma avó cantando, quem diria. Hoje eu dei nabo de graça para quem chorou. Uma vez só. Não espalhe." : "Nabo, cebola e o que sobrou de uma vida. Não aceito lembrança, só moeda. Já me pagaram com um aniversário uma vez. Não era nem meu.", options: [{ label: "...", to: "end" }] } }) });
     const nix = E.companion(NIX, "nix", { team: "npc", tx: 24, ty: 11 });
     nix.dir = 0; nix.talk = nixTree; nix.label = "Mulher de capa rubra";
     W.npcs.push(nix); cast.nix = nix;
@@ -859,11 +859,13 @@ export function interactables() {
     at(...VAU.board, "Quadro de avisos", boardLook, { h: 36 });
     at(...VAU.strongbox, "Cofre do comandante", strongbox, { h: 20 });
     at(...VAU.well, "Poço", () => say(null, "No fundo, uma lua pequena e um balde. Alguém riscou nomes na pedra da borda, um por cima do outro: os de quem chegou do norte e quis deixar escrito que chegou."), { h: 30 });
+    at(12, 22, "Régua de cheia", () => say(null, "Uma régua de madeira fincada na água, com riscos de cheia e um ano ao lado de cada um. O último risco não tem ano. Alguém escreveu \"o ano em que a névoa desceu\", e depois riscou por cima."), { h: 30, reach: 52 });
     at(9, 4, "Placa: O Sabiá Cego", () => say(null, "Um sabiá de madeira com uma venda no olho. Embaixo, em letra miúda: \"Aqui ninguém viu nada. Mas todo mundo anotou.\""), { h: 44 });
   }
   if (inCh2()) return CH2.interactables();
   if (W.id === "travessia") {
     at(...TRAV.shrine, "Santuário de Nhara", shrine, { h: 34 });
+    at(8, 13, "Marco da estrada", () => say(null, "Uma pedra de estrada: VAU-DE-CARDO, 1 LÉGUA. Embaixo havia o nome de outra vila, para o norte. Foi raspado. Por cima, a carvão, alguém escreveu: \"era aqui\"."), { h: 30, reach: 48 });
     if (F.ch1_done) at(47, 15, "Trilha pelo sul do bosque (Mosteiro)", () => CH2.begin(), { reach: 70, h: 30 });
     const s = E.obj("satchel");
     if (!s.hidden && !F.satchel) out.push({ x: s.x, y: s.y, name: "Bolsa da mensageira", r: 14, act: satchel });

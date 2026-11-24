@@ -46,10 +46,12 @@ export function paintBase(y0, y1, progress) {
           c = rampAt(PAL.dirt, base * 0.9 + 0.15 - Math.max(0, pf - 10) * 0.03, x, y);
         } else if (sf > 0.35) {
           c = flagstone(x, y, sf);
-        } else if (lush < 0.41) {
-          c = rampAt(PAL.dry, base * 0.85 + 0.1, x, y);
         } else {
-          c = rampAt(PAL.grass, base * 0.8 + (lush - 0.41) * 0.8 - (fbm(x / 70, y / 70, 41, 2) < 0.4 ? 0.18 : 0), x, y);
+          // dry meadow and grass meet in a ragged band, dithered between the two, not along a clean line
+          const e = lush + (vnoise(x / 7, y / 6, 33) - 0.5) * 0.06 + (vnoise(x / 2.5, y / 2.5, 34) - 0.5) * 0.025;
+          const k = (e - 0.4) / 0.04;
+          if (k < 1 && k <= bayer(x, y)) c = rampAt(PAL.dry, base * 0.85 + 0.1 + (k > 0 ? 0.08 : 0), x, y);
+          else c = rampAt(PAL.grass, base * 0.8 + Math.max(0, lush - 0.41) * 0.8 - (k < 1.6 ? 0.12 : 0) - (fbm(x / 70, y / 70, 41, 2) < 0.4 ? 0.18 : 0), x, y);
         }
         // grass overhangs the water as a dark lip
         if (wf < 0.035) c = PAL.bank[wf < 0.018 ? 0 : 1];
